@@ -1,4 +1,4 @@
-"""pytest 全局夹具：临时 SQLite、HTTP 客户端、三种 AST 样例。
+"""pytest 全局夹具：临时 SQLite、HTTP 客户端、三种 AST 样例、样本 PDF。
 
 为什么每个测试都用独立临时库：SQLite 单文件 + WAL，共用同一个文件时上一个测试的
 残留数据会让「计数类」断言随机失败（比如 6 张表建表检查、版本号自增检查）。
@@ -21,6 +21,31 @@ if str(BACKEND_ROOT) not in sys.path:
 from app.config import get_settings, reset_settings_cache  # noqa: E402
 from app.db.session import dispose_engine, init_db  # noqa: E402
 from app.db.vector_store import reset_vector_store  # noqa: E402
+from app.services.agent_engine import reset_agent_engine  # noqa: E402
+from app.services.embedding import reset_embedding_provider  # noqa: E402
+from app.services.llm_client import reset_llm_client  # noqa: E402
+from app.services.retriever import reset_retriever  # noqa: E402
+from app.services.tasks import reset_task_manager  # noqa: E402
+
+# scripts/ 不是包，直接加进 sys.path 让测试可以 import make_sample_pdf
+SCRIPTS_DIR = BACKEND_ROOT / "scripts"
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+
+def _reset_service_singletons() -> None:
+    """清掉所有进程级单例。
+
+    必须清：MemoryVectorStore 缓存了 sessionmaker，embedding provider 缓存了 dim，
+    AgentEngine 缓存了 retriever —— 不清就会跨测试复用「绑定在已 dispose 的 engine 上」
+    的对象，表现为随机 `database is closed`。
+    """
+    reset_vector_store()
+    reset_embedding_provider()
+    reset_retriever()
+    reset_agent_engine()
+    reset_llm_client()
+    reset_task_manager()
 
 
 @pytest.fixture()
@@ -33,7 +58,7 @@ async def db_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AsyncIterat
 
     reset_settings_cache()
     await dispose_engine()
-    reset_vector_store()
+    _reset_service_singletons()
 
     await init_db()
 
@@ -41,7 +66,7 @@ async def db_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> AsyncIterat
         yield tmp_path
     finally:
         await dispose_engine()
-        reset_vector_store()
+        _reset_service_singletons()
         reset_settings_cache()
 
 
@@ -236,3 +261,27 @@ def scene_graph_3d_dict() -> dict[str, Any]:
             },
         ],
     }
+
+
+# --------------------------------------------------------------------------- #
+# 样本 PDF（P0-03 / P0-04 的测试基准）
+# --------------------------------------------------------------------------- #
+@pytest.fixture(scope="session")
+def sample_pdf_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """会话级：113 页 / 5 章 / 3 级层级。生成一次全测试复用（约 0.5s）。"""
+    import make_sample_pdf
+
+    target = tmp_path_factory.mktemp("sample") / "sample_textbook.pdf"
+    page_count = make_sample_pdf.build_sample_pdf(target, chapters=5, pages_per_subsection=2)
+    assert page_count >= 100, f"样本页数不足：{page_count}"
+    return target
+
+
+@pytest.fixture(scope="session")
+def small_pdf_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """单章小样本：给不需要百页规模的测试提速。"""
+    import make_sample_pdf
+
+    target = tmp_path_factory.mktemp("sample_small") / "small_textbook.pdf"
+    make_sample_pdf.build_sample_pdf(target, chapters=1, pages_per_subsection=1)
+    return target

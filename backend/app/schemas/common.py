@@ -9,12 +9,24 @@ json.dumps（有的带空格、有的 sort_keys=False、有的 ensure_ascii=True
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
 T = TypeVar("T")
+
+
+def as_utc(value: datetime | None) -> datetime | None:
+    """SQLite 存 ISO 字符串，读回来是 naive；统一按 UTC 补 tzinfo。
+
+    放在 schemas/common.py 而不是 repository：DTO 组装也要用它，
+    而契约层不允许 import db/*（会破坏「schemas 零依赖」的分层）。
+    禁止在业务层做时区换算——两处各自补 tz 会让前端看到相差 8 小时的时间。
+    """
+    if value is None:
+        return None
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
 
 
 def _json_default(value: Any) -> Any:

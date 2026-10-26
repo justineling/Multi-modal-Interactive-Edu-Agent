@@ -20,6 +20,9 @@ from pydantic import BaseModel, ConfigDict
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import __version__
+from app.api import artifacts as artifacts_api
+from app.api import chat_stream as chat_api
+from app.api import workspaces as workspaces_api
 from app.config import get_settings
 from app.db.session import dispose_engine, init_db
 from app.db.vector_store import get_vector_store
@@ -195,5 +198,6 @@ async def health(request: Request) -> ApiResponse[HealthPayload]:
     )
 
 
-# A4 / A5 在此挂载 api/workspaces.py、api/artifacts.py、api/chat_stream.py 的 router。
-# 刻意不提前 import：这些模块尚不存在，提前 import 会让应用起不来。
+app.include_router(workspaces_api.router)
+app.include_router(artifacts_api.router)
+app.include_router(chat_api.router)

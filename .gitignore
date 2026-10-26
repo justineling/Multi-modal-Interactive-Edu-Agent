@@ -37,6 +37,8 @@ yarn-error.log*
 *.db-journal
 data/uploads/
 data/artifacts/
+# 样本教材由 scripts/make_sample_pdf.py 现场生成，不入库（§10 第 5 条）
+backend/data/*.pdf
 uploads/
 logs/
 *.log
