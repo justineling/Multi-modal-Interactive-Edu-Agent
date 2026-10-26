@@ -1,0 +1,26 @@
+# 统一换行符，避免跨平台问题
+# .sh 必须是 LF，否则 Linux/macOS 上报 "bad interpreter: /bin/bash^M"
+*.sh    text eol=lf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# 源码
+*.py    text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.json  text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+*.md    text eol=lf
+*.mermaid text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+
+# 二进制/生成物
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
