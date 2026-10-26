@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>5. 增量补丁与 SSE · 架构设计</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>架构设计</span><span class="sep">/</span>
+      <span class="cur">5. 增量补丁与 SSE</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">5</span>增量补丁与 SSE</h1>
+  <p class="lede">两个协议层设计：怎么只改一处而不动其他（补丁），怎么把生成过程实时推给前端（SSE）。这两块是前后端协作最容易出问题的地方。</p>
+
+  <div class="toc">
+    <div class="toc-h">本篇内容</div>
+    <ol>
+      <li><a href="#patchop">PatchOp 五种操作</a></li>
+      <li><a href="#nodepath">node_path 的语义</a></li>
+      <li><a href="#merge">最容易写错的一点：字段级 merge</a></li>
+      <li><a href="#engine">后端执行器：deepcopy + 定点写入</a></li>
+      <li><a href="#fingerprint">指纹自检：怎么证明"其他没变"</a></li>
+      <li><a href="#lock">乐观锁与并发冲突</a></li>
+      <li><a href="#sse">SSE 八类事件协议</a></li>
+      <li><a href="#parser">前端为什么必须手写解析器</a></li>
+    </ol>
+  </div>
+
+  <h2 id="patchop">PatchOp 五种操作</h2>
+
+  <pre><code><span class="kw">class</span> <span class="fn">PatchOp</span>(BaseModel):
+    op: Literal[<span class="st">"update_node"</span>, <span class="st">"insert_node"</span>, <span class="st">"delete_node"</span>,
+                <span class="st">"replace_subtree"</span>, <span class="st">"focus_camera"</span>]
+    node_path: str          <span class="cm"># JSON Pointer 风格</span>
+    payload: dict | None    <span class="cm"># 局部字段，不是整树</span>
+    reason: str</code></pre>
+
+  <table>
+    <thead><tr><th style="width:150px">op</th><th>node_path 指向</th><th>payload</th><th>前端如何应用</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>update_node</code></td>
+        <td>已存在的元素，如 <code>/slides/2</code></td>
+        <td><strong>局部字段 dict</strong></td>
+        <td><strong>字段级 merge</strong>：<code>{...current, ...payload}</code></td>
+      </tr>
+      <tr>
+        <td><code>insert_node</code></td>
+        <td>父列表 + 插入位，如 <code>/slides/3</code>（插到索引 3 前）</td>
+        <td>完整新节点</td>
+        <td>整体插入</td>
+      </tr>
+      <tr>
+        <td><code>delete_node</code></td>
+        <td>待删元素</td>
+        <td>必须为 <code>null</code></td>
+        <td>整体移除</td>
+      </tr>
+      <tr>
+        <td><code>replace_subtree</code></td>
+        <td>任意单节点路径</td>
+        <td>完整子树</td>
+        <td>整体替换（仅用户明确要求"整块重做"时用）</td>
+      </tr>
+      <tr>
+        <td><code>focus_camera</code></td>
+        <td><code>/camera_tour/{i}</code></td>
+        <td><code>{"preset_name": "..."}</code></td>
+        <td><strong>不写入 spec</strong>，走旁路设置相机</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="nodepath">node_path 的语义</h2>
+
+  <p>路径必须匹配这个正则（在 Pydantic 层强制校验）：</p>
+
+  <pre><code>^/(slides|nodes|steps|camera_tour)(/\d+)?(/(entities)(/\d+)?)?$</code></pre>
+
+  <table>
+    <thead><tr><th style="width:230px">合法路径</th><th>指向</th></tr></thead>
+    <tbody>
+      <tr><td><code>/slides/2</code></td><td>PPT 第 3 页（索引 2）</td></tr>
+      <tr><td><code>/nodes/5</code></td><td>3D 场景第 6 个节点</td></tr>
+      <tr><td><code>/steps/1</code></td><td>2D 动画第 2 个关键帧</td></tr>
+      <tr><td><code>/steps/1/entities/3</code></td><td>第 2 帧里的第 4 个元素</td></tr>
+      <tr><td><code>/camera_tour/0</code></td><td>第 1 个预设机位</td></tr>
+      <tr><td><code>/slides</code></td><td>整个 slides 列表（只能用于 insert/delete 的父层声明）</td></tr>
+    </tbody>
+  </table>
+
+  <p>非法路径（<code>//slides/2</code>、<code>/slides/abc</code>、<code>/slides/-1</code>、超深路径）返回 <code>PATCH_PATH_INVALID</code>。</p>
+
+  <div class="note">
+    <p><strong><code>replace_subtree</code> 只支持单节点路径。</strong>因为 <code>payload</code> 类型是 <code>dict</code>，
+    承载不了整个列表。<code>/slides</code> 这种列表路径会返回 <code>PATCH_PATH_INVALID</code>，
+    提示改用 <code>insert_node</code> + <code>delete_node</code> 组合。</p>
+  </div>
+
+  <h2 id="merge">最容易写错的一点：字段级 merge</h2>
+
+  <div class="danger">
+    <p><strong><code>update_node</code> 的 payload 只包含被修改的字段，必须做字段级 merge。</strong>
+    整体替换会让节点直接崩掉。</p>
+  </div>
+
+  <h3>真实数据长什么样</h3>
+
+  <p>用户点第 3 页追问后，后端返回的 payload 实测只有两个字段：</p>
+
+  <pre><code>{
+  "op": "update_node",
+  "node_path": "/slides/2",
+  "payload": {
+    "bullets": ["4.1.3 公民权条件", "..."],
+    "speaker_notes": "..."
+  }
+}</code></pre>
+
+  <p>而 <code>SlideNode</code> 有 11 个字段。另外 9 个（<code>node_id</code>、<code>layout</code>、<code>title</code>、
+  <code>subtitle</code>、<code>source_ref</code>…）<strong>一个都不带</strong>。</p>
+
+  <h3>写错的后果</h3>
+
+  <pre><code><span class="cm">// ❌ 错误：整体替换</span>
+setAtPath(spec, <span class="st">"/slides/2"</span>, payload)
+<span class="cm">// 结果：{bullets, speaker_notes}  ← layout 变成 undefined</span>
+<span class="cm">//       LAYOUT_REGISTRY[undefined] 拿不到布局 → 渲染器当场崩溃</span>
+
+<span class="cm">// ✅ 正确：字段级 merge</span>
+setAtPath(spec, <span class="st">"/slides/2"</span>, { ...current, ...payload })
+<span class="cm">// 结果：11 个字段都在，只有 bullets 和 speaker_notes 变了</span></code></pre>
+
+  <h3>各 op 的正确语义汇总</h3>
+
+  <table>
+    <thead><tr><th style="width:150px">op</th><th>语义</th></tr></thead>
+    <tbody>
+      <tr><td><code>update_node</code></td><td><strong>merge</strong>（不是替换）</td></tr>
+      <tr><td><code>insert_node</code></td><td>整体插入新节点</td></tr>
+      <tr><td><code>replace_subtree</code></td><td>整体替换</td></tr>
+      <tr><td><code>delete_node</code></td><td>整体移除</td></tr>
+      <tr><td><code>focus_camera</code></td><td>不写 spec，旁路</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="engine">后端执行器：deepcopy + 定点写入</h2>
+
+  <pre><code><span class="kw">def</span> <span class="fn">apply_patch</span>(spec_dict, ops):
+    working = copy.deepcopy(spec_dict)        <span class="cm"># ① 深拷贝</span>
+
+    <span class="kw">for</span> op <span class="kw">in</span> ops:
+        resolve(working, op.node_path)        <span class="cm"># ② 定点写入</span>
+        apply_op(working, op)
+
+    model = parse_spec(working)               <span class="cm"># ③ Pydantic 强校验</span>
+    <span class="kw">if</span> model <span class="kw">is</span> <span class="kw">None</span>:                            <span class="cm"># 失败则整批回滚</span>
+        <span class="kw">raise</span> AppError(CONTRACT_VALIDATION_FAILED)
+
+    <span class="kw">return</span> working, model, changed_paths</code></pre>
+
+  <h3>三条禁止事项</h3>
+
+  <div class="danger">
+    <p><strong>① 禁止 <code>Model(**new_dict)</code> 重建对象。</strong>Pydantic 会规范化字段顺序和数值表示，键序一变，
+    "字节级不变"的断言就挂了。</p>
+    <p style="margin-top:8px"><strong>② 禁止 <code>model_copy(update=...)</code> 后整体 dump。</strong>同上。</p>
+    <p style="margin-top:8px"><strong>③ 禁止"删掉再插回"同位置元素。</strong>键序会变，而且索引会平移。</p>
+  </div>
+
+  <p>正确做法是<strong>在深拷贝出的 dict 上原地定点写入</strong>，保持所有未触及部分的键序和值表示完全不变。</p>
+
+  <h3>整批回滚</h3>
+  <p>
+    所有写入只发生在 <code>working</code>（深拷贝）上。任何一步抛错就丢弃 <code>working</code>，
+    原始 dict 一字不动。所以一批 20 个 op 里第 15 个失败，前 14 个也不会生效。
+  </p>
+
+  <h2 id="fingerprint">指纹自检：怎么证明"其他没变"</h2>
+
+  <p>验收标准是「patch 后 AST 差异仅限被锚定节点的子树，其余节点字节级不变」。
+  怎么自动化验证这个？用<strong>全路径指纹表</strong>：</p>
+
+  <pre><code><span class="kw">def</span> <span class="fn">path_fingerprints</span>(obj, prefix=<span class="st">""</span>) -&gt; dict[str, str]:
+    <span class="cm"># 递归遍历，每个路径生成 sha256</span>
+    <span class="cm"># "/slides/0" → "a3f2..."</span>
+    <span class="cm"># "/slides/0/title" → "b8c1..."</span>
+    <span class="cm"># ...</span>
+
+before = path_fingerprints(original)
+after  = path_fingerprints(patched)
+
+<span class="cm"># 剔除 changed_paths 及其祖先/后代后，两表必须完全相等</span>
+assert without_changed(before, changed_paths) == without_changed(after, changed_paths)</code></pre>
+
+  <h3>三个实现细节</h3>
+
+  <table>
+    <thead><tr><th style="width:190px">细节</th><th>原因</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>序列化用 <code>sort_keys=True</code></td>
+        <td>否则同样的 dict 因插入顺序不同会算出不同指纹</td>
+      </tr>
+      <tr>
+        <td>祖先判断必须用 <code>/</code> 边界</td>
+        <td>裸 <code>startswith</code> 会把 <code>/slides/1</code> 当成 <code>/slides/10</code> 的祖先，产生假阳性</td>
+      </tr>
+      <tr>
+        <td>insert/delete 的 changed_paths 声明到<strong>父列表层</strong></td>
+        <td>下标平移会让后续所有兄弟节点的"路径内容"变了。声明到元素层会让断言永远失败</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="warn">
+    <p><strong>指纹只能同语言侧自比较，严禁跨语言比对。</strong>
+    Python <code>json.dumps(1.0)</code> 是 <code>"1.0"</code>，JS <code>JSON.stringify(1.0)</code> 是 <code>"1"</code>。
+    前后端一致性靠字段级对应表 + Pydantic 校验保证，不靠指纹。</p>
+  </div>
+
+  <h3>一条假阳性的教训</h3>
+
+  <p>
+    曾经有一次测试报告"历史版本被后续 patch 改写"，看起来像严重缺陷。实际原因是：
+    测试的 <code>original</code> 取自 SSE 事件（键排序），<code>v1</code> 取自 REST 接口（库内插入序），
+    用<strong>保留键序</strong>的方式比对，纯键序差异被报成了内容改写。
+  </p>
+
+  <div class="note">
+    <p><strong>断言"内容被改写"必须区分「值不等」与「字节表示不等」。</strong>
+    用保留键序的字节比对去断言语义等值 → 假阳性；
+    反过来用 <code>sort_keys</code> 比对去断言"字节级不变" → 漏掉真实键序变化。
+    两种断言各有适用场景，选错方向就会误报或漏报。</p>
+  </div>
+
+  <h2 id="lock">乐观锁与并发冲突</h2>
+
+  <p>两个标签页同时基于 v1 提交补丁，会怎样？</p>
+
+  <pre><code><span class="kw">class</span> <span class="fn">PatchRequest</span>(BaseModel):
+    artifact_id: str
+    base_version: int          <span class="cm"># 客户端认为的当前版本</span>
+    ops: list[PatchOp]         <span class="cm"># 1~20 个</span>
+
+<span class="cm"># 服务端检查：</span>
+<span class="kw">if</span> request.base_version != artifact.version:
+    <span class="kw">raise</span> AppError(PATCH_BASE_VERSION_CONFLICT)   <span class="cm"># HTTP 409</span></code></pre>
+
+  <p>这是"读 → 比 → 写"，理论上两个请求可能同时通过比较。所以还有第二道防线：
+  <code>(artifact_id, version)</code> 的唯一约束。第二个写入会撞约束，捕获 <code>IntegrityError</code>
+  后翻译成同样的 409。</p>
+
+  <div class="note">
+    <p>数据不会坏（约束兜住了），但必须给用户明确提示「画布已被其他操作更新，请刷新」，
+    而不是抛 500。</p>
+  </div>
+
+  <h2 id="sse">SSE 八类事件协议</h2>
+
+  <p>端点：<code>POST /api/chat/stream</code>，<code>Content-Type: text/event-stream</code>。</p>
+
+  <table>
+    <thead><tr><th style="width:160px">event</th><th>触发时机</th><th>关键字段</th></tr></thead>
+    <tbody>
+      <tr><td><code>turn_start</code></td><td>流开始</td><td><code>turn_id</code> / <code>demo_mode</code> / <code>has_anchor</code> / <code>mode</code></td></tr>
+      <tr><td><code>retrieval</code></td><td>检索与评估完成</td><td><code>grader_status</code> / <code>section_scope</code> / <code>top_score</code> / <code>chunks</code></td></tr>
+      <tr><td><code>token</code></td><td>文本增量（可多次）</td><td><code>delta</code></td></tr>
+      <tr><td><code>modality_decision</code></td><td>路由完成</td><td><code>artifact_type</code> / <code>action</code> / <code>reason</code> / <code>user_override</code></td></tr>
+      <tr><td><code>artifact</code></td><td>AST 就绪</td><td>create：<code>spec</code> + <code>version</code>；patch：<code>ops</code> + <code>base_version</code></td></tr>
+      <tr><td><code>citations</code></td><td>引用汇总</td><td><code>[{label, section_code, page_start, page_end}]</code></td></tr>
+      <tr><td><code>error</code></td><td>任一阶段失败</td><td><code>code</code> / <code>stage</code> / <code>retryable</code> / <code>attempt</code></td></tr>
+      <tr><td><code>turn_end</code></td><td>流结束（<strong>必发</strong>）</td><td><code>duration_ms</code> / <code>ttft_ms</code> / <code>version</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>五条硬规则</h3>
+
+  <ol>
+    <li><code>data:</code> 必须是<strong>单行紧凑 JSON</strong>（无换行）。</li>
+    <li>事件顺序固定：<code>turn_start → retrieval → modality_decision → token* → artifact? → citations → turn_end</code>。</li>
+    <li><code>error</code> 可插入任意位置，但<strong>之后仍必须补发 <code>turn_end</code></strong>。</li>
+    <li>每 15 秒无事件时发 <code>: ping</code> 注释行保活（防止中间层断开空闲连接）。</li>
+    <li>无 API Key 时 <code>demo_mode: true</code> 必须在 <code>turn_start</code> 和 <code>turn_end</code> 两处都携带。</li>
+  </ol>
+
+  <div class="danger">
+    <p><strong>为什么 <code>turn_end</code> 必发？</strong>前端收到它才会结束"流式态"、解除输入框禁用。
+    如果异常路径漏发，用户界面会永远卡在"生成中"，只能刷新页面。</p>
+  </div>
+
+  <h2 id="parser">前端为什么必须手写解析器</h2>
+
+  <div class="warn">
+    <p><strong>不能用 <code>EventSource</code>。</strong>它不支持 POST 请求，不能带自定义 header，
+    而我们的对话是 POST + JSON body。</p>
+  </div>
+
+  <p>必须用 <code>fetch</code> + <code>ReadableStream</code> 手动解析：</p>
+
+  <pre><code><span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="st">"/api/chat/stream"</span>, {
+  method: <span class="st">"POST"</span>,
+  headers: { <span class="st">"Content-Type"</span>: <span class="st">"application/json"</span> },
+  body: JSON.stringify(payload),
+  signal: abortController.signal,
+});
+
+<span class="kw">const</span> reader = res.body.getReader();
+<span class="kw">const</span> decoder = <span class="kw">new</span> TextDecoder();
+<span class="kw">let</span> buffer = <span class="st">""</span>;
+
+<span class="kw">while</span> (<span class="kw">true</span>) {
+  <span class="kw">const</span> { done, value } = <span class="kw">await</span> reader.read();
+  <span class="kw">if</span> (done) <span class="kw">break</span>;
+
+  buffer += decoder.decode(value, { stream: <span class="kw">true</span> });
+
+  <span class="cm">// 按 \n\n 切事件块，注意最后一块可能不完整，要留在 buffer 里</span>
+  <span class="kw">const</span> blocks = buffer.split(<span class="st">"\n\n"</span>);
+  buffer = blocks.pop() ?? <span class="st">""</span>;
+
+  <span class="kw">for</span> (<span class="kw">const</span> block <span class="kw">of</span> blocks) {
+    <span class="cm">// 解析 event: / data: 行，忽略 ": ping" 注释</span>
+    <span class="cm">// 多个 data: 行要用 \n 拼接（SSE 规范）</span>
+  }
+}</code></pre>
+
+  <h3>五个必须处理的细节</h3>
+
+  <table>
+    <thead><tr><th style="width:200px">细节</th><th>不处理会怎样</th></tr></thead>
+    <tbody>
+      <tr><td>跨 chunk 的半截事件</td><td>网络分片会把一个事件切成两半，JSON.parse 直接抛错</td></tr>
+      <tr><td><code>: ping</code> 注释行</td><td>当成事件解析失败</td></tr>
+      <tr><td>多 <code>data:</code> 行拼接</td><td>后端目前是单行，但按规范必须支持，防御未来变更</td></tr>
+      <tr><td>收到 <code>turn_end</code> 即主动结束</td><td>不依赖服务端关连接，否则服务端不关就一直等</td></tr>
+      <tr><td><code>AbortSignal</code> 取消</td><td>切换工作区或组件卸载时，旧流还在跑，会串到新会话里</td></tr>
+    </tbody>
+  </table>
+
+  <div class="tip">
+    <p><strong>React StrictMode 在开发模式下 effect 会跑两遍。</strong>
+    如果 <code>useChatStream</code> 不做幂等守卫（<code>AbortController</code> + in-flight ref），
+    一次提问会发两条 SSE 请求。这是开发环境专属的坑，生产不会出现，但调试时很困惑。</p>
+  </div>
+
+  <div class="pager">
+    <a href="4. 检索与路由.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">4. 检索与路由</div>
+    </a>
+    <a class="next" href="../04-开发指南/1. 一次提问的完整旅程.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">开发指南 · 1. 一次提问的完整旅程</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

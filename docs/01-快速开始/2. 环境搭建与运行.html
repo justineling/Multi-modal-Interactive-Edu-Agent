@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2. 环境搭建与运行 · 快速开始</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>快速开始</span><span class="sep">/</span>
+      <span class="cur">2. 环境搭建与运行</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">2</span>环境搭建与运行</h1>
+  <p class="lede">从零到看见界面，大约 10 分钟。这一步会遇到的坑我都标出来了——尤其是最后那三个，几乎每个人都会踩一次。</p>
+
+  <div class="toc">
+    <div class="toc-h">本篇内容</div>
+    <ol>
+      <li><a href="#req">前置要求</a></li>
+      <li><a href="#backend">启动后端</a></li>
+      <li><a href="#frontend">启动前端</a></li>
+      <li><a href="#sample">生成样本教材</a></li>
+      <li><a href="#verify">验证清单</a></li>
+      <li><a href="#env">环境变量说明</a></li>
+      <li><a href="#pitfall">三个必踩的坑</a></li>
+    </ol>
+  </div>
+
+  <h2 id="req">前置要求</h2>
+
+  <table>
+    <thead><tr><th style="width:120px">工具</th><th>版本要求</th><th>检查命令</th></tr></thead>
+    <tbody>
+      <tr><td>Python</td><td>3.12 或更高（推荐 3.13）</td><td><code>python --version</code></td></tr>
+      <tr><td>Node.js</td><td>20.19 或更高（推荐 22）</td><td><code>node --version</code></td></tr>
+      <tr><td>Git</td><td>任意近版本</td><td><code>git --version</code></td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <p>不需要安装数据库。<strong>默认用 SQLite</strong>，第一次启动时会自动在 <code>backend/data/app.db</code> 创建文件。
+    也不需要 PostgreSQL、Redis、Docker——这些在生产部署时才涉及。</p>
+  </div>
+
+  <h2 id="backend">启动后端</h2>
+
+  <ol class="steps">
+    <li>
+      <span class="st-title">进入 backend 目录，创建虚拟环境</span>
+      <pre><code>cd backend
+
+<span class="cm"># Windows</span>
+python -m venv .venv
+.venv\Scripts\activate
+
+<span class="cm"># macOS / Linux</span>
+python -m venv .venv
+source .venv/bin/activate</code></pre>
+      <p style="color:var(--text-dim);font-size:13.5px;margin-top:-6px">
+        虚拟环境的作用：把这个项目的依赖装在一个隔离目录里，不影响你电脑上其他 Python 项目。
+        激活后命令行前面会出现 <code>(.venv)</code> 字样。
+      </p>
+    </li>
+
+    <li>
+      <span class="st-title">安装依赖</span>
+      <pre><code>pip install -r requirements.txt</code></pre>
+      <p style="color:var(--text-dim);font-size:13.5px;margin-top:-6px">
+        大约 20 个包，主要是 FastAPI、SQLAlchemy、PyMuPDF。首次安装约 1~2 分钟。
+      </p>
+    </li>
+
+    <li>
+      <span class="st-title">复制环境变量模板</span>
+      <pre><code><span class="cm"># Windows</span>
+copy .env.example .env
+
+<span class="cm"># macOS / Linux</span>
+cp .env.example .env</code></pre>
+      <div class="tip">
+        <p><strong>可以先不填任何 Key。</strong>留空 <code>LLM_API_KEY</code> 会进入<strong>演示模式</strong>，
+        用内置的确定性生成器跑通全链路。界面顶部会有黄色标识提示。想接真实模型再填。</p>
+      </div>
+    </li>
+
+    <li>
+      <span class="st-title">启动服务</span>
+      <pre><code>uvicorn app.main:app --reload --port 8000</code></pre>
+      <p style="color:var(--text-dim);font-size:13.5px;margin-top:-6px">
+        <code>--reload</code> 表示改代码自动重启（开发时用，生产不要用）。
+      </p>
+    </li>
+  </ol>
+
+  <p>看到这样的输出就成功了：</p>
+  <pre><code>INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Application startup complete.</code></pre>
+
+  <p>立刻验证一下：浏览器打开 <code>http://127.0.0.1:8000/api/health</code>，应该返回：</p>
+
+  <pre><code>{
+  "code": "OK",
+  "data": {
+    "demo_mode": true,
+    "app_version": "0.1.0",
+    "database_backend": "sqlite+aiosqlite",
+    "embedding_mode": "local",
+    "vector_store": "MemoryVectorStore",
+    "artifact_types": ["ppt", "anim_2d", "scene_3d"]
+  }
+}</code></pre>
+
+  <p><code>demo_mode: true</code> 说明当前是演示模式（没配 Key），这是正常的。</p>
+
+  <h2 id="frontend">启动前端</h2>
+
+  <p>新开一个终端窗口（后端那个别关）：</p>
+
+  <pre><code>cd frontend
+npm install
+npm run dev</code></pre>
+
+  <p>输出里会有一行：</p>
+  <pre><code>  ➜  Local:   http://localhost:5173/</code></pre>
+
+  <div class="warn">
+    <p><strong>必须用 <code>localhost</code>，不要用 <code>127.0.0.1</code>。</strong>
+    Vite 默认绑定 IPv6 的 <code>::1</code>，用 <code>127.0.0.1:5173</code> 访问会被拒绝连接。
+    这是本项目最高频的"启动失败"原因。</p>
+  </div>
+
+  <p>打开 <code>http://localhost:5173</code>，应该看到左右两栏：左边对话区（顶部是文件区），右边画布区（空态会显示三个示例问句）。</p>
+
+  <h2 id="sample">生成样本教材</h2>
+
+  <p>项目自带一个脚本，能生成一份 113 页的模拟 KSSM 历史教材，用于演示和测试：</p>
+
+  <pre><code>cd backend
+python scripts/make_sample_pdf.py</code></pre>
+
+  <p>输出：</p>
+  <pre><code>已生成 .../backend/data/sample_textbook.pdf（113 页）</code></pre>
+
+  <p>这份样本的章节结构是刻意做复杂的——<strong>3 级层级、5 章、15 节、45 小节、65 个目录节点</strong>。
+这是为了验证解析器真的能识别多层章节号（<code>Chapter 4</code> → <code>4.1</code> → <code>4.1.2</code>），
+而不是只能处理简单结构。</p>
+
+  <div class="note">
+    <p>内容是基于公开历史常识改写的，不涉及真实教材版权。真实教材请自行上传。</p>
+  </div>
+
+  <h2 id="verify">验证清单</h2>
+
+  <p>跑完上面步骤，逐条对一下，全绿说明环境没问题：</p>
+
+  <table>
+    <thead><tr><th style="width:40px">#</th><th>检查项</th><th>预期</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>GET /api/health</code></td><td><code>code: "OK"</code>，<code>demo_mode: true</code></td></tr>
+      <tr><td>2</td><td><code>GET /docs</code></td><td>看到 FastAPI 自动生成的 API 文档，21 个端点</td></tr>
+      <tr><td>3</td><td>前端首页</td><td>左右双栏，右栏显示空态示例问句</td></tr>
+      <tr><td>4</td><td>上传样本 PDF</td><td>进度条 → 几秒内变成目录树，可折叠</td></tr>
+      <tr><td>5</td><td>点目录树「4.1」</td><td>输入框自动填入「学习 4.1」</td></tr>
+      <tr><td>6</td><td>发送后</td><td>左边流式出文字，右边出现 6 页 PPT</td></tr>
+      <tr><td>7</td><td>点 PPT 第 3 页</td><td>输入框上方出现锚点标签，提示"只更新该节点"</td></tr>
+      <tr><td>8</td><td>带锚点追问</td><td>只有第 3 页变化，其他页不动，版本号 +1</td></tr>
+    </tbody>
+  </table>
+
+  <h3>跑自动化测试（可选但推荐）</h3>
+
+  <pre><code><span class="cm"># 后端 240 个用例，约 30 秒</span>
+cd backend
+.venv\Scripts\python.exe -m pytest tests -q
+
+<span class="cm"># 前端 153 个用例，约 3 秒</span>
+cd frontend
+npm test
+
+<span class="cm"># 端到端冒烟（需先启动后端在 8123 端口）</span>
+cd backend
+.venv\Scripts\python.exe -m uvicorn app.main:app --port 8123
+python ../scripts/e2e_smoke.py</code></pre>
+
+  <h2 id="env">环境变量说明</h2>
+
+  <p>全部在 <code>backend/.env</code> 里配置，默认值见 <code>backend/app/config.py</code>：</p>
+
+  <table>
+    <thead><tr><th style="width:210px">变量</th><th style="width:150px">默认值</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>DATABASE_URL</code></td><td><code>sqlite+aiosqlite:///./data/app.db</code></td><td>换成 <code>postgresql+asyncpg://...</code> 即切换 PostgreSQL + pgvector</td></tr>
+      <tr><td><code>LLM_BASE_URL</code></td><td><code>https://api.openai.com/v1</code></td><td>任何 OpenAI 兼容端点（DeepSeek、通义、本地 vLLM 都行）</td></tr>
+      <tr><td><code>LLM_API_KEY</code></td><td>空</td><td><strong>留空 = 演示模式</strong>，全链路仍可跑通</td></tr>
+      <tr><td><code>LLM_MODEL_ROUTER</code></td><td><code>gpt-4o-mini</code></td><td>轻量任务：路由、相关性评估、普通答疑</td></tr>
+      <tr><td><code>LLM_MODEL_GENERATOR</code></td><td><code>gpt-4o</code></td><td>复杂任务：JSON AST 生成、超纲深度推理</td></tr>
+      <tr><td><code>GRADER_CONTENT_HIT_MIN_RATIO</code></td><td><code>0.45</code></td><td>实词命中率门槛，低于它判「课本未覆盖」。<strong>换教材要重标</strong></td></tr>
+      <tr><td><code>RETRIEVAL_TOP_K</code></td><td><code>8</code></td><td>检索返回的候选切片数</td></tr>
+      <tr><td><code>MAX_UPLOAD_MB</code></td><td><code>50</code></td><td>上传体积上限</td></tr>
+      <tr><td><code>MAX_PDF_PAGES</code></td><td><code>600</code></td><td>单份 PDF 页数上限</td></tr>
+      <tr><td><code>ARTIFACT_VERSION_KEEP</code></td><td><code>20</code></td><td>每个产物保留的历史版本数，超出后旧版本只读不可 patch</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <p><strong>为什么模型要分两个？</strong>因为成本差 10 倍以上。路由、评估这类任务用大模型是浪费；
+    但生成 JSON AST 用太小的模型会频繁校验失败。分层路由能把单次学习会话成本压到几美分。</p>
+  </div>
+
+  <h2 id="pitfall">三个必踩的坑</h2>
+
+  <h3>坑一：<code>127.0.0.1:5173</code> 打不开</h3>
+  <p>
+    Vite 绑的是 IPv6 的 <code>::1</code>。用 <code>http://localhost:5173</code>。
+    如果你在写自动化脚本，<code>curl 127.0.0.1:5173</code> 会失败，要用 <code>curl localhost:5173</code>。
+  </p>
+
+  <h3>坑二：<code>npm run build</code> 报 <code>SAFE_DELETE_BULK_CONFIRM_REQUIRED</code></h3>
+  <p>
+    这是构建工具清理旧 <code>dist</code> 目录时被安全守卫拦了（文件数超过阈值）。
+    <strong>不是代码问题</strong>。手动删掉 <code>frontend/dist</code> 再跑一次即可：
+  </p>
+  <pre><code><span class="cm"># Windows PowerShell</span>
+Remove-Item -Path frontend\dist -Recurse -Force
+
+<span class="cm"># 然后重新构建</span>
+cd frontend; npm run build</code></pre>
+
+  <h3>坑三：端口被占用</h3>
+  <p>
+    <code>ERROR: [Errno 10048] error while attempting to bind on address</code>——说明 8000 端口有别的程序在用。
+    换个端口：<code>uvicorn app.main:app --reload --port 8001</code>，
+    同时改 <code>frontend/vite.config.ts</code> 里的代理目标。
+  </p>
+
+  <h3>附加：数据"丢了"</h3>
+  <p>
+    SQLite 的相对路径锚定在 <code>backend/</code> 目录。
+    如果你有时用 <code>uvicorn --app-dir backend</code>（工作目录是项目根），有时用 <code>cd backend && uvicorn</code>，
+    两种方式会落到<strong>两个不同的 <code>app.db</code></strong>，表现为"上传过的 PDF 重启后不见了"。
+    <strong>固定用 <code>cd backend</code> 再启动</strong>。
+  </p>
+
+  <div class="pager">
+    <a href="1. 这个项目是什么.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">1. 这个项目是什么</div>
+    </a>
+    <a class="next" href="../02-用户手册/1. 上传你的第一本教材.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">用户手册 · 1. 上传你的第一本教材</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

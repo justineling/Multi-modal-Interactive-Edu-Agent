@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2. 故障排查 · 运维部署</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>运维部署</span><span class="sep">/</span>
+      <span class="cur">2. 故障排查</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">2</span>故障排查</h1>
+  <p class="lede">按症状分类的排查手册。每条都给「怎么确认是这个问题」的具体命令，不靠猜。</p>
+
+  <div class="note">
+    <p><strong>排查通用顺序：</strong>先确认后端活着（<code>/api/health</code>）→ 再用 curl 打一次目标接口
+    → 最后看前端控制台。<strong>先定位是后端问题还是前端问题</strong>，比直接翻代码快十倍。</p>
+  </div>
+
+  <h2>启动类</h2>
+
+  <h3>后端起不来：<code>ModuleNotFoundError</code></h3>
+
+  <p><strong>确认：</strong></p>
+  <pre><code>cd backend
+.venv\Scripts\python.exe -c <span class="st">"import fastapi, sqlalchemy, pymupdf; print('OK')"</span></code></pre>
+
+  <p><strong>如果报错：</strong>依赖没装全。重新装：</p>
+  <pre><code>.venv\Scripts\pip.exe install -r requirements.txt</code></pre>
+
+  <p><strong>如果是 <code>sqlalchemy.ext.asyncio</code> 报 ImportError：</strong>
+  缺 greenlet。SQLAlchemy 2.1 起它不再随主包安装，必须用 <code>sqlalchemy[asyncio]</code>。检查 requirements.txt。</p>
+
+  <h3>后端起不来：<code>Address already in use</code></h3>
+
+  <pre><code><span class="cm"># Windows：看谁占了 8000</span>
+netstat -ano | findstr :8000
+
+<span class="cm"># 杀掉（PID 换成上面查到的）</span>
+taskkill /PID 12345 /F
+
+<span class="cm"># 或者直接换端口</span>
+uvicorn app.main:app --reload --port 8001</code></pre>
+
+  <h3>前端起不来：<code>EADDRINUSE</code></h3>
+  <p>5173 被占。Vite 会自动找下一个端口（5174），看终端输出的实际地址。</p>
+
+  <h3>前端 <code>npm install</code> 报 peer 冲突</h3>
+
+  <p><strong>不要用 <code>--force</code> 或 <code>--legacy-peer-deps</code> 糊过去。</strong>
+  冲突说明版本组合错了。检查这四个包的版本：</p>
+
+  <pre><code>npm ls react react-konva @react-three/fiber tailwindcss</code></pre>
+
+  <table>
+    <thead><tr><th style="width:200px">包</th><th>必须</th><th>错装的后果</th></tr></thead>
+    <tbody>
+      <tr><td><code>@react-three/fiber</code></td><td>v9</td><td>v8 与 React 19 不兼容，3D 整块白屏</td></tr>
+      <tr><td><code>react-konva</code></td><td>v19</td><td>2D 动画渲染失败</td></tr>
+      <tr><td><code>tailwindcss</code></td><td>v3.4</td><td>v4 是 CSS-first 配置，样式全不生效</td></tr>
+      <tr><td><code>katex</code></td><td>0.16 线</td><td>0.19 会与 rehype-katex 冲突，公式字体错位</td></tr>
+    </tbody>
+  </table>
+
+  <h2>上传与解析类</h2>
+
+  <h3>上传后一直 <code>parsing</code>，进度不动</h3>
+
+  <p><strong>确认后端是否还在跑：</strong></p>
+  <pre><code>curl http://127.0.0.1:8000/api/health</code></pre>
+
+  <p><strong>看后端日志有没有异常堆栈。</strong>如果后端进程挂了，解析任务会中断但状态停在 <code>parsing</code>。</p>
+
+  <p><strong>手动查状态：</strong></p>
+  <pre><code>curl http://127.0.0.1:8000/api/documents/{doc_id}/status</code></pre>
+
+  <p>返回 <code>progress: 0</code> 且长时间不变 → 任务没启动。检查 <code>tasks.py</code> 的日志。</p>
+
+  <h3>上传报 <code>PDF_NO_TEXT_LAYER</code></h3>
+
+  <p>扫描版 PDF。验证方法：</p>
+
+  <pre><code>cd backend
+.venv\Scripts\python.exe -c <span class="st">"import pymupdf; d=pymupdf.open('path/to/file.pdf'); print(repr(d[0].get_text()[:100]))"</span></code></pre>
+
+  <p>如果输出是 <code>''</code>（空字符串），确认是扫描版，需要 OCR，当前不支持。</p>
+
+  <h3>目录树只有「Page 1」「Page 2」</h3>
+
+  <p>章节号识别失败。诊断：</p>
+
+  <pre><code>.venv\Scripts\python.exe -c <span class="st">"import pymupdf; d=pymupdf.open('data/sample_textbook.pdf'); [print(p.number, repr(p.get_text()[:80])) for p in d[:5]]"</span></code></pre>
+
+  <p>看真实文本里章节号长什么样，对照 <code>pdf_parser.py</code> 的正则。常见情况：</p>
+
+  <ul>
+    <li>章节标题是图片 → 正则可以匹配但文本里没有 → 无法识别</li>
+    <li>用了罗马数字（<code>Chapter IV</code>）→ 正则需要扩展</li>
+    <li>章节号在页眉/页脚，与标题分离 → 需要调整匹配策略</li>
+  </ul>
+
+  <h2>对话类</h2>
+
+  <h3>前端一直显示"生成中"，输入框不恢复</h3>
+
+  <p><strong>这是 SSE 没收到 <code>turn_end</code>。</strong>用 curl 直接看原始流：</p>
+
+  <pre><code>curl -N -X POST http://127.0.0.1:8000/api/chat/stream \
+  -H <span class="st">"Content-Type: application/json"</span> \
+  -d <span class="st">'{"workspace_id":"xxx","query":"测试","mode":"syllabus_strict"}'</span></code></pre>
+
+  <table>
+    <thead><tr><th style="width:250px">观察结果</th><th>结论</th></tr></thead>
+    <tbody>
+      <tr><td>有 <code>event: turn_end</code></td><td>后端正常，问题在前端解析器或事件分发</td></tr>
+      <tr><td>没有 <code>turn_end</code>，流直接断</td><td>后端异常路径漏发兜底事件，看 <code>chat_stream.py</code></td></tr>
+      <tr><td>完全没有输出</td><td>请求被中间层缓冲，检查 nginx <code>proxy_buffering off</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>什么问题都答"课本未覆盖"</h3>
+
+  <p>三步诊断：</p>
+
+  <ol>
+    <li>
+      <strong>先确认教材解析成功</strong>：<code>GET /api/documents/{id}/chunks?limit=5</code>，
+      有内容说明切片正常。
+    </li>
+    <li>
+      <strong>看检索是否命中</strong>：在 SSE 的 <code>retrieval</code> 事件里看
+      <code>top_score</code> 和 <code>grader_status</code>。
+    </li>
+    <li>
+      <strong>算实词命中率</strong>：
+      <pre><code>.venv\Scripts\python.exe -c <span class="st">"from app.services.text_signals import content_words; print(content_words('你的问句'))"</span></code></pre>
+      如果输出是空集合，说明全是虚词，永远命中不了。
+    </li>
+  </ol>
+
+  <p><strong>如果阈值确实太高</strong>（新教材的实词分布不同），调低 <code>GRADER_CONTENT_HIT_MIN_RATIO</code>。
+  但<strong>必须同时验证无关问题仍被拒绝</strong>，否则会打开误判的口子。</p>
+
+  <h3>无关问题也能得到回答</h3>
+
+  <p>这是更危险的方向（会编造页码）。检查：</p>
+
+  <ul>
+    <li><code>GRADER_CONTENT_HIT_MIN_RATIO</code> 是不是被调太低了</li>
+    <li><code>retriever.py</code> 里的 BM25 归一化是不是用了相对值 <code>bm25 / max(bm25)</code>（那是错的）</li>
+    <li><code>extract_section_code</code> 是不是把裸数字当章节号了（"帮我写 3 首"里的 3）</li>
+  </ul>
+
+  <h2>画布渲染类</h2>
+
+  <h3>画布白屏</h3>
+
+  <p><strong>先看浏览器 Console 的红色报错。</strong>常见几种：</p>
+
+  <table>
+    <thead><tr><th style="width:280px">报错</th><th>原因</th></tr></thead>
+    <tbody>
+      <tr><td><code>Cannot read property 'map' of undefined</code></td><td>某个数组字段是 null，渲染器直接 map 了</td></tr>
+      <tr><td><code>Cannot read property 'x' of undefined</code></td><td>position 不是 3 元组，或字段名写错</td></tr>
+      <tr><td><code>LAYOUT_REGISTRY[layout] is not a function</code></td><td>新布局没在注册表里登记</td></tr>
+      <tr><td><code>R3F: Hooks can only be used within Canvas</code></td><td>3D 组件被渲染在 Canvas 外面</td></tr>
+    </tbody>
+  </table>
+
+  <p>快速定位是哪一页出问题：在 <code>SlideRenderer.tsx</code> 的 map 里加
+  <code>console.log("render slide", i, slide)</code>，看最后一条日志的索引。</p>
+
+  <h3>点画布元素没有锚点 chip</h3>
+
+  <ol>
+    <li>React DevTools 里看 store 的 <code>anchor</code> 是否为 <code>null</code></li>
+    <li>如果是 null → 点击事件没触发，检查元素上有没有 <code>onClick</code></li>
+    <li>如果不是 null 但 chip 没显示 → <code>AnchorChip</code> 的渲染条件有问题</li>
+  </ol>
+
+  <h3>patch 后整个 PPT 都变了</h3>
+
+  <p><strong>这是最严重的一类 bug</strong>，通常是 <code>update_node</code> 被当成整体替换。</p>
+
+  <p>检查 <code>useArtifactPatch.ts</code>：</p>
+
+  <pre><code><span class="cm">// ❌ 错</span>
+setAtPath(spec, op.node_path, op.payload)
+
+<span class="cm">// ✅ 对</span>
+<span class="kw">const</span> current = resolvePointer(spec, op.node_path);
+setAtPath(spec, op.node_path, { ...current, ...op.payload })</code></pre>
+
+  <h3>3D 场景打不开</h3>
+
+  <p><strong>确认 WebGL 可用：</strong>浏览器打开 <code>chrome://gpu</code>，看 WebGL 是否 Hardware accelerated。</p>
+
+  <p><strong>确认版本：</strong><code>npm ls @react-three/fiber</code> 必须是 9.x。</p>
+
+  <p><strong>确认 three 版本：</strong>必须是 0.186.x，与 fiber v9 配套。</p>
+
+  <h2>性能类</h2>
+
+  <h3>长对话后界面卡顿</h3>
+
+  <p>通常是 <code>appendToken</code> 每次创建新数组导致整树重渲染。检查 store 里是否只替换了目标消息对象：</p>
+
+  <pre><code><span class="cm">// ❌ 每次 map 出新数组，所有消息组件重渲染</span>
+messages: state.messages.map(m =&gt; ...)
+
+<span class="cm">// ✅ 只替换目标，其余保持引用</span>
+messages: state.messages.map(m =&gt;
+  m.id === targetId ? { ...m, content: m.content + delta } : m
+)</code></pre>
+
+  <p>第二版虽然也 map 了，但未命中的对象引用不变，React 会跳过它们的重渲染。</p>
+
+  <h3>2D 动画拖时间轴掉帧</h3>
+
+  <p>检查 Konva 是否分层。一个 Layer 里放几百个元素必然卡。应该拆成背景 / 元素 / 交互三层。</p>
+
+  <h2>数据类</h2>
+
+  <h3>重启后上传的 PDF 不见了</h3>
+
+  <p><strong>SQLite 相对路径锚定问题。</strong>确认两次启动的工作目录是否一致：</p>
+
+  <pre><code><span class="cm"># 这样启动，db 在 backend/data/app.db</span>
+cd backend &amp;&amp; uvicorn app.main:app
+
+<span class="cm"># 这样启动，db 在 ./data/app.db（项目根）—— 是另一个文件！</span>
+uvicorn app.main:app --app-dir backend</code></pre>
+
+  <p><strong>固定一种启动方式。</strong>推荐 <code>cd backend</code> 再启动。</p>
+
+  <p>检查有没有两个 db 文件：</p>
+  <pre><code>dir /s /b app.db</code></pre>
+
+  <h3>刷新后对话没了</h3>
+
+  <p>消息应该落库。检查：</p>
+  <pre><code>curl http://127.0.0.1:8000/api/workspaces/{ws_id}/messages</code></pre>
+
+  <ul>
+    <li>返回空数组 → 消息没落库，检查 <code>agent_engine</code> 的落库逻辑</li>
+    <li>有数据但前端不显示 → <code>useWorkspaceSession</code> 的恢复逻辑有问题</li>
+    <li>切到了别的工作区 → 看 localStorage 里的 <code>currentWorkspaceId</code></li>
+  </ul>
+
+  <h3>版本历史里 v1 内容不对</h3>
+
+  <p>检查是不是<strong>键序差异</strong>而不是内容差异。用 <code>sort_keys</code> 归一后再比对：</p>
+
+  <pre><code>.venv\Scripts\python.exe -c <span class="st">"
+import json, requests
+a = requests.get('http://127.0.0.1:8000/api/artifacts/xxx?version=1').json()['data']['spec']
+print(json.dumps(a, sort_keys=True, ensure_ascii=False)[:200])
+"</span></code></pre>
+
+  <p>如果排序后一致，说明只是序列化顺序不同，内容没坏。</p>
+
+  <h2>还是查不出？</h2>
+
+  <p>按这个顺序收集信息：</p>
+
+  <ol class="steps">
+    <li>
+      <span class="st-title">确认基线是绿的</span>
+      <pre><code>cd backend &amp;&amp; .venv\Scripts\python.exe -m pytest tests -q
+cd ../frontend &amp;&amp; npm test</code></pre>
+      <p>如果测试红了，先修测试——说明某个基础假设被破坏了，不是环境问题。</p>
+    </li>
+    <li>
+      <span class="st-title">跑端到端冒烟</span>
+      <pre><code>cd backend
+.venv\Scripts\python.exe -m uvicorn app.main:app --port 8123
+<span class="cm"># 另一个终端</span>
+.venv\Scripts\python.exe ../scripts/e2e_smoke.py</code></pre>
+      <p>38 项里哪一项 FAIL，就定位到了具体环节。</p>
+    </li>
+    <li>
+      <span class="st-title">抓 turn_id 的完整日志</span>
+      <p>从 <code>turn_start</code> 事件拿到 <code>turn_id</code>，在后端日志里 grep 它，看这一轮走到哪一步断的。</p>
+    </li>
+    <li>
+      <span class="st-title">最小复现</span>
+      <p>用 curl 直接打接口，绕开前端。如果 curl 正常，问题一定在前端。</p>
+    </li>
+  </ol>
+
+  <div class="pager">
+    <a href="1. 部署方案.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">1. 部署方案</div>
+    </a>
+    <a class="next" href="../06-项目档案/1. 需求与验收标准.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">项目档案 · 1. 需求与验收标准</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

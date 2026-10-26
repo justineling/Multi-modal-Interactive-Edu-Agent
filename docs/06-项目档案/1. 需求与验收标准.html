@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1. 需求与验收标准 · 项目档案</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>项目档案</span><span class="sep">/</span>
+      <span class="cur">1. 需求与验收标准</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">1</span>需求与验收标准</h1>
+  <p class="lede">12 条 P0 需求、逐条可测试的验收标准、以及最终验收结论。这份表是判断"做没做完"的唯一依据。</p>
+
+  <div class="toc">
+    <div class="toc-h">本篇内容</div>
+    <ol>
+      <li><a href="#goal">产品目标与非目标</a></li>
+      <li><a href="#p0">12 条 P0 与验收结论</a></li>
+      <li><a href="#stat">验收统计</a></li>
+      <li><a href="#pool">P1 / P2 需求池</a></li>
+      <li><a href="#risk">遗留风险清单</a></li>
+    </ol>
+  </div>
+
+  <h2 id="goal">产品目标与非目标</h2>
+
+  <h3>三个正交目标</h3>
+
+  <table>
+    <thead><tr><th style="width:60px">编号</th><th>目标</th><th>怎么算达成</th></tr></thead>
+    <tbody>
+      <tr><td>G1</td><td><strong>严格锚定教材</strong></td><td>每条事实陈述可追溯到课本页码；无覆盖时明确拒绝而非编造</td></tr>
+      <tr><td>G2</td><td><strong>多形态具象化</strong></td><td>按知识点属性自动选 PPT / 2D / 3D，用户可覆盖</td></tr>
+      <tr><td>G3</td><td><strong>上下文连续迭代</strong></td><td>点画布任意节点追问，只改那一处，历史版本可回看</td></tr>
+    </tbody>
+  </table>
+
+  <h3>与聊天机器人的三条红线</h3>
+
+  <ul>
+    <li><strong>不做通用问答。</strong>课本没有的就明确说没有，不靠模型内建知识兜底（除非用户主动切拓展模式）。</li>
+    <li><strong>不做纯文字输出。</strong>每次回答必须考虑"该用什么形态呈现"。</li>
+    <li><strong>不做一次性生成。</strong>产物必须可被局部修改，不能"重做一遍"。</li>
+  </ul>
+
+  <h2 id="p0">12 条 P0 与验收结论</h2>
+
+  <p>图例：<span class="badge ok">通过</span> 有自动化用例且为绿；
+  <span class="badge warn">部分通过</span> 后端侧通过、前端侧未自动化验；
+  <span class="badge info">前端职责</span> 需真实浏览器，不在后端自动化范围。</p>
+
+  <table>
+    <thead><tr><th style="width:80px">编号</th><th style="width:230px">需求</th><th>关键验收标准</th><th style="width:100px">结论</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>P0-01</strong></td>
+        <td>工作区创建与切换</td>
+        <td>两个 workspace 各传不同 PDF，切换后目录树与历史产物互不串台；刷新后恢复当前工作区；删除后切片不可检索</td>
+        <td><span class="badge ok">通过</span></td>
+      </tr>
+      <tr>
+        <td><strong>P0-02</strong></td>
+        <td>PDF 上传与解析任务</td>
+        <td>≥100 页 60 秒内 ready（实测 0.37s）；非 PDF/加密/0 页返回明确错误码不崩溃；解析中可取消</td>
+        <td><span class="badge ok">通过</span></td>
+      </tr>
+      <tr>
+        <td><strong>P0-03</strong></td>
+        <td>章节号解析与目录树</td>
+        <td>≥100 页教材至少 3 级层级（实测 3 级）；节点数 ≥ 真实章节 90%（实测 65 节点）；点节点可定位页码</td>
+        <td><span class="badge ok">通过</span></td>
+      </tr>
+      <tr>
+        <td><strong>P0-04</strong></td>
+        <td>文本切片与入库</td>
+        <td><code>section_code</code> 命中率 100%（实测 0/65 空值）；页码可回溯；Top-5 检索全同章</td>
+        <td><span class="badge ok">通过</span></td>
+      </tr>
+      <tr>
+        <td><strong>P0-05</strong></td>
+        <td>SSE 流式 + 双模式回答</td>
+        <td>TTFT ≤ 3s（实测 7ms）；严格模式每条事实带页码；拓展模式开头声明且视觉区分；无命中禁止编造页码</td>
+        <td><span class="badge ok">通过</span><br><span style="font-size:12px;color:var(--amber)">修复 2 个缺陷</span></td>
+      </tr>
+      <tr>
+        <td><strong>P0-06</strong></td>
+        <td>Artifact 类型路由</td>
+        <td>10 条预置问句准确率 ≥80%（实测 10/10）；显式指定 100% 遵循；展示选型理由</td>
+        <td><span class="badge ok">通过</span></td>
+      </tr>
+      <tr>
+        <td><strong>P0-07</strong></td>
+        <td>PPT Artifact</td>
+        <td>6 种布局各渲染一次；≥5 页（实测 6 页）；Pydantic 校验通过；不含 HTML/JS 字符串</td>
+        <td><span class="badge warn">部分通过</span><br><span style="font-size:12px">后端全绿，渲染属前端</span></td>
+      </tr>
+      <tr>
+        <td><strong>P0-08</strong></td>
+        <td>2D 推演动画</td>
+        <td>播放/暂停/拖拽/逐帧；3 类语义；关键帧标页码；拖 60 次不掉帧</td>
+        <td><span class="badge warn">部分通过</span><br><span style="font-size:12px">spec 与页码已验证，交互与性能属前端</span></td>
+      </tr>
+      <tr>
+        <td><strong>P0-09</strong></td>
+        <td>3D 空间场景</td>
+        <td>轨道旋转/缩放/复位；≥3 个可点标注点；首帧 ≤5s；可降级</td>
+        <td><span class="badge warn">部分通过</span><br><span style="font-size:12px">spec 已验证，交互属前端</span></td>
+      </tr>
+      <tr>
+        <td><strong>P0-10</strong></td>
+        <td>节点锚点追问 + 增量 patch</td>
+        <td>点击出现锚点 chip；patch 差异仅限目标子树，其余字节级不变（实测仅 <code>/slides/2</code> 变化）；响应 ≤ 全量 50%；可取消锚点</td>
+        <td><span class="badge ok">通过</span></td>
+      </tr>
+      <tr>
+        <td><strong>P0-11</strong></td>
+        <td>Artifact 版本管理</td>
+        <td>连续 3 次 patch 版本 1→2→3→4；历史版本只读可回看；历史不可覆盖</td>
+        <td><span class="badge ok">通过</span></td>
+      </tr>
+      <tr>
+        <td><strong>P0-12</strong></td>
+        <td>Mock 降级模式</td>
+        <td>无 Key 时全链路可跑通；同输入两次 AST 完全一致（跨进程验证）；UI 有演示模式标识</td>
+        <td><span class="badge ok">通过</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="stat">验收统计</h2>
+
+  <table>
+    <thead><tr><th style="width:250px">指标</th><th>数值</th></tr></thead>
+    <tbody>
+      <tr><td>后端自动化用例</td><td><strong>240 passed / 0 failed</strong></td></tr>
+      <tr><td>其中 P0 验收用例</td><td>53 条（QA 独立编写）</td></tr>
+      <tr><td>前端自动化用例</td><td><strong>153 passed / 7 文件</strong></td></tr>
+      <tr><td>端到端冒烟</td><td><strong>38 项全通过</strong></td></tr>
+      <tr><td>发现的真实缺陷</td><td><strong>5 个</strong>（2 个 P0 阻塞 + 2 个 P0 红线 + 1 个 P2），全部已修</td></tr>
+      <tr><td>已撤回的误报</td><td>1 个（P0-11③ 假阳性，见 <a href="2. 踩坑记录.html">踩坑记录</a>）</td></tr>
+      <tr><td>P0 完全通过</td><td>9 / 12</td></tr>
+      <tr><td>P0 部分通过（后端绿、前端未自动化）</td><td>3 / 12（P0-07 / 08 / 09）</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <p><strong>为什么 P0-07/08/09 是"部分通过"而不是"通过"？</strong>
+    它们的验收标准里有一半是前端行为（6 种布局渲染、拖时间轴 60 次不掉帧、3D 轨道旋转）。
+    后端只能验 spec 结构正确、页码标注正确、不含注入。
+    这部分需要真实浏览器 + 人工观察，不在自动化范围内——<strong>这是诚实的边界，不是逃避</strong>。</p>
+  </div>
+
+  <h3>发现的五个真实缺陷</h3>
+
+  <table>
+    <thead><tr><th style="width:50px">#</th><th style="width:100px">级别</th><th>缺陷</th><th>状态</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>1</td><td><span class="badge err">P0 阻塞</span></td>
+        <td>14 条无关问题里 8 条被判「课本有覆盖」，问"怎么做红烧肉"会收到带页码的历史课内容</td>
+        <td><span class="badge ok">已修</span> 实词命中率门槛，误判 0/18、漏判 0/16</td>
+      </tr>
+      <tr>
+        <td>2</td><td><span class="badge err">P0 红线</span></td>
+        <td><code>NO_MATCH</code> 回合仍下发 8 条带页码的 <code>citations</code>，正文说"未覆盖"却列出 p.1-4</td>
+        <td><span class="badge ok">已修</span> 该状态直接返回空数组</td>
+      </tr>
+      <tr>
+        <td>3</td><td><span class="badge warn">P0 红线</span></td>
+        <td>并发 patch 同一产物时抛未处理 <code>IntegrityError</code> → 500，而非 409</td>
+        <td><span class="badge ok">已修</span> 捕获并翻译成冲突码</td>
+      </tr>
+      <tr>
+        <td>4</td><td><span class="badge warn">P0 红线</span></td>
+        <td>改名 txt 上传时 <code>PermissionError</code> 顶替错误码，400 变成 500</td>
+        <td><span class="badge ok">已修</span> PDF 魔数前置校验</td>
+      </tr>
+      <tr>
+        <td>5</td><td><span class="badge info">P2</span></td>
+        <td>损坏 PDF 体检失败后留孤儿文件，磁盘缓慢泄漏</td>
+        <td><span class="badge ok">已修</span> 改为内存体检后再落盘</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="pool">P1 / P2 需求池</h2>
+
+  <h3>P1（下一版优先）</h3>
+
+  <table>
+    <thead><tr><th style="width:80px">编号</th><th>需求</th><th>备注</th></tr></thead>
+    <tbody>
+      <tr><td>P1-01</td><td>PPT 导出 PDF / 图片</td><td>依赖渲染器稳定后再做</td></tr>
+      <tr><td>P1-02</td><td>多文件跨文档对比</td><td>需先有跨文档索引能力</td></tr>
+      <tr><td>P1-03</td><td>学习进度追踪</td><td>需定义掌握度模型</td></tr>
+      <tr><td>P1-04</td><td>错题本</td><td>依赖 P0-07 的测验布局</td></tr>
+      <tr><td>P1-05</td><td>扫描版 PDF 的 OCR</td><td>当前明确拒绝，属最大使用门槛</td></tr>
+    </tbody>
+  </table>
+
+  <h3>P2（远期）</h3>
+
+  <table>
+    <thead><tr><th style="width:80px">编号</th><th>需求</th></tr></thead>
+    <tbody>
+      <tr><td>P2-01</td><td>语音输入提问</td></tr>
+      <tr><td>P2-02</td><td>多人协作（同工作区共同编辑画布）</td></tr>
+      <tr><td>P2-03</td><td>教师端班级看板</td></tr>
+      <tr><td>P2-04</td><td>移动端 / 平板适配</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="risk">遗留风险清单</h2>
+
+  <table>
+    <thead><tr><th style="width:60px">编号</th><th>风险</th><th>缓解</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>R1</strong></td>
+        <td><strong>真实 LLM 路径完全未验证</strong>。所有测试都在演示模式（无 API Key）下跑。真实路径的重试、三次降级、超时模板只有静态审查级信心</td>
+        <td>拿到 Key 后补一条真 Key 冒烟：1 轮对话 + 1 次产物生成 + 1 次 patch，断言 <code>demo_mode: false</code></td>
+      </tr>
+      <tr>
+        <td><strong>R2</strong></td>
+        <td><strong>PostgreSQL 模式未验证</strong>。全部测试跑在 SQLite</td>
+        <td>有 DSN 解析与实现选择的单测，但没实测 PG 下的约束与级联行为</td>
+      </tr>
+      <tr>
+        <td><strong>R3</strong></td>
+        <td><strong>grader 阈值在固定样本上标定</strong>。0.45 基于一份 KSSM 历史教材</td>
+        <td>换语言/学科必须重标，方法见 <a href="../03-架构设计/4. 检索与路由.html#tune">检索与路由</a></td>
+      </tr>
+      <tr>
+        <td><strong>R4</strong></td>
+        <td>P0-06 路由准确率只有单元级证据，未做端到端逐条验证</td>
+        <td>端到端会把"路由准确"与"检索覆盖"混在一起。若验收方要求端到端口径，需先约定"NO_MATCH 回合不计入路由准确率"</td>
+      </tr>
+      <tr>
+        <td><strong>R5</strong></td>
+        <td>取消/断连的时序仍有窗口；SSE 保活 <code>: ping</code> 的实际下发未在真实 uvicorn 下验证</td>
+        <td>测试用慢速假解析器放大窗口，但真实 113 页解析仅 0.37s，用户点取消时大概率已 ready</td>
+      </tr>
+      <tr>
+        <td><strong>R6</strong></td>
+        <td>并发只验了"同 base_version 双请求"，未验并发上传/并发删除</td>
+        <td>已知，风险中等</td>
+      </tr>
+      <tr>
+        <td><strong>R7</strong></td>
+        <td>超长文本的渲染降级未验（后端只有 <code>_clip</code>，spec 层无字段长度上限）</td>
+        <td>依赖前端截断逻辑</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="pager">
+    <a href="../05-运维部署/2. 故障排查.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">运维部署 · 2. 故障排查</div>
+    </a>
+    <a class="next" href="2. 踩坑记录.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">2. 踩坑记录</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

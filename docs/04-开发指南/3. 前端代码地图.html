@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3. 前端代码地图 · 开发指南</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>开发指南</span><span class="sep">/</span>
+      <span class="cur">3. 前端代码地图</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">3</span>前端代码地图</h1>
+  <p class="lede">组件树、数据流向、状态管理，以及三种渲染器的实现要点。前端的核心原则是「单向数据流 + 策略分发」。</p>
+
+  <div class="toc">
+    <div class="toc-h">本篇内容</div>
+    <ol>
+      <li><a href="#tree">组件树</a></li>
+      <li><a href="#flow">数据流向</a></li>
+      <li><a href="#store">Zustand store 结构</a></li>
+      <li><a href="#dirs">目录职责</a></li>
+      <li><a href="#renderers">三种渲染器的实现要点</a></li>
+      <li><a href="#cheat">速查：我想改 X 该去哪</a></li>
+    </ol>
+  </div>
+
+  <h2 id="tree">组件树</h2>
+
+  <pre><code>App.tsx
+└── SplitWorkspace.tsx          <span class="cm">// Allotment 左右分栏容器</span>
+    ├── TopBar.tsx              <span class="cm">// 工作区下拉、模式切换、演示模式黄标</span>
+    ├── ChatPanel.tsx           <span class="cm">// 左栏</span>
+    │   ├── FileDrawer.tsx      <span class="cm">//   文件区（可折叠）</span>
+    │   │   ├── DocumentCard.tsx    <span class="cm">//   单个文件卡片 + 状态</span>
+    │   │   └── TocTree.tsx         <span class="cm">//   目录树</span>
+    │   ├── MessageBubble.tsx   <span class="cm">//   消息气泡</span>
+    │   │   ├── MarkdownView.tsx    <span class="cm">//   Markdown + KaTeX + GFM</span>
+    │   │   ├── CitationList.tsx    <span class="cm">//   引用列表</span>
+    │   │   └── pageRefs.ts         <span class="cm">//   [p.94] 正则解析与高亮</span>
+    │   ├── AnchorChip.tsx      <span class="cm">//   锚点 chip（带 × 取消）</span>
+    │   └── Composer.tsx        <span class="cm">//   输入框</span>
+    └── ArtifactHost.tsx        <span class="cm">// 右栏：策略分发器</span>
+        ├── CanvasToolbar.tsx   <span class="cm">//   标题、类型徽章、全屏、缩放</span>
+        ├── VersionMenu.tsx     <span class="cm">//   版本下拉</span>
+        ├── EmptyCanvas.tsx     <span class="cm">//   空态：3 个示例问句</span>
+        ├── SlideRenderer.tsx   <span class="cm">//   PPT</span>
+        │   └── layouts/*.tsx   <span class="cm">//     6 种布局组件</span>
+        ├── Anim2DRenderer.tsx  <span class="cm">//   2D 动画（Konva）</span>
+        └── Scene3DRenderer.tsx <span class="cm">//   3D 场景（R3F）</span></code></pre>
+
+  <h2 id="flow">数据流向</h2>
+
+  <p>严格单向：<strong>事件 → hook → API → store → 组件重渲染</strong>。组件之间不直接传数据，全走 store。</p>
+
+  <pre><code>用户操作（点击/输入）
+    ↓
+组件回调（onSend / onSelectNode）
+    ↓
+hook（useChatStream / useArtifactPatch / useDocumentPolling）
+    ↓
+api/（client.ts / sse.ts）  ←→  后端
+    ↓
+store（useWorkspaceStore）  ← 唯一状态源
+    ↓
+订阅了对应 slice 的组件自动重渲染</code></pre>
+
+  <div class="note">
+    <p><strong>为什么组件不直接调 API？</strong>因为一个操作往往涉及"请求 + 多个状态更新 + 错误处理"。
+    如果散在组件里，同一逻辑会在多处重复。抽到 hook 里，组件只剩"长什么样"。</p>
+  </div>
+
+  <h3>三个核心 hook</h3>
+
+  <table>
+    <thead><tr><th style="width:210px">hook</th><th>职责</th><th>关键点</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>useChatStream</code></td>
+        <td>发起对话流、分发 8 类 SSE 事件</td>
+        <td>AbortController 幂等守卫（防 StrictMode 双发）</td>
+      </tr>
+      <tr>
+        <td><code>useArtifactPatch</code></td>
+        <td>应用补丁、指纹自检</td>
+        <td><strong>update_node 必须字段级 merge</strong></td>
+      </tr>
+      <tr>
+        <td><code>useDocumentPolling</code></td>
+        <td>轮询解析进度</td>
+        <td>五态状态机，终态停止轮询</td>
+      </tr>
+      <tr>
+        <td><code>useWorkspaceSession</code></td>
+        <td>刷新恢复会话</td>
+        <td>从 localStorage 读 workspace_id，拉 messages 回填</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="store">Zustand store 结构</h2>
+
+  <p><strong>打开：</strong><code>src/store/useWorkspaceStore.ts</code></p>
+
+  <table>
+    <thead><tr><th style="width:180px">状态</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>workspaces</code> / <code>currentWorkspaceId</code></td><td>工作区列表与当前选中</td></tr>
+      <tr><td><code>documents</code></td><td>当前工作区的文件（含解析状态）</td></tr>
+      <tr><td><code>messages</code></td><td>对话历史（流式时逐 token 追加）</td></tr>
+      <tr><td><code>artifacts</code> / <code>activeArtifactId</code></td><td>产物列表与画布当前显示的那个</td></tr>
+      <tr><td><code>activeVersion</code></td><td>当前查看的版本（<code>null</code> = 最新）</td></tr>
+      <tr><td><code>anchor</code></td><td><strong>锚点</strong>：<code>{artifact_id, node_path, node_label, page, section_code}</code> 或 <code>null</code></td></tr>
+      <tr><td><code>demoMode</code></td><td>是否演示模式（顶栏黄标）</td></tr>
+      <tr><td><code>isStreaming</code></td><td>是否正在生成（禁用输入框）</td></tr>
+    </tbody>
+  </table>
+
+  <h3>三个性能要点</h3>
+
+  <ol>
+    <li>
+      <strong><code>appendToken</code> 只替换目标消息对象</strong>，其余保持引用不变。
+      否则每来一个 token，整棵消息列表都重新渲染，长会话会卡。
+    </li>
+    <li>
+      <strong>用选择器而不是整个 store。</strong><code>useWorkspaceStore(selectActiveArtifact)</code>
+      只在对应 slice 变化时重渲染。
+    </li>
+    <li>
+      <strong>不要在 store 里发请求。</strong>store 只存状态和纯更新函数。
+      发请求留在 hook，这样 store 可测试、可序列化。
+    </li>
+  </ol>
+
+  <div class="warn">
+    <p><strong><code>anchor</code> 是最容易出错的状态。</strong>它跨了两个组件树：
+    右栏点击设置它（<code>setAnchor</code>），左栏 Composer 读它（显示 chip），
+    发送时带进请求体，发送后要不要清空取决于场景（追问后通常保留，用户可能连续追问同一页）。</p>
+  </div>
+
+  <h2 id="dirs">目录职责</h2>
+
+  <table>
+    <thead><tr><th style="width:150px">目录</th><th>职责</th><th>约束</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>types/</code></td>
+        <td>与后端 Pydantic 严格对应的 TS 接口</td>
+        <td><strong>纯类型，不含逻辑</strong>。可选字段写 <code>T | null</code></td>
+      </tr>
+      <tr>
+        <td><code>api/</code></td>
+        <td>HTTP 客户端 + SSE 解析器</td>
+        <td>统一 <code>unwrap()</code> 拆包，非 <code>OK</code> 抛类型化错误</td>
+      </tr>
+      <tr>
+        <td><code>store/</code></td>
+        <td>全局状态</td>
+        <td>只存状态 + 纯更新函数，不发请求</td>
+      </tr>
+      <tr>
+        <td><code>hooks/</code></td>
+        <td>业务逻辑</td>
+        <td>可以调 api、改 store</td>
+      </tr>
+      <tr>
+        <td><code>components/</code></td>
+        <td>UI</td>
+        <td>不直接调 api（除了极简单的查询）</td>
+      </tr>
+      <tr>
+        <td><code>lib/</code></td>
+        <td>纯函数工具</td>
+        <td>无 React 依赖，可单独测试</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>lib/ 里的四个纯函数模块</h3>
+
+  <table>
+    <thead><tr><th style="width:180px">文件</th><th>职责</th></tr></thead>
+    <tbody>
+      <tr><td><code>jsonPointer.ts</code></td><td><code>resolve</code> / <code>setAtPath</code> / <code>isAncestorOrSelf</code>（<strong>必须用 <code>/</code> 边界判断</strong>）</td></tr>
+      <tr><td><code>fingerprint.ts</code></td><td>确定性序列化 + sha256，用于补丁自检</td></tr>
+      <tr><td><code>anim2d.ts</code></td><td>归一化坐标（0~1000 × 0~600）→ 实际像素换算</td></tr>
+      <tr><td><code>scene3d.ts</code></td><td>3D 节点父子层级、相机插值</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="renderers">三种渲染器的实现要点</h2>
+
+  <h3>SlideRenderer（PPT）</h3>
+
+  <p><strong>策略模式：</strong><code>LAYOUT_REGISTRY</code> 把 <code>layout</code> 字符串映射到组件。</p>
+
+  <pre><code><span class="kw">const</span> LAYOUT_REGISTRY = {
+  title_hero:    TitleHeroLayout,
+  bullet_points: BulletPointsLayout,
+  comparison:    ComparisonLayout,
+  timeline:      TimelineLayout,
+  cause_effect:  CauseEffectLayout,
+  quiz:          QuizLayout,
+};
+
+<span class="cm">// 分发 + 兜底</span>
+<span class="kw">const</span> Layout = LAYOUT_REGISTRY[slide.layout] ?? BulletPointsLayout;</code></pre>
+
+  <table>
+    <thead><tr><th style="width:190px">要点</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>16:9 固定比例</td><td>用 CSS <code>aspect-ratio</code> + 容器宽度，<strong>不写死像素</strong></td></tr>
+      <tr><td>缺字段降级</td><td>如 <code>comparison</code> 但 <code>comparison_left</code> 为 null → 回退成要点列表样式，<strong>不白屏</strong></td></tr>
+      <tr><td>超长文本截断</td><td>20 条 bullets 只显示前 N 条 + 「…等 N 条」</td></tr>
+      <tr><td>ErrorBoundary</td><td>单个页面渲染崩了，不能拖垮整个工作区</td></tr>
+      <tr><td>点击回传路径</td><td>点页面 → <code>setAnchor({node_path: "/slides/${i}"})</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Anim2DRenderer（2D 动画）</h3>
+
+  <table>
+    <thead><tr><th style="width:190px">要点</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>坐标换算</td><td>AST 是归一化 0~1000×0~600，渲染时乘容器尺寸。注意 <code>devicePixelRatio</code></td></tr>
+      <tr><td>补间</td><td>GSAP 在关键帧之间插值，不是瞬移</td></tr>
+      <tr><td>分层</td><td>背景 / 元素 / 交互三个 Konva <code>Layer</code>，不要一个 Layer 全画（性能）</td></tr>
+      <tr><td>5 种 shape</td><td>circle / rect / arrow / label_box / zone</td></tr>
+      <tr><td>时间轴</td><td>播放/暂停/拖拽/逐帧，拖拽只改一个 index，不重建画布</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Scene3DRenderer（3D 场景）</h3>
+
+  <table>
+    <thead><tr><th style="width:190px">要点</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>按需加载</td><td>three.js 1.15MB，用 <code>React.lazy</code> 拆成独立 chunk</td></tr>
+      <tr><td>Suspense 骨架屏</td><td>首帧加载期间不能白屏</td></tr>
+      <tr><td>6 种 primitive</td><td>box / sphere / cylinder / cone / terrain_plane / arrow_link</td></tr>
+      <tr><td>相机平滑</td><td>点标注点后，<code>useFrame</code> 里 lerp 插值，不是瞬切</td></tr>
+      <tr><td>父子层级</td><td><code>parent_id</code> 存在时用相对坐标嵌套</td></tr>
+      <tr><td>简化渲染</td><td>低性能设备关阴影、降 segment</td></tr>
+    </tbody>
+  </table>
+
+  <div class="danger">
+    <p><strong>版本锁定不是建议：</strong>
+    <code>@react-three/fiber</code> 必须 v9（v8 与 React 19 不兼容，装了整块 3D 白屏）、
+    <code>react-konva</code> 必须 19、<code>tailwindcss</code> 必须 3.4（v4 是 CSS-first 配置，写法完全不同）。
+    改 <code>package.json</code> 前先确认兼容性。</p>
+  </div>
+
+  <h2 id="cheat">速查：我想改 X 该去哪</h2>
+
+  <table>
+    <thead><tr><th style="width:270px">我想……</th><th>改这个文件</th></tr></thead>
+    <tbody>
+      <tr><td>改配色/圆角/字号</td><td><code>lib/theme.ts</code>（设计令牌）+ <code>index.css</code></td></tr>
+      <tr><td>改左栏宽度下限</td><td><code>SplitWorkspace.tsx</code> 的 <code>minSize</code></td></tr>
+      <tr><td>改消息里 <code>[p.94]</code> 的高亮样式</td><td><code>chat/pageRefs.ts</code> + <code>MessageBubble.tsx</code></td></tr>
+      <tr><td>改超纲拓展的视觉区分</td><td><code>MarkdownView.tsx</code> 的 blockquote 样式</td></tr>
+      <tr><td>改 PPT 某布局的外观</td><td><code>canvas/layouts/</code> 下对应文件</td></tr>
+      <tr><td>加一种 PPT 布局</td><td>新建 <code>layouts/XxxLayout.tsx</code> + 在 <code>slideLayouts.tsx</code> 注册 + 后端加 Literal</td></tr>
+      <tr><td>改 2D 元素形状</td><td><code>Anim2DRenderer.tsx</code> 的 shape 分支</td></tr>
+      <tr><td>改 3D 相机手感</td><td><code>Scene3DRenderer.tsx</code> 的 lerp 系数</td></tr>
+      <tr><td>改空态示例问句</td><td><code>EmptyCanvas.tsx</code></td></tr>
+      <tr><td>改锚点 chip 的样式</td><td><code>chat/AnchorChip.tsx</code></td></tr>
+      <tr><td>改演示模式黄标</td><td><code>layout/TopBar.tsx</code></td></tr>
+      <tr><td>加一个新接口调用</td><td><code>api/client.ts</code> 加函数 + <code>types/api.ts</code> 加类型</td></tr>
+    </tbody>
+  </table>
+
+  <div class="pager">
+    <a href="2. 后端代码地图.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">2. 后端代码地图</div>
+    </a>
+    <a class="next" href="4. 动手改第一个功能.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">4. 动手改第一个功能</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

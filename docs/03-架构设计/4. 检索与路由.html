@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4. 检索与路由 · 架构设计</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>架构设计</span><span class="sep">/</span>
+      <span class="cur">4. 检索与路由</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">4</span>检索与路由</h1>
+  <p class="lede">这一篇讲两个决定产品质量的核心算法：怎么找到对的课本片段，怎么判断"课本到底有没有覆盖"。后者曾经出过一次严重的误判。</p>
+
+  <div class="toc">
+    <div class="toc-h">本篇内容</div>
+    <ol>
+      <li><a href="#pipeline">检索管线四步</a></li>
+      <li><a href="#hybrid">混合检索的打分公式</a></li>
+      <li><a href="#bm25">踩过的坑：BM25 归一化为什么不能用相对值</a></li>
+      <li><a href="#hit">覆盖判定：实词命中率（核心）</a></li>
+      <li><a href="#grader">三态判定规则</a></li>
+      <li><a href="#route">形态路由</a></li>
+      <li><a href="#tune">换教材怎么重标阈值</a></li>
+    </ol>
+  </div>
+
+  <h2 id="pipeline">检索管线四步</h2>
+
+  <div class="flow">
+    <div class="flow-box">
+      <div class="bt">① 章节精确过滤</div>
+      <div class="bd">有 section_code 时先 SQL 过滤</div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box">
+      <div class="bt">② 双通道打分</div>
+      <div class="bd">BM25（词面）+ 向量（语义）</div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box">
+      <div class="bt">③ 加权融合排序</div>
+      <div class="bd">取 Top-K（默认 8）</div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box hl">
+      <div class="bt">④ 覆盖判定</div>
+      <div class="bd">实词命中率 → 三态之一</div>
+    </div>
+  </div>
+
+  <p>注意第 ④ 步<strong>不看分数</strong>，只看"实词命中"。这是本项目最关键的一个设计决定，下面详细说。</p>
+
+  <h2 id="hybrid">混合检索的打分公式</h2>
+
+  <pre><code>final_score = 0.35 × bm25_norm      <span class="cm"># 词面匹配（专有名词、人名、术语）</span>
+            + 0.45 × cosine          <span class="cm"># 语义相似（同义改写、跨语言）</span>
+            + 0.15 × section_bonus   <span class="cm"># 章节号命中加分</span>
+            + 0.05 × page_bonus      <span class="cm"># 页码邻近加分</span></code></pre>
+
+  <h3>为什么需要两个通道</h3>
+
+  <table>
+    <thead><tr><th style="width:150px">场景</th><th>BM25 表现</th><th>向量表现</th></tr></thead>
+    <tbody>
+      <tr><td>问「Malayan Union 苏丹」</td><td>✅ 强（专有名词精确匹配）</td><td>一般（可能匹配到同主题别的段落）</td></tr>
+      <tr><td>问「英国人为什么要把各州合并」</td><td>❌ 弱（课本里没这几个字）</td><td>✅ 强（语义能对上"联邦化动机"）</td></tr>
+      <tr><td>问「4.1.3 讲了什么」</td><td>❌ 弱（课本不写章节号）</td><td>❌ 弱</td></tr>
+    </tbody>
+  </table>
+
+  <p>第三种情况靠<strong>元数据过滤</strong>解决：先按 <code>section_code</code> 精确捞该节所有切片，
+  再在节内做混合排序。这就是"目录树精确锚定"的实现。</p>
+
+  <div class="note">
+    <p><strong>向量是本地生成的确定性 embedding。</strong>用 <code>blake2b</code> 把 token 哈希到 1536 维桶，
+    词频累加后 L2 归一化。它不是真正的语义模型，但胜在零依赖、零成本、同输入必然同向量。
+    接真实 embedding 只需改 <code>EMBEDDING_MODE=remote</code>。</p>
+  </div>
+
+  <h2 id="bm25">踩过的坑：BM25 归一化为什么不能用相对值</h2>
+
+  <p>这是一个真实发生过、并且差点让整个产品卖点失效的 bug。</p>
+
+  <h3>最初的实现（错的）</h3>
+
+  <pre><code>bm25_norm = bm25 / max(bm25 over all candidates)   <span class="cm"># 相对归一化</span></code></pre>
+
+  <p>看起来合理：把最高分归一到 1.0，其他按比例缩放。但有个致命后果——</p>
+
+  <div class="danger">
+    <p><strong>候选集里分数最高的那篇永远得 1.0。</strong>于是任何问题（包括完全无关的）都能拿到
+    <code>0.35 × 1.0 = 0.35</code> 的基础分。<code>NO_MATCH</code> 永远不可能触发。</p>
+  </div>
+
+  <p>实测「量子纠缠的退相干时间是多少」得 0.380 分，被判成 <code>PARTIAL_OR_BEYOND</code>——
+  系统会说"课本部分覆盖"，然后可能编造页码。这直接摧毁了产品最核心的"严格按课本"承诺。</p>
+
+  <h3>第一次修复（还不够）</h3>
+
+  <pre><code>bm25_norm = bm25 / max(ideal_score, actual_max)
+<span class="cm"># ideal_score = Σ idf（查询词全部命中、文档为均值长度时的理论上限）</span></code></pre>
+
+  <p>这次好多了，无关问题分数降到 0.216。但<strong>只解决了一半</strong>。</p>
+
+  <p>新问题：<code>ideal</code> 只累加"语料里确实存在"的查询词。当查询有 21 个词却只命中 3 个单字时，
+  分母被压得极小，<code>bm25_norm</code> 反而逼近 1.0：</p>
+
+  <pre><code>"怎么用 Rust 写一个 WebAssembly 模块"   → bm25_norm = 0.998 → 总分 0.4016
+"Malayan Union 对宪制发展的长期影响"    → 总分 0.3605
+
+<span class="cm">// 无关问题的分数，比真正需要拓展的问题还高</span></code></pre>
+
+  <p>原因是命中词全是单字（<code>三/分/习</code>、<code>色</code>、<code>一/写/用</code>），
+  字面重合但语义完全无关。</p>
+
+  <h3>最终结论</h3>
+
+  <div class="warn">
+    <p><strong>分数本身没有"覆盖判定"的排序语义，不能靠调阈值解决。</strong>
+    无论阈值调到多少，都会同时存在误判和漏判。</p>
+  </div>
+
+  <h2 id="hit">覆盖判定：实词命中率（核心）</h2>
+
+  <p>把"覆盖判定"和"分数"彻底解耦：<strong>不看分数多高，看查询的实词有多少真的出现在课本片段里。</strong></p>
+
+  <h3>第一步：提取实词</h3>
+
+  <pre><code>content_words(query) -&gt; set[str]
+
+<span class="cm"># 中文：取 bigram（相邻两字），不用单字</span>
+<span class="cm">#   "光合作用" → {"光合", "合作", "作用"}</span>
+<span class="cm">#   单字会把「三/分/色」这种偶然重合算成命中，必须用 bigram</span>
+
+<span class="cm"># bigram 内任一字是虚词/疑问词/指示词 → 整段丢弃</span>
+<span class="cm">#   什么 / 怎么 / 哪里 / 的 / 是 / 这 / 我 / 第 ...</span>
+
+<span class="cm"># 双字套话整段剔除</span>
+<span class="cm">#   如何 / 一个 / 应该 ...</span>
+
+<span class="cm"># 英文：取长度 ≥2 且非功能词</span>
+<span class="cm"># 数字：只认章节号 4.1 / 4.1.2 与 ≥3 位年份</span></code></pre>
+
+  <h3>第二步：算命中率</h3>
+
+  <pre><code>hit_ratio = |实词 ∩ Top-3 切片并集| / |实词|
+
+<span class="kw">if</span> hit_ratio &lt; GRADER_CONTENT_HIT_MIN_RATIO (0.45):
+    → NO_MATCH    <span class="cm"># 与 top_score 完全无关</span></code></pre>
+
+  <h3>为什么门槛取 0.45</h3>
+
+  <p>这是实测标定出来的，不是拍脑袋：</p>
+
+  <table>
+    <thead><tr><th style="width:200px">样本</th><th>实词命中率范围</th></tr></thead>
+    <tbody>
+      <tr><td>18 条完全无关问题</td><td>最高 <strong>0.40</strong>（「矩阵特征值的几何意义」命中「特征」「意义」两个词面巧合）</td></tr>
+      <tr><td>16 条相关问题</td><td>最低 <strong>0.50</strong></td></tr>
+      <tr><td><strong>门槛</strong></td><td><strong>0.45</strong>（落在中间，两侧各留 0.05）</td></tr>
+    </tbody>
+  </table>
+
+  <p>实测效果：<strong>误判率 0/18，漏判率 0/16</strong>。</p>
+
+  <div class="warn">
+    <p><strong>已知局限：</strong>0.40 与 0.50 之间的空档只有 0.10。
+    这是纯词法方法的下限。要更稳只能上真正的分词器或语义模型，但那会引入外部依赖，
+    与"零依赖开箱即跑"的约束冲突。</p>
+  </div>
+
+  <h3>配套补丁：裸数字不算"点名章节"</h3>
+
+  <p>加了这个门槛后暴露出一个新问题：</p>
+
+  <pre><code>extract_section_code("帮我写 3 首关于春天的诗") → "3"
+
+<span class="cm">// 只要第 3 章的某个切片排第一，就会以「用户点名了课本的一节」为由</span>
+<span class="cm">// 判成 SYLLABUS_MATCH —— 实测假阳性，得分 0.5235</span></code></pre>
+
+  <p>修法：裸数字不再算章节引用，必须带上下文（<code>4.1</code>、<code>Bab 4</code>、<code>第五章</code>）。
+  同时补上汉字章号识别，否则「第五章讲了什么」这种问法会被新门槛误判成 <code>NO_MATCH</code>——
+  <strong>新增门槛带来的漏判必须同时补掉</strong>，否则就是拆东墙补西墙。</p>
+
+  <h2 id="grader">三态判定规则</h2>
+
+  <p>综合分数与实词命中率，输出三态：</p>
+
+  <table>
+    <thead><tr><th style="width:180px">状态</th><th>判定条件（按优先级）</th><th>回答结构</th></tr></thead>
+    <tbody>
+      <tr>
+        <td rowspan="2"><code>NO_MATCH</code></td>
+        <td>无任何候选切片</td>
+        <td rowspan="2">明确"课本未覆盖"<br><code>citations = []</code><br>正文不出现任何页码<br><code>retrieval.chunks = []</code></td>
+      </tr>
+      <tr><td>实词命中率 &lt; 0.45</td></tr>
+      <tr>
+        <td><code>SYLLABUS_MATCH</code></td>
+        <td>① 显式章节锚定且 top1 落在该节<br>② 或 top_score ≥ 0.55 且实词命中率达标</td>
+        <td>严格课本 + 逐条页码</td>
+      </tr>
+      <tr>
+        <td><code>PARTIAL_OR_BEYOND</code></td>
+        <td>实词命中率达标但 top_score &lt; 0.55</td>
+        <td>课本基准 + 深度拓展双层</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>为什么需要"显式章节锚定"这条特殊规则</h3>
+
+  <p>学生说「学习 4.1」时，这句话和课本正文<strong>几乎没有词面重叠</strong>——课本里不会写"学习4.1"这几个字。
+  纯按语义匹配会落到 <code>NO_MATCH</code>，然后答「课本未覆盖」。</p>
+
+  <p>这恰好把产品最重要的演示场景打死了。所以加了一条规则：</p>
+
+  <pre><code><span class="kw">if</span> 显式章节号命中 AND 该节有切片 AND top1 落在该节:
+    → SYLLABUS_MATCH</code></pre>
+
+  <p>依据是"用户点名了课本中确实存在的一节"这个<strong>元数据证据</strong>，不是语义相似度。
+  引用页码仍取自真实切片，不会编造。</p>
+
+  <h2 id="route">形态路由</h2>
+
+  <p>判定该出 PPT / 2D / 3D。规则可解释、可测试：</p>
+
+  <table>
+    <thead><tr><th style="width:170px">信号</th><th>路由结果</th></tr></thead>
+    <tbody>
+      <tr><td>用户显式指定（"用 3D"）</td><td><strong>100% 遵循用户</strong>，不做判断</td></tr>
+      <tr><td>空间类词（结构 / 布局 / 相对位置 / 内部 / 剖面）</td><td><code>scene_3d</code></td></tr>
+      <tr><td>过程类词（如何演变 / 逐步 / 路线 / 推移 / 受力过程）</td><td><code>anim_2d</code></td></tr>
+      <tr><td>离散有序词（影响 / 原因 / 条件 / 对比 / 区别 / 时间顺序）</td><td><code>ppt</code></td></tr>
+      <tr><td>无明确信号</td><td>默认 <code>ppt</code>（最通用）</td></tr>
+    </tbody>
+  </table>
+
+  <p>每次路由都产出一句人话理由，直接展示给用户：</p>
+
+  <pre><code>"问句命中「影响」，属于离散有序、需要逐条阅读的信息 → PPT 课件"</code></pre>
+
+  <p>理由不是装饰——它是用户判断"这个形态对不对"的依据。如果理由不合理，用户会说"用 3D"，系统立刻改。</p>
+
+  <div class="note">
+    <p>路由准确率的验收是 <strong>10 条预置问句 ≥ 80%</strong>，实测 10/10。
+    但只在路由这一层验，不做端到端——因为端到端会把"路由准确"和"检索覆盖"混在一起：
+    问句在历史教材里必然 <code>NO_MATCH</code> 时，<code>artifact_type</code> 会被置为 <code>none</code>，
+    于是路由判对也算错。</p>
+  </div>
+
+  <h2 id="tune">换教材怎么重标阈值</h2>
+
+  <p>当前的 0.45 是在一份 KSSM 历史教材上标定的。<strong>换语言或换学科必须重标。</strong></p>
+
+  <ol class="steps">
+    <li>
+      <span class="st-title">准备两组样本</span>
+      <p>15~20 条<strong>完全无关</strong>的问题（问天气、编程、做饭都行），
+      15~20 条<strong>确实相关</strong>的问题（用新教材里的实词构造）。</p>
+    </li>
+    <li>
+      <span class="st-title">跑出两组的命中率分布</span>
+      <p>写个临时脚本调 <code>retriever.grade()</code>，打印每条的 <code>hit_ratio</code> 和 <code>top_score</code>。</p>
+    </li>
+    <li>
+      <span class="st-title">找两条分布的空档</span>
+      <p>取无关组最大值与相关组最小值的中间值作为新门槛。</p>
+    </li>
+    <li>
+      <span class="st-title">留出集验证</span>
+      <p><strong>另留 10 条没参与调参的样本</strong>做验证。只用调参那批测，等于自欺欺人。</p>
+    </li>
+    <li>
+      <span class="st-title">改配置并跑全量测试</span>
+      <p>改 <code>.env</code> 的 <code>GRADER_CONTENT_HIT_MIN_RATIO</code>，跑 <code>pytest tests -q</code> 确认没回归。</p>
+    </li>
+  </ol>
+
+  <div class="danger">
+    <p><strong>不要只把阈值调到"测试变绿"。</strong>要同时看误判率和漏判率。
+    全判 <code>NO_MATCH</code> 也能让无关问题测试全绿，但产品就废了——
+    所以测试里必须<strong>成对出现</strong>"无关问题必须拒"和"相关问题必须收"两组用例。</p>
+  </div>
+
+  <div class="pager">
+    <a href="3. DSL 契约.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">3. DSL 契约</div>
+    </a>
+    <a class="next" href="5. 增量补丁与 SSE.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">5. 增量补丁与 SSE</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

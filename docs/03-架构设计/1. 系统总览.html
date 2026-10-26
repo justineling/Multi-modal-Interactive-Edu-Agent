@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1. 系统总览 · 架构设计</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>架构设计</span><span class="sep">/</span>
+      <span class="cur">1. 系统总览</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">1</span>系统总览</h1>
+  <p class="lede">四层架构、四种设计模式、以及每个架构选择背后的取舍。这一篇是后面四篇的地图。</p>
+
+  <div class="toc">
+    <div class="toc-h">本篇内容</div>
+    <ol>
+      <li><a href="#layer">四层架构</a></li>
+      <li><a href="#pattern">四种核心设计模式</a></li>
+      <li><a href="#flow">一次请求的完整协作链</a></li>
+      <li><a href="#tradeoff">四个关键取舍</a></li>
+      <li><a href="#boundary">模块边界与依赖方向</a></li>
+    </ol>
+  </div>
+
+  <h2 id="layer">四层架构</h2>
+
+  <pre><code>┌─────────────────────────────────────────────────────────────┐
+│  前端工作区（React 19 + TS）                                  │
+│  ├─ 左栏 ChatPanel：流式对话、引用、锚点 chip、目录树           │
+│  └─ 右栏 ArtifactHost：策略分发 → 三种确定性渲染器              │
+└────────────────────────┬────────────────────────────────────┘
+                         │ HTTP (REST) + SSE (POST /api/chat/stream)
+┌────────────────────────▼────────────────────────────────────┐
+│  API 层（FastAPI，21 个端点）                                  │
+│  workspaces · documents · chat · artifacts                    │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────────┐
+│  服务层（纯 Python，不依赖 HTTP）                              │
+│  ┌──────────────────┐  ┌──────────────────┐                  │
+│  │ 知识管线          │  │ 生成管线          │                  │
+│  │ pdf_parser        │  │ router           │                  │
+│  │ chunker           │  │ agent_engine     │                  │
+│  │ embedding         │  │ llm_client       │                  │
+│  │ retriever         │  │ mock_generator   │                  │
+│  │ text_signals      │  │ patch_engine     │                  │
+│  └──────────────────┘  └──────────────────┘                  │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+┌────────────────────────▼────────────────────────────────────┐
+│  数据层                                                        │
+│  SQLAlchemy 2.0 异步 · 7 张表 · EmbeddingStore 协议            │
+│  ├─ SQLite（默认，零依赖）                                     │
+│  └─ PostgreSQL + pgvector（生产，通过 DATABASE_URL 切换）       │
+└─────────────────────────────────────────────────────────────┘</code></pre>
+
+  <h3>为什么服务层不依赖 HTTP</h3>
+  <p>
+    所有业务逻辑在 <code>services/</code> 里，<code>api/</code> 只做三件事：解析请求、调用服务、包装响应。
+    好处是服务层可以被测试直接调用（不需要起 HTTP 服务），也可以被脚本、定时任务、CLI 复用。
+  </p>
+  <p>
+    240 个测试里有相当一部分是直接调服务层函数的，跑得比 HTTP 测试快一个数量级。
+  </p>
+
+  <h2 id="pattern">四种核心设计模式</h2>
+
+  <h3>模式一：受控 DSL 驱动渲染（Schema-Driven Strategy）</h3>
+
+  <div class="danger">
+    <p><strong>严禁 LLM 直接输出 HTML / Three.js / Manim 源码。</strong></p>
+  </div>
+
+  <p>LLM 只填 JSON，前端按 <code>type</code> 字段策略分发到对应渲染器：</p>
+
+  <pre><code><span class="cm">// 前端 ArtifactHost.tsx 的核心逻辑</span>
+switch (spec.type) {
+  case "ppt":      return &lt;SlideRenderer spec={spec} /&gt;;
+  case "anim_2d":  return &lt;Anim2DRenderer spec={spec} /&gt;;
+  case "scene_3d": return &lt;Scene3DRenderer spec={spec} /&gt;;
+}</code></pre>
+
+  <table>
+    <thead><tr><th style="width:150px">对比项</th><th>让 LLM 写代码</th><th>受控 DSL（本项目）</th></tr></thead>
+    <tbody>
+      <tr><td>成功率</td><td>十次有八次出问题（镜头穿模、材质丢失、语法崩溃）</td><td>100%，渲染器是确定性代码</td></tr>
+      <tr><td>出图速度</td><td>服务端渲染 30~60 秒</td><td>前端毫秒级</td></tr>
+      <tr><td>可交互</td><td>视频没法交互</td><td>每个元素都是 React 组件，可点击可 hover</td></tr>
+      <tr><td>安全性</td><td>要沙盒执行任意代码</td><td>只解析 JSON，无代码执行</td></tr>
+    </tbody>
+  </table>
+
+  <h3>模式二：双轨知识路由（Corrective RAG + Router）</h3>
+
+  <p>检索后先做相关性评估，输出三态，决定回答的边界：</p>
+
+  <table>
+    <thead><tr><th style="width:170px">状态</th><th>触发条件</th><th>回答结构</th></tr></thead>
+    <tbody>
+      <tr><td><code>SYLLABUS_MATCH</code></td><td>实词命中率 ≥ 0.45 且分数足够高，或显式章节锚定命中</td><td>严格课本 + 逐条页码</td></tr>
+      <tr><td><code>PARTIAL_OR_BEYOND</code></td><td>实词命中率达标但分数不足</td><td>课本基准 + 深度拓展双层</td></tr>
+      <tr><td><code>NO_MATCH</code></td><td>实词命中率 &lt; 0.45</td><td>明确"未覆盖"，<code>citations = []</code></td></tr>
+    </tbody>
+  </table>
+
+  <p>详细算法见 <a href="4. 检索与路由.html">检索与路由</a>。</p>
+
+  <h3>模式三：画布增量补丁（Command / JSON-Patch）</h3>
+
+  <p>产物不是整份重生成，而是接收增量操作指令：</p>
+
+  <pre><code>{
+  "op": "update_node",
+  "node_path": "/slides/2",
+  "payload": { "bullets": ["..."], "speaker_notes": "..." }
+}</code></pre>
+
+  <p>
+    <code>payload</code> 只带<strong>被修改的字段</strong>，前端做字段级 merge。
+    后端用 <code>deepcopy</code> + 定点写入，保证其余节点字节级不变。
+    详细见 <a href="5. 增量补丁与 SSE.html">增量补丁与 SSE</a>。
+  </p>
+
+  <h3>模式四：节点锚点双向绑定（Bidirectional Context Binding）</h3>
+
+  <p>
+    PPT 每页、2D 每个元素、3D 每个部件都有唯一路径（<code>/slides/2</code>、<code>/steps/1/entities/3</code>、<code>/nodes/5</code>）。
+    点击时前端构造锚点，把路径 + 页码 + 章节号注入输入框上下文。
+  </p>
+
+  <p>这个设计把"用户指着某处说话"这个自然行为，翻译成了机器能理解的精确定位。</p>
+
+  <h2 id="flow">一次请求的完整协作链</h2>
+
+  <p>用户在输入框按回车后，按顺序发生这些事：</p>
+
+  <ol class="steps">
+    <li>
+      <span class="st-title">前端建立 SSE 连接</span>
+      <p><code>POST /api/chat/stream</code>，body 含 <code>workspace_id</code>、<code>query</code>、<code>mode</code>、<code>anchor</code>。
+      用 <code>fetch</code> + <code>ReadableStream</code> 读，<strong>不是 <code>EventSource</code></strong>（它不支持 POST）。</p>
+    </li>
+    <li>
+      <span class="st-title">后端发 <code>turn_start</code></span>
+      <p>携带 <code>demo_mode</code>、<code>has_anchor</code>、<code>mode</code>。前端建占位消息，开始流式态。</p>
+    </li>
+    <li>
+      <span class="st-title">检索 + 评估</span>
+      <p>章节号精确过滤 → BM25 + 向量混合检索 → 实词命中率门槛 → 输出三态之一。发 <code>retrieval</code> 事件。</p>
+    </li>
+    <li>
+      <span class="st-title">形态路由</span>
+      <p>根据问句语义判断该出 PPT / 2D / 3D，同时给出人话理由。发 <code>modality_decision</code> 事件。</p>
+    </li>
+    <li>
+      <span class="st-title">生成正文（流式）</span>
+      <p>逐 token 发 <code>token</code> 事件。严格模式每句带页码；拓展模式分两层。</p>
+    </li>
+    <li>
+      <span class="st-title">生成 JSON AST</span>
+      <p>Pydantic 校验，失败则把错误回灌给模型重试（最多 3 次），全失败降级到 mock。</p>
+    </li>
+    <li>
+      <span class="st-title">落库 + 发 <code>artifact</code></span>
+      <p>写 <code>artifacts</code> + <code>artifact_versions</code> 两张表，发完整 spec（create）或补丁（patch）。</p>
+    </li>
+    <li>
+      <span class="st-title">发 <code>citations</code> 与 <code>turn_end</code></span>
+      <p>引用按书页顺序；<code>turn_end</code> 带真实耗时与版本号。消息落库供刷新恢复。</p>
+    </li>
+  </ol>
+
+  <div class="note">
+    <p>事件顺序是<strong>契约</strong>：<code>turn_start → retrieval → modality_decision → token* → artifact? → citations → turn_end</code>。
+    <code>error</code> 可插入任意位置，但<strong>之后仍必须补发 <code>turn_end</code></strong>——否则前端会一直以为还在生成，输入框永远禁用。</p>
+  </div>
+
+  <h2 id="tradeoff">四个关键取舍</h2>
+
+  <table>
+    <thead><tr><th style="width:190px">选择</th><th>放弃了什么</th><th>换来了什么</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>前端渲染，服务端不渲染视频</td>
+        <td>无法生成高保真预渲染视频（如 Manim 电影级动画）</td>
+        <td>毫秒级出图、可交互、无沙盒执行风险、服务器成本极低</td>
+      </tr>
+      <tr>
+        <td>SQLite 默认而非 PostgreSQL</td>
+        <td>无法水平扩展、并发写入弱</td>
+        <td>零依赖开箱即跑；<code>DATABASE_URL</code> 一行切换生产配置</td>
+      </tr>
+      <tr>
+        <td>内存向量检索而非 Milvus/Qdrant</td>
+        <td>全库上千 chunk 时要全表扫描</td>
+        <td>不用维护独立集群；千级 chunk 量级下暴力检索完全够快</td>
+      </tr>
+      <tr>
+        <td>实词命中率判定而非纯语义分数</td>
+        <td>需要维护停用词表，换语言/学科要重标阈值</td>
+        <td>无关问题不会被误判成"课本有覆盖"，且判定可解释</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="boundary">模块边界与依赖方向</h2>
+
+  <p>依赖只能单向流动，不能反向：</p>
+
+  <pre><code>api/  ──→  services/  ──→  db/  ──→  models
+  │            │
+  │            └──→  schemas/  （契约，谁都可以依赖）
+  │
+  └──→  schemas/
+
+<span class="cm">// 禁止：services 导入 api（服务层不该知道 HTTP 的存在）</span>
+<span class="cm">// 禁止：db 导入 services（数据层不该知道业务）</span></code></pre>
+
+  <h3>三条硬约束</h3>
+
+  <ol>
+    <li><strong>业务代码不出现 <code>if is_postgres</code> 分支。</strong>
+    双模式通过 <code>EmbeddingStore</code> 协议 + 工厂函数隔离，不是靠 if 判断。</li>
+    <li><strong>确定性红线。</strong><code>mock_generator</code> 和 <code>embedding</code> 里禁止
+    <code>random</code> / <code>uuid4</code> / <code>time</code> / <strong>内置 <code>hash()</code></strong>
+    （后者受 <code>PYTHONHASHSEED</code> 影响，进程重启就变）。统一用 <code>hashlib.blake2b</code>。</li>
+    <li><strong>错误码单一来源。</strong><code>errors.py</code> 定义一次，前端 <code>api/client.ts</code> 镜像同一份字面量。
+    前后端拼错一个码会静默失败，极难排查。</li>
+  </ol>
+
+  <div class="pager">
+    <a href="../02-用户手册/4. 常见问题.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">用户手册 · 4. 常见问题</div>
+    </a>
+    <a class="next" href="2. 数据模型.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">2. 数据模型</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

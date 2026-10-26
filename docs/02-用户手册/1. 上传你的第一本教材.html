@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1. 上传你的第一本教材 · 用户手册</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>用户手册</span><span class="sep">/</span>
+      <span class="cur">1. 上传你的第一本教材</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">1</span>上传你的第一本教材</h1>
+  <p class="lede">系统的一切回答都以你上传的教材为依据。这一步做对，后面才不会出现"答得对但不是课本要的"。</p>
+
+  <div class="toc">
+    <div class="toc-h">本篇内容</div>
+    <ol>
+      <li><a href="#support">支持什么文件</a></li>
+      <li><a href="#upload">上传流程</a></li>
+      <li><a href="#status">解析状态怎么看</a></li>
+      <li><a href="#toc">目录树怎么用</a></li>
+      <li><a href="#fail">上传失败怎么办</a></li>
+      <li><a href="#tip">让解析效果更好的建议</a></li>
+    </ol>
+  </div>
+
+  <h2 id="support">支持什么文件</h2>
+
+  <table>
+    <thead><tr><th style="width:130px">项目</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>格式</td><td><strong>PDF</strong>（必须是带文本层的电子版）</td></tr>
+      <tr><td>体积</td><td>≤ 50 MB</td></tr>
+      <tr><td>页数</td><td>≤ 600 页</td></tr>
+      <tr><td>语言</td><td>中文、英文、马来文、中英马混排都可以</td></tr>
+      <tr><td>学科</td><td>任何学科。当前样本与阈值是针对历史教材标定的，其他学科可能需要调整</td></tr>
+    </tbody>
+  </table>
+
+  <div class="danger">
+    <p><strong>扫描版 / 拍照版 PDF 不支持。</strong>如果你的 PDF 是用扫描仪或手机拍出来的（每一页本质是一张图片），
+    系统会明确提示「未检测到文本层」并拒绝。这类文件需要先做 OCR 文字识别，目前不在支持范围内。</p>
+    <p style="margin-top:10px"><strong>怎么判断是不是扫描版：</strong>用 PDF 阅读器打开，试着用鼠标选中一段文字。
+    能选中、能复制 → 有文本层，可以用。选不中（整页像图片）→ 扫描版，不能用。</p>
+  </div>
+
+  <h2 id="upload">上传流程</h2>
+
+  <ol class="steps">
+    <li>
+      <span class="st-title">确认已选中工作区</span>
+      <p>左上角的下拉框显示当前工作区名称。每个工作区<strong>独立隔离</strong>——A 工作区上传的教材，
+      B 工作区搜不到。建议按用途分开，比如「Form 4 历史」「Form 5 历史」。</p>
+    </li>
+    <li>
+      <span class="st-title">拖入文件或点击选择</span>
+      <p>左侧对话区顶部的文件区支持两种方式：把 PDF 直接拖进去，或点击选择文件。一次可以传多个。</p>
+    </li>
+    <li>
+      <span class="st-title">等待解析</span>
+      <p>会显示进度条和百分比。一本 113 页的教材大约 <strong>0.4 秒</strong>就完成，600 页的最多几秒。
+      解析过程中可以点取消。</p>
+    </li>
+    <li>
+      <span class="st-title">检查目录树</span>
+      <p>解析完成后文件卡片会展开成可折叠的目录树，显示章节号和页码范围。
+      <strong>这一步务必扫一眼</strong>——目录结构识别得准不准，直接决定后面能不能"学习 4.1"这样精确提问。</p>
+    </li>
+  </ol>
+
+  <h2 id="status">解析状态怎么看</h2>
+
+  <p>文件卡片上会显示五种状态之一：</p>
+
+  <table>
+    <thead><tr><th style="width:130px">状态</th><th>含义</th><th>你需要做什么</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge info">排队中</span></td><td>任务已提交，还没开始解析</td><td>等几秒</td></tr>
+      <tr><td><span class="badge info">解析中</span></td><td>正在提取文字、识别章节、切分入库</td><td>等进度条走完，可取消</td></tr>
+      <tr><td><span class="badge ok">就绪</span></td><td>可以开始提问了</td><td>点目录树节点或直接提问</td></tr>
+      <tr><td><span class="badge err">失败</span></td><td>解析出错，会显示具体原因和错误码</td><td>看下方「上传失败怎么办」</td></tr>
+      <tr><td><span class="badge warn">已取消</span></td><td>你主动取消了</td><td>重新上传即可</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="toc">目录树怎么用</h2>
+
+  <p>目录树是这套系统里<strong>最被低估的功能</strong>。它不只是给你看的，点一下就等于告诉系统"我要学这一节"。</p>
+
+  <h3>三种用法</h3>
+
+  <table>
+    <thead><tr><th style="width:150px">操作</th><th>效果</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>点章节号</td>
+        <td>输入框自动填入「学习 4.1」，并且<strong>后端检索会锁定在这一节及其子节</strong>，不会跑到别的章节去</td>
+      </tr>
+      <tr>
+        <td>点折叠箭头</td>
+        <td>展开/收起子节。章节多的时候先收起，找起来更快</td>
+      </tr>
+      <tr>
+        <td>看页码范围</td>
+        <td>每个节点后面显示 <code>p.71-77</code> 这样的区间，方便你对照纸质书</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="tip">
+    <p><strong>为什么"点目录树"比"自己打字提问"更好？</strong>因为你说「学习 4.1」时，这句话和课本正文几乎没有词面上的重叠
+    （课本里不会写"学习4.1"这几个字）。纯靠语义匹配可能匹配不到，系统会答「课本未覆盖」。
+    但点目录树时，系统知道<strong>你点名的这一节确实存在于课本里</strong>，会直接用章节号精确锚定。
+    这是产品设计里最重要的一条兜底逻辑。</p>
+  </div>
+
+  <h3>目录树看起来不对怎么办</h3>
+
+  <p>如果目录树层级很浅、节点很少，或者整棵树只有「Page 1」「Page 2」这样的伪章节，说明<strong>章节号识别失败了</strong>。
+  系统会退化成"按页切分"，并在文件卡片上提示「本教材未能识别章节结构，已按页切分」。</p>
+
+  <p>这种情况下仍然可以正常提问，但会失去两个能力：</p>
+  <ul>
+    <li>不能用「学习 X.X」精确锚定某一节</li>
+    <li>引用页码的粒度会变粗（按页而不是按节）</li>
+  </ul>
+
+  <p>常见原因是教材用了非常规的章节编号格式（比如纯图片标题、罗马数字、或者没有章节号只有标题）。
+  这种情况需要在代码里扩展章节正则，属于开发者任务，见 <a href="../04-开发指南/4. 动手改第一个功能.html">动手改第一个功能</a>。</p>
+
+  <h2 id="fail">上传失败怎么办</h2>
+
+  <table>
+    <thead><tr><th style="width:230px">提示</th><th>原因</th><th>解决</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>UNSUPPORTED_FILE_TYPE</code><br>不支持的文件类型</td>
+        <td>不是 PDF，或者文件头损坏（比如把 txt 改名成 .pdf）</td>
+        <td>确认文件真的是 PDF。用阅读器能正常打开才算</td>
+      </tr>
+      <tr>
+        <td><code>PDF_ENCRYPTED</code><br>PDF 已加密</td>
+        <td>文件设了打开密码</td>
+        <td>先用 PDF 工具去掉密码再上传</td>
+      </tr>
+      <tr>
+        <td><code>PDF_NO_TEXT_LAYER</code><br>未检测到文本层</td>
+        <td>扫描版 / 图片版 PDF</td>
+        <td>需要 OCR 处理，当前不支持</td>
+      </tr>
+      <tr>
+        <td><code>PDF_EMPTY</code><br>PDF 没有内容</td>
+        <td>0 页，或者每页都是空白</td>
+        <td>检查文件是否完整</td>
+      </tr>
+      <tr>
+        <td><code>PDF_PARSE_FAILED</code><br>PDF 解析失败</td>
+        <td>文件头正常但正文损坏</td>
+        <td>换一份文件，或重新下载</td>
+      </tr>
+      <tr>
+        <td>提示超过体积/页数</td>
+        <td>超过 50MB 或 600 页</td>
+        <td>拆分上传，或调高 <code>MAX_UPLOAD_MB</code> / <code>MAX_PDF_PAGES</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <p>所有失败都是<strong>明确的错误码 + 中文提示</strong>，不会出现白屏或"未知错误"。
+    如果看到的是 500 或空白页，那是 bug，请记录操作步骤反馈。</p>
+  </div>
+
+  <h2 id="tip">让解析效果更好的建议</h2>
+
+  <ul>
+    <li><strong>一本教材一个文件。</strong>把 Form 4 和 Form 5 合成一个 PDF 会让章节号冲突（都有 Chapter 4）。</li>
+    <li><strong>优先用官方电子版。</strong>出版社的数字版通常带完整书签和规范章节号，解析质量远高于二次扫描件。</li>
+    <li><strong>上传后先扫一眼目录树。</strong>如果层级明显不对，后面的引用页码也会跟着不准。</li>
+    <li><strong>同一份教材不要重复上传到同一工作区。</strong>会占用双份索引空间，检索时出现重复片段。</li>
+    <li><strong>按学期/科目分工作区。</strong>检索范围越小，命中越准。</li>
+  </ul>
+
+  <div class="pager">
+    <a href="../01-快速开始/2. 环境搭建与运行.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">快速开始 · 2. 环境搭建与运行</div>
+    </a>
+    <a class="next" href="2. 对话学习怎么用.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">2. 对话学习怎么用</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

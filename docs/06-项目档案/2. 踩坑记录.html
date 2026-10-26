@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2. 踩坑记录 · 项目档案</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>项目档案</span><span class="sep">/</span>
+      <span class="cur">2. 踩坑记录</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">2</span>踩坑记录</h1>
+  <p class="lede">
+    16 个真实踩过的坑。每个都按「现象 → 我以为是 → 实际是 → 教训」写。
+    <strong>这份文档的价值不在"知道结论"，而在"下次遇到类似现象时能想起这个模式"。</strong>
+  </p>
+
+  <div class="toc">
+    <div class="toc-h">按类型分</div>
+    <ol>
+      <li><a href="#algo">算法与判定（4 个）</a></li>
+      <li><a href="#protocol">协议与契约（4 个）</a></li>
+      <li><a href="#platform">平台与运行时（5 个）</a></li>
+      <li><a href="#eng">工程与协作（3 个）</a></li>
+      <li><a href="#summary">五条通用原则</a></li>
+    </ol>
+  </div>
+
+  <h2 id="algo">算法与判定</h2>
+
+  <h3>坑 1：BM25 相对归一化，让「课本未覆盖」永远不可能触发</h3>
+
+  <dl class="kv">
+    <dt>现象</dt><dd>14 条完全无关的问题里，8 条被判成"课本部分覆盖"。学生问"怎么做红烧肉"会收到带 <code>[p.105]</code> 的历史课答案。</dd>
+    <dt>我以为是</dt><dd>阈值调得不够高。</dd>
+    <dt>实际是</dt><dd>归一化公式 <code>bm25 / max(bm25)</code> 是<strong>相对</strong>的——候选集里最高分永远归一成 1.0，于是任何问题都能白拿 <code>0.35 × 1.0</code> 的基础分。</dd>
+    <dt>教训</dt><dd><strong>凡是"取最大值做分母"的归一化，都失去了绝对可比性。</strong>这种设计在排序场景没问题（只需要相对顺序），但一旦用来做<em>阈值判定</em>就必然失效。判断"够不够"要用绝对量，不能用在同批次内归一过的量。</dd>
+  </dl>
+
+  <h3>坑 2：改了归一化还不够，分数本身没有排序语义</h3>
+
+  <dl class="kv">
+    <dt>现象</dt><dd>修了归一化后，仍有 8/14 误判，分数在 0.30~0.40。</dd>
+    <dt>我以为是</dt><dd>再把阈值往上调一点就行。</dd>
+    <dt>实际是</dt><dd>「怎么用 Rust 写一个 WebAssembly 模块」得 <code>bm25_norm = 0.998</code>，总分 0.4016——<strong>比真正需要拓展的「Malayan Union 对宪制发展的长期影响」（0.3605）还高</strong>。因为查询有 21 个词只命中 3 个单字，<code>ideal</code> 分母被压得极小。</dd>
+    <dt>教训</dt><dd><strong>调阈值是治标。</strong>当两个类别的分数区间重叠时，任何单一阈值都会同时误判和漏判。正确做法是换一个<em>有区分力的信号</em>（这里是"实词命中率"），而不是在坏信号上找好阈值。</dd>
+  </dl>
+
+  <h3>坑 3：单字匹配会把偶然重合当成命中</h3>
+
+  <dl class="kv">
+    <dt>现象</dt><dd>「怎么练习三分球投篮姿势」的实词命中率不为 0，因为"三"、"分"、"习"这些字在课本里出现过。</dd>
+    <dt>实际是</dt><dd>中文单字的信息量太低，字面重合不代表语义相关。</dd>
+    <dt>教训</dt><dd><strong>中文必须用 bigram（相邻两字），不能用单字。</strong>「光合作用」拆成 bigram 是 {光合, 合作, 作用}，其中"合作"仍然是个噪声词——所以还得叠一层虚词/套话过滤。单个手段都不够。</dd>
+  </dl>
+
+  <h3>坑 4：加了新门槛，必须同时补掉它带来的漏判</h3>
+
+  <dl class="kv">
+    <dt>现象</dt><dd>加了实词门槛后，「第五章讲了什么」被判成"课本未覆盖"——因为"第五章"里的字不算实词，命中率 0。</dd>
+    <dt>实际是</dt><dd>章节引用应该走<strong>元数据锚定</strong>，不该走词面匹配。但原来的章节号正则只认阿拉伯数字，不认"第五章"。</dd>
+    <dt>教训</dt><dd><strong>每加一道门槛，都要反向测一遍"原本能过的现在会不会被拦"。</strong>只测"该拦的拦住了"，会漏掉"不该拦的也拦了"。这就是为什么测试必须正反成对。</dd>
+  </dl>
+
+  <h2 id="protocol">协议与契约</h2>
+
+  <h3>坑 5：`update_node` 的 payload 是局部字段，不是整节点</h3>
+
+  <dl class="kv">
+    <dt>现象</dt><dd>点 PPT 某页追问后，渲染器崩溃。</dd>
+    <dt>我以为是</dt><dd>后端返回的数据结构有问题。</dd>
+    <dt>实际是</dt><dd>payload 只带 <code>{bullets, speaker_notes}</code> 两个字段，前端做了<strong>整体替换</strong>，导致 <code>layout</code> 变成 <code>undefined</code>，<code>LAYOUT_REGISTRY[undefined]</code> 拿不到组件。</dd>
+    <dt>教训</dt><dd><strong>"更新"和"替换"是两种语义，必须在协议里写清楚。</strong>patch 类协议里，<code>update</code> 通常是 merge，<code>replace</code> 才是整体替换。靠命名区分不够，要在文档里写明"payload 只含变更字段"，并在两端都做防御。</dd>
+  </dl>
+
+  <h3>坑 6：一次假阳性——「历史版本被改写」其实只是键序不同</h3>
+
+  <dl class="kv">
+    <dt>现象</dt><dd>测试报"创建 v1 → patch 到 v4 → 读回 v1，内容被改写了"，直接违反"历史版本不可覆盖"。</dd>
+    <dt>我以为是</dt><dd>SQLAlchemy 的 JSON 列不追踪嵌套修改，历史行的内存对象被连带改脏了。</dd>
+    <dt>实际是</dt><dd>直接读 sqlite 验证：四行版本数据<strong>逐字节正确</strong>，v1 从未被改写。真正原因是两条出口的序列化不同——SSE 用 <code>sort_keys=True</code>（键排序），REST 用库内插入顺序。测试用<strong>保留键序</strong>的方式比对，纯键序差异被报成内容改写。</dd>
+    <dt>教训</dt><dd><strong>断言"内容被改写"必须区分「值不等」与「字节表示不等」。</strong>用保留键序的字节比对去断言语义等值 → 假阳性；反过来用 <code>sort_keys</code> 比对去断言"字节级不变" → 漏掉真实键序变化。两种断言各有适用场景，选错方向就误报或漏报。<br><br>更重要的：<strong>报的现象可信，但根因必须独立查证。</strong>按表象去改"历史版本表"会改错地方。</dd>
+  </dl>
+
+  <h3>坑 7：`insert`/`delete` 的 changed_paths 声明粒度</h3>
+
+  <dl class="kv">
+    <dt>现象</dt><dd>"其余节点字节级不变"的断言永远失败。</dd>
+    <dt>实际是</dt><dd>在 <code>/slides/1</code> 插入一页后，原来的 <code>/slides/2..n</code> 全部换了内容（下标平移）。如果只声明 <code>/slides/1</code> 为允许变化，兄弟节点平移会被判成"改了不该改的地方"。</dd>
+    <dt>教训</dt><dd><strong>数组的插入/删除会污染后续所有元素的身份。</strong>声明变更范围时，必须声明到<strong>父列表层</strong>（<code>/slides</code>），而不是元素层。这是"唯一诚实且可验证"的粒度。</dd>
+  </dl>
+
+  <h3>坑 8：`focus_camera` 不该写进 spec</h3>
+
+  <dl class="kv">
+    <dt>现象</dt><dd>同一份 3D 场景，看过不同角度后版本指纹不一样了。</dd>
+    <dt>实际是</dt><dd>视角被当成内容写进了 AST。</dd>
+    <dt>教训</dt><dd><strong>渲染态 ≠ 内容态。</strong>相机位置、缩放比例、当前页码、展开/折叠状态，都属于"用户怎么看"而不是"内容是什么"。一旦混进内容层，内容指纹就不稳定，版本比对、缓存、去重全部失效。<strong>凡是会随用户操作变化但不改变语义的状态，都必须旁路存放。</strong></dd>
+  </dl>
+
+  <h2 id="platform">平台与运行时</h2>
+
+  <h3>坑 9：内置 `hash()` 受 PYTHONHASHSEED 影响，跨进程就不一样</h3>
+
+  <dl class="kv">
+    <dt>现象</dt><dd>mock 生成器在同一进程内测两次结果一致，但重启服务后同一输入产出不同 AST。</dd>
+    <dt>实际是</dt><dd>Python 内置 <code>hash()</code> 对字符串的哈希值<strong>每个进程都不同</strong>（为了防哈希碰撞攻击，默认随机化）。</dd>
+    <dt>教训</dt><dd><strong>要确定性哈希，用 <code>hashlib.blake2b</code>，永远不要用内置 <code>hash()</code>。</strong>而且验证"确定性"必须<strong>跨进程</strong>——同进程内测两次相等是无效的，因为随机种子没变。测试里要先证明"三个子进程的 hash 结果确实不同"（金丝雀自检），再比 AST 指纹，否则测试可能永远绿但实际是坏的。</dd>
+  </dl>
+
+  <h3>坑 10：SQLAlchemy JSON 列不追踪嵌套原地修改</h3>
+
+  <dl class="kv">
+    <dt>现象</dt><dd>版本快照理论上应该独立，但担心被后续修改连带改脏。</dd>
+    <dt>实际是</dt><dd><code>JSON</code> 类型只追踪"整个字段被重新赋值"，不追踪 <code>obj["key"] = x</code> 这种嵌套修改。如果两行共享同一个 dict 对象，改一处等于改两处。</dd>
+    <dt>教训</dt><dd><strong>存快照必须 <code>copy.deepcopy</code>。</strong>而且测试要用<strong>对象身份断言</strong>（<code>a is not b</code>）而不是值相等断言——值相等在浅拷贝时也可能通过，抓不住这个 bug。</dd>
+  </dl>
+
+  <h3>坑 11：Windows 上文件句柄绑在异常 traceback 上，`unlink` 随机失败</h3>
+
+  <dl class="kv">
+    <dt>现象</dt><dd>损坏的 PDF 上传失败后，落盘的文件删不掉（<code>WinError 32</code>），成为孤儿。而且"有时能删有时不能"，看起来像随机 bug。</dd>
+    <dt>我以为是</dt><dd>打开失败的 doc 对象没被显式 close。</dd>
+    <dt>实际是</dt><dd><code>pymupdf.open()</code> 失败时根本没有 doc 对象（<code>doc is None</code>），<code>finally: doc.close()</code> 无从下手。真实机制是：<strong>PyMuPDF 在失败路径留下的 OS 句柄，生命周期绑在异常 traceback 的帧上</strong>。只要 <code>AppError.__cause__</code> 还活着，句柄就释放不了。异常对象被 GC 后才可删——这就是"有时能有时不能"的原因。</dd>
+    <dt>教训</dt><dd><strong>用「删掉它」保证不残留，依赖的是「删除一定成功」这个脆弱假设。</strong>正确做法是让「它根本不会被创建」——改成先对内存字节做体检，通过后才落盘，失败路径与磁盘写入在时序上互斥。<br><br>通用原则：<strong>凡是有清理动作的地方，都该先问一句：能不能让它不需要被清理？</strong></dd>
+  </dl>
+
+  <h3>坑 12：SQLAlchemy 2.1 起 greenlet 不再随主包安装</h3>
+
+  <dl class="kv">
+    <dt>现象</dt><dd><code>import sqlalchemy.ext.asyncio</code> 直接 ImportError，但 sqlalchemy 明明装好了。</dd>
+    <dt>教训</dt><dd>必须写 <code>sqlalchemy[asyncio]</code>。<strong>这类"主包装了但 extras 没装"的问题，报错信息通常不会告诉你缺哪个 extra</strong>，只能靠记忆或查文档。装依赖后立刻跑一次 import 冒烟，比等到启动时才发现好。</dd>
+  </dl>
+
+  <h3>坑 13：SQLite 相对路径锚定，导致"数据丢了"</h3>
+
+  <dl class="kv">
+    <dt>现象</dt><dd>上传过的 PDF 重启后不见了。</dd>
+    <dt>实际是</dt><dd><code>DATABASE_URL=sqlite:///./data/app.db</code> 的相对路径锚定在<strong>当前工作目录</strong>。用 <code>uvicorn --app-dir backend</code>（CWD=项目根）和 <code>cd backend &amp;&amp; uvicorn</code>（CWD=backend）会落到<strong>两个不同的 db 文件</strong>。</dd>
+    <dt>教训</dt><dd><strong>任何相对路径都要锚定到明确位置。</strong>要么用绝对路径，要么在代码里显式 <code>resolve()</code> 到包所在目录。<strong>固定的启动方式也要写进文档</strong>——不然每个新人都可能踩一次。</dd>
+  </dl>
+
+  <h2 id="eng">工程与协作</h2>
+
+  <h3>坑 14：版本锁定不是建议，是硬约束</h3>
+
+  <dl class="kv">
+    <dt>现象</dt><dd>装完依赖，3D 画布整块白屏；或者公式字体错位；或者 Tailwind 样式全不生效。</dd>
+    <dt>实际是</dt><dd>四个版本陷阱：<code>@react-three/fiber</code> v8 与 React 19 不兼容（必须 v9）；<code>react-konva</code> 必须 19；<code>tailwindcss</code> v4 是 CSS-first 配置，与 v3 的 <code>tailwind.config.ts</code> 写法完全不同；<code>katex</code> 装 0.19 会与 <code>rehype-katex@7</code> 的 <code>^0.16</code> 依赖冲突，出现两份 katex 导致字体错位。</dd>
+    <dt>教训</dt><dd><strong>用 <code>~</code> 锁小版本，不用 <code>^</code>。</strong>前端生态的大版本升级经常是破坏性的，而 AI 生成的代码可能混用两代 API（比如同时写 v3 的 config 和 v4 的指令），装完能跑但样式全丢，极难排查。<br><br>遇到 peer 冲突<strong>不要用 <code>--force</code> 糊过去</strong>——冲突说明版本组合错了，force 只是把错误推迟到运行时。</dd>
+  </dl>
+
+  <h3>坑 15：Vite 绑 `::1`，`127.0.0.1` 打不开</h3>
+
+  <dl class="kv">
+    <dt>现象</dt><dd><code>curl 127.0.0.1:5173</code> 被拒绝，但浏览器 <code>localhost:5173</code> 正常。</dd>
+    <dt>实际是</dt><dd>Vite 默认绑 IPv6 的 <code>::1</code>，<code>127.0.0.1</code> 是 IPv4 回环，不是同一个地址。</dd>
+    <dt>教训</dt><dd><strong>写自动化脚本时用 <code>localhost</code>，不要用 <code>127.0.0.1</code>。</strong>这类问题会让 QA 误判"dev server 起不来"，浪费大量时间在错误方向上。</dd>
+  </dl>
+
+  <h3>坑 16：构建工具的"安全删除"守卫会拦住 `npm run build`</h3>
+
+  <dl class="kv">
+    <dt>现象</dt><dd><code>npm run build</code> 报 <code>SAFE_DELETE_BULK_CONFIRM_REQUIRED</code>，提示 79 个文件超过阈值 50。</dd>
+    <dt>实际是</dt><dd>Vite 构建前要清空 <code>dist</code>，而平台的 safe-delete shim 拦截了批量删除。</dd>
+    <dt>教训</dt><dd><strong>先分清"代码错"还是"环境限制"。</strong>这个报错发生在 <code>vite:prepare-out-dir</code> 阶段，说明<strong>类型检查已经通过了</strong>——不是代码问题。手动删掉 <code>dist</code> 再跑即可。<br><br>通用原则：<strong>看报错发生在哪个阶段</strong>，比看报错内容更能快速定位。</dd>
+  </dl>
+
+  <h2 id="summary">五条通用原则</h2>
+
+  <div class="cards">
+    <div class="card">
+      <div class="k">原则 1</div>
+      <div class="t">先证伪，再动手</div>
+      <div class="d">报告说"X 坏了"，先独立验证 X 真的坏了（读数据库、抓原始流、用 worktree 检出旧代码）。假阳性比真 bug 更常见。</div>
+    </div>
+    <div class="card">
+      <div class="k">原则 2</div>
+      <div class="t">调参是治标，换信号是治本</div>
+      <div class="d">当两个类别的分布重叠时，任何阈值都会同时误判和漏判。要找有区分力的新信号，不要在坏信号上找好阈值。</div>
+    </div>
+    <div class="card">
+      <div class="k">原则 3</div>
+      <div class="t">让错误不可能发生，而不是处理错误</div>
+      <div class="d">"删掉它"依赖"删除一定成功"。"根本不被创建"才是结构性保证。同理：强类型、契约校验、注入闸门，都是在数据入口掐死。</div>
+    </div>
+    <div class="card">
+      <div class="k">原则 4</div>
+      <div class="t">正例与反例必须成对</div>
+      <div class="d">只测"该收的收进来了"，全放开也能过；只测"该拒的拒掉了"，全拒绝也能过。成对测试才锁得住真实行为。</div>
+    </div>
+    <div class="card">
+      <div class="k">原则 5</div>
+      <div class="t">区分「值不等」与「表示不等」</div>
+      <div class="d">键序、浮点表示、null vs 缺失、空数组 vs undefined——这些"看起来不一样但其实一样"的差异，是假阳性的主要来源。</div>
+    </div>
+    <div class="card">
+      <div class="k">原则 6</div>
+      <div class="t">看报错发生在哪个阶段</div>
+      <div class="d">构建报错在 prepare-out-dir 说明类型检查已过；SSE 卡住看有没有 turn_end 就知道是前端还是后端。阶段比内容更有信息量。</div>
+    </div>
+  </div>
+
+  <div class="pager">
+    <a href="1. 需求与验收标准.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">1. 需求与验收标准</div>
+    </a>
+    <a class="next" href="../index.html">
+      <div class="dir">返回 →</div>
+      <div class="ttl">文档中心</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

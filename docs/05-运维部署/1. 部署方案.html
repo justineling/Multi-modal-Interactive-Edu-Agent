@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1. 部署方案 · 运维部署</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>运维部署</span><span class="sep">/</span>
+      <span class="cur">1. 部署方案</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">1</span>部署方案</h1>
+  <p class="lede">三种部署形态、数据库切换、SSE 的反向代理坑、以及成本估算。个人试用和商用上线差别很大，别一上来就搞集群。</p>
+
+  <div class="toc">
+    <div class="toc-h">本篇内容</div>
+    <ol>
+      <li><a href="#form">三种部署形态</a></li>
+      <li><a href="#docker">Docker Compose 单机部署</a></li>
+      <li><a href="#pg">切换到 PostgreSQL</a></li>
+      <li><a href="#nginx">反向代理：SSE 的三个坑</a></li>
+      <li><a href="#cost">成本估算</a></li>
+      <li><a href="#security">安全清单</a></li>
+    </ol>
+  </div>
+
+  <h2 id="form">三种部署形态</h2>
+
+  <table>
+    <thead><tr><th style="width:150px">形态</th><th>适用场景</th><th>成本</th><th>限制</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>本地直跑</strong></td>
+        <td>个人开发、内测、演示</td>
+        <td>0</td>
+        <td>只有本机能访问</td>
+      </tr>
+      <tr>
+        <td><strong>单机 Docker</strong></td>
+        <td>小规模商用（&lt; 500 活跃用户）</td>
+        <td>$12~20 / 月</td>
+        <td>单点故障，无水平扩展</td>
+      </tr>
+      <tr>
+        <td><strong>分离部署</strong></td>
+        <td>规模化（1000+ 用户）</td>
+        <td>$250+ / 月</td>
+        <td>运维复杂度上升</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <p><strong>建议：先用单机 Docker 跑通，等真的撑不住了再拆。</strong>
+    这个系统的瓶颈在 LLM API 调用，不在服务器性能。
+    500 个活跃学生同时提问，一台 4 核 8G 也扛得住——因为真正的计算在模型服务商那边。</p>
+  </div>
+
+  <h2 id="docker">Docker Compose 单机部署</h2>
+
+  <h3>后端 Dockerfile</h3>
+
+  <pre><code><span class="cm"># backend/Dockerfile</span>
+FROM python:3.13-slim
+
+WORKDIR /app
+
+<span class="cm"># PyMuPDF 需要这些系统库</span>
+RUN apt-get update &amp;&amp; apt-get install -y --no-install-recommends \
+    libgl1 libglib2.0-0 &amp;&amp; rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app ./app
+COPY scripts ./scripts
+
+<span class="cm"># 数据目录挂载出来，容器重启不丢数据</span>
+VOLUME ["/app/data"]
+
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]</code></pre>
+
+  <h3>前端 Dockerfile</h3>
+
+  <pre><code><span class="cm"># frontend/Dockerfile</span>
+FROM node:22-slim AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80</code></pre>
+
+  <h3>docker-compose.yml</h3>
+
+  <pre><code>services:
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:///./data/app.db
+      LLM_BASE_URL: ${LLM_BASE_URL}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL_ROUTER: gpt-4o-mini
+      LLM_MODEL_GENERATOR: gpt-4o
+      CORS_ORIGINS: https://your-domain.com
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - <span class="st">"80:80"</span>
+    depends_on:
+      - backend
+    restart: unless-stopped</code></pre>
+
+  <div class="warn">
+    <p><strong><code>volumes</code> 那一行不能省。</strong>不挂载的话，容器重建后
+    <code>app.db</code> 和上传的 PDF 全丢——学生所有学习记录都没了。</p>
+  </div>
+
+  <h2 id="pg">切换到 PostgreSQL</h2>
+
+  <p>SQLite 在并发写入时会锁库（500 用户同时提问可能报 <code>database is locked</code>）。
+  到这一步就该换 PG 了。</p>
+
+  <h3>步骤</h3>
+
+  <ol class="steps">
+    <li>
+      <span class="st-title">装 PG 依赖</span>
+      <pre><code>pip install -r requirements-postgres.txt</code></pre>
+      <p>包含 <code>asyncpg</code> 和 <code>pgvector</code>。注意这两个包在 Windows 上可能需要编译工具，Linux 上直接装。</p>
+    </li>
+    <li>
+      <span class="st-title">启动 PG 并建库</span>
+      <pre><code>docker run -d --name edu-pg \
+  -e POSTGRES_PASSWORD=yourpass \
+  -e POSTGRES_DB=edu \
+  -p 5432:5432 \
+  pgvector/pgvector:pg16</code></pre>
+    </li>
+    <li>
+      <span class="st-title">改 DATABASE_URL</span>
+      <pre><code>DATABASE_URL=postgresql+asyncpg://postgres:yourpass@localhost:5432/edu</code></pre>
+    </li>
+    <li>
+      <span class="st-title">启动，自动建表</span>
+      <p>服务启动时会自动 <code>CREATE TABLE</code>。<strong>代码一行都不用改</strong>——
+      双模式通过 <code>EmbeddingStore</code> 协议隔离了。</p>
+    </li>
+  </ol>
+
+  <div class="note">
+    <p><strong>迁移已有数据？</strong>当前没有内置迁移脚本。如果要从 SQLite 迁到 PG，
+    最简单的方式是重新上传教材（索引会重建），会话历史如果重要需要自己写导出脚本。</p>
+  </div>
+
+  <h3>PG 模式下的一个注意事项</h3>
+
+  <p>当前实现把向量存在 <code>Text</code> 列（JSON 数组），检索在 Python 侧算余弦。
+  即使切了 PG 也不会用上 pgvector 的索引加速。这是刻意的取舍——
+  换取"业务代码完全不感知数据库类型"。</p>
+
+  <p>如果将来 chunk 量级上到十万级，需要改成真正的 <code>vector(1536)</code> 列 + IVFFlat 索引。
+  那需要改 <code>db/models.py</code> 和 <code>PgVectorStore</code>，属于较大改动。</p>
+
+  <h2 id="nginx">反向代理：SSE 的三个坑</h2>
+
+  <p>SSE 走 HTTP 长连接，nginx 默认配置会把它搞坏。三处必须改：</p>
+
+  <pre><code>location /api/ {
+    proxy_pass http://backend:8000;
+
+    <span class="cm"># ① 必须用 HTTP/1.1，否则 chunked 传输被降级</span>
+    proxy_http_version 1.1;
+
+    <span class="cm"># ② 关闭缓冲，否则事件被攒成一整块才下发，TTFT 直接失效</span>
+    proxy_buffering off;
+    proxy_cache off;
+
+    <span class="cm"># ③ 延长超时，否则长对话被 60 秒掐断</span>
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
+
+    <span class="cm"># 让 Connection 头透传（有些版本需要）</span>
+    proxy_set_header Connection <span class="st">""</span>;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+}</code></pre>
+
+  <div class="danger">
+    <p><strong><code>proxy_buffering off</code> 是最容易漏的一条。</strong>
+    不开的话，用户会看到"转圈很久 → 突然一次性出现全部文字"，
+    流式体验完全消失。而后端日志显示 TTFT 只有 7ms，让你误以为是前端问题。</p>
+    <p style="margin-top:10px">后端已经在响应头里带了 <code>X-Accel-Buffering: no</code>，
+    但有些 nginx 配置会忽略它，所以显式关掉更保险。</p>
+  </div>
+
+  <h3>Cloudflare 用户的额外注意</h3>
+
+  <p>Cloudflare 免费版会缓冲响应。需要在 Transform Rules 里对 <code>/api/chat/stream</code>
+  关掉 <code>Cache</code> 和 <code>Buffer</code>，或者该路径不走 CDN 直接回源。</p>
+
+  <h2 id="cost">成本估算</h2>
+
+  <h3>基础设施</h3>
+
+  <table>
+    <thead><tr><th style="width:150px">规模</th><th>配置</th><th>月费</th></tr></thead>
+    <tbody>
+      <tr><td>MVP 内测（1~50 人）</td><td>1 台 4核8G + 50G 磁盘</td><td>$12</td></tr>
+      <tr><td>小型商用（500 活跃）</td><td>8核16G + 托管 PG + 对象存储</td><td>$55</td></tr>
+      <tr><td>规模化（5000 活跃）</td><td>前后端分离 + PG 读写分离 + Redis</td><td>$240</td></tr>
+    </tbody>
+  </table>
+
+  <h3>API 成本（这是主要开销）</h3>
+
+  <p>单学生学完一节（上传 2 本教材 + 学 1 节 + 生成 PPT + 1 个动画 + 6 轮追问）：</p>
+
+  <table>
+    <thead><tr><th style="width:220px">项目</th><th>消耗</th><th>成本</th></tr></thead>
+    <tbody>
+      <tr><td>PDF 向量化（一次性）</td><td>35 万 tokens</td><td>$0.007</td></tr>
+      <tr><td>生成 + 6 轮追问</td><td>4 万输入 + 1 万输出</td><td>$0.015~0.030</td></tr>
+      <tr><td><strong>单节合计</strong></td><td>—</td><td><strong>$0.02 左右</strong></td></tr>
+    </tbody>
+  </table>
+
+  <div class="tip">
+    <p><strong>三个降本手段：</strong></p>
+    <ol style="margin:8px 0 0">
+      <li><strong>模型分层路由</strong>：路由/评估用 mini 级模型，只有 JSON 生成用大模型。能省 70% 以上。</li>
+      <li><strong>前缀缓存</strong>：把章节原文和 JSON Schema 固定在 System Prompt 头部。
+      多轮追问时 90% 的输入命中缓存，成本降到 1/10。</li>
+      <li><strong>本地 embedding</strong>：默认就是本地确定性实现，向量化成本为 0。</li>
+    </ol>
+  </div>
+
+  <h2 id="security">安全清单</h2>
+
+  <table>
+    <thead><tr><th style="width:40px">#</th><th>项</th><th>做法</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>API Key 不进代码</td><td>只放 <code>.env</code> 或环境变量；<code>.env</code> 在 <code>.gitignore</code> 里</td></tr>
+      <tr><td>2</td><td>CORS 白名单</td><td>生产环境把 <code>CORS_ORIGINS</code> 改成真实域名，不要留 <code>*</code></td></tr>
+      <tr><td>3</td><td>上传体积限制</td><td><code>MAX_UPLOAD_MB</code> 与 <code>MAX_PDF_PAGES</code> 都设上，防 DoS</td></tr>
+      <tr><td>4</td><td>注入防护</td><td>已内置：AST 基类递归扫描 HTML/JS 标记，命中即拒绝</td></tr>
+      <tr><td>5</td><td>无代码执行</td><td>架构上不存在"LLM 生成代码并执行"的路径，这是最大的安全优势</td></tr>
+      <tr><td>6</td><td>数据备份</td><td>定期备份 <code>data/</code> 目录（db + uploads）</td></tr>
+      <tr><td>7</td><td>登录体系</td><td><strong>当前没有</strong>。公网部署前必须加一层（nginx basic auth 或自建认证）</td></tr>
+    </tbody>
+  </table>
+
+  <div class="danger">
+    <p><strong>当前版本是单用户设计，没有登录、没有租户隔离。</strong>
+    直接暴露到公网等于任何人都能用你的 API Key 烧钱。上线前至少加一层认证。</p>
+  </div>
+
+  <div class="pager">
+    <a href="../04-开发指南/5. 测试与调试.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">开发指南 · 5. 测试与调试</div>
+    </a>
+    <a class="next" href="2. 故障排查.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">2. 故障排查</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1. 一次提问的完整旅程 · 开发指南</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>开发指南</span><span class="sep">/</span>
+      <span class="cur">1. 一次提问的完整旅程</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">1</span>一次提问的完整旅程</h1>
+  <p class="lede">
+    这是整套文档里最重要的一篇。我们把"用户按回车"这一秒内发生的事，拆成 10 站逐一追踪。
+    读完这篇，你就知道每个文件为什么存在、改功能该去哪个文件。
+  </p>
+
+  <div class="note">
+    <p><strong>怎么读这篇：</strong>建议同时打开代码编辑器，跟着每一站的文件路径去看真实代码。
+    只看文档不动手，很容易"读懂了但记不住"。每一站我都标了「打开哪个文件、找哪个函数」。</p>
+  </div>
+
+  <div class="toc">
+    <div class="toc-h">十站路线</div>
+    <ol>
+      <li><a href="#s1">浏览器：按下回车</a></li>
+      <li><a href="#s2">前端：组装请求</a></li>
+      <li><a href="#s3">网络：SSE 连接建立</a></li>
+      <li><a href="#s4">后端：进入 API 层</a></li>
+      <li><a href="#s5">引擎：开始编排</a></li>
+      <li><a href="#s6">检索：找到课本片段</a></li>
+      <li><a href="#s7">路由：决定出什么形态</a></li>
+      <li><a href="#s8">生成：填 JSON AST</a></li>
+      <li><a href="#s9">落库：写两张表</a></li>
+      <li><a href="#s10">回流：前端重渲染</a></li>
+    </ol>
+  </div>
+
+  <h2 id="s1">第 1 站 · 浏览器：按下回车</h2>
+
+  <p><strong>打开：</strong><code>frontend/src/components/chat/Composer.tsx</code></p>
+
+  <p>输入框组件监听键盘事件。按下回车（且没有 Shift）时，它做两件事：</p>
+
+  <ol>
+    <li>取输入框的文本</li>
+    <li>取当前锚点（如果用户点过画布上的元素，输入框上方会有个 chip）</li>
+  </ol>
+
+  <p>然后调用 store 里的发送方法。注意<strong>它自己不直接发请求</strong>——组件只管交互，发请求是 hook 的事。</p>
+
+  <pre><code><span class="cm">// 简化后的逻辑</span>
+<span class="kw">function</span> <span class="fn">handleSubmit</span>() {
+  <span class="kw">if</span> (!text.trim()) <span class="kw">return</span>;
+  onSend(text, anchor);        <span class="cm">// anchor 可能是 null</span>
+  setText(<span class="st">""</span>);               <span class="cm">// 清空输入框</span>
+}</code></pre>
+
+  <div class="note">
+    <p><strong>为什么组件不直接发请求？</strong>因为"发请求"涉及 SSE 流、事件分发、状态更新、
+    取消与重连，逻辑很重。把它抽到 hook（<code>useChatStream</code>）里，组件才能保持简单。
+    这是 React 的常规分层：<strong>组件管"长什么样"，hook 管"做什么"</strong>。</p>
+  </div>
+
+  <h2 id="s2">第 2 站 · 前端：组装请求</h2>
+
+  <p><strong>打开：</strong><code>frontend/src/hooks/useChatStream.ts</code></p>
+
+  <p>这个 hook 是整个前端的数据中枢。它要做四件事：</p>
+
+  <table>
+    <thead><tr><th style="width:170px">动作</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>幂等守卫</td><td>用 <code>AbortController</code> + in-flight ref，防止 StrictMode 双挂载导致重复请求</td></tr>
+      <tr><td>乐观更新</td><td>立刻把用户消息 push 到 store，界面马上显示，不等后端</td></tr>
+      <tr><td>建占位消息</td><td>建一条空的 assistant 消息，标记 <code>streaming: true</code>，后续 token 往这里追加</td></tr>
+      <tr><td>发起流</td><td>调 <code>api/sse.ts</code> 的 <code>streamChat()</code></td></tr>
+    </tbody>
+  </table>
+
+  <p>请求体长这样：</p>
+
+  <pre><code>{
+  <span class="st">"workspace_id"</span>: <span class="st">"86f98c81-..."</span>,
+  <span class="st">"query"</span>: <span class="st">"4.1 Malayan Union 对苏丹的影响"</span>,
+  <span class="st">"mode"</span>: <span class="st">"syllabus_strict"</span>,
+  <span class="st">"anchor"</span>: <span class="kw">null</span>,
+  <span class="st">"artifact_type_override"</span>: <span class="kw">null</span>,
+  <span class="st">"history_limit"</span>: 8
+}</code></pre>
+
+  <div class="warn">
+    <p><strong><code>anchor</code> 是这一站最关键的字段。</strong>如果用户点过画布，这里会有
+    <code>{artifact_id, node_path, section_code, page, node_label}</code>。
+    后端看到它就会：① 把检索锁定在那个小节 ② 走 patch 而不是新建产物。
+    一个字段决定了两条完全不同的执行路径。</p>
+  </div>
+
+  <h2 id="s3">第 3 站 · 网络：SSE 连接建立</h2>
+
+  <p><strong>打开：</strong><code>frontend/src/api/sse.ts</code></p>
+
+  <p>这里用 <code>fetch</code> + <code>ReadableStream</code> 手写了一个 SSE 解析器。
+  为什么不用浏览器内置的 <code>EventSource</code>？<strong>因为它不支持 POST</strong>。</p>
+
+  <p>解析器的工作是：把网络上传来的字节流，切成一个个「事件」。网络传输是分片的，
+  一个事件可能被切成两半到达，所以要维护一个 <code>buffer</code>：</p>
+
+  <pre><code>buffer += 新到达的文本
+blocks = buffer.split(<span class="st">"\n\n"</span>)     <span class="cm">// 空行分隔事件</span>
+buffer = blocks.pop()                <span class="cm">// 最后一块可能不完整，留着</span>
+
+<span class="kw">for</span> (block <span class="kw">of</span> blocks) {
+  解析 event: 和 data: 行 → 回调出去
+}</code></pre>
+
+  <p>解析出的事件会通过回调交给 <code>useChatStream</code> 分发。</p>
+
+  <h2 id="s4">第 4 站 · 后端：进入 API 层</h2>
+
+  <p><strong>打开：</strong><code>backend/app/api/chat_stream.py</code> → 函数 <code>chat_stream()</code></p>
+
+  <p>FastAPI 收到 POST 请求，先做三件事：</p>
+
+  <ol>
+    <li><strong>Pydantic 校验请求体</strong>。字段缺失或类型不对，直接返回 400，不会进业务逻辑。</li>
+    <li><strong>生成 <code>turn_id</code></strong>（复用 request_id），贯穿整个回合的日志追踪。</li>
+    <li><strong>返回 <code>StreamingResponse</code></strong>，把生成器包成 SSE 流。</li>
+  </ol>
+
+  <div class="note">
+    <p><strong>这里有个不显眼但重要的设计：队列 + 超时保活。</strong>
+    如果直接 <code>async for</code> 转发生成器，<code>asyncio.wait_for</code> 超时会取消正在等待的
+    <code>__anext__()</code>，把整个生成器关掉。所以改成「后台任务写队列、响应协程读队列」，
+    超时就发一行 <code>: ping</code> 注释，不干扰生成。</p>
+  </div>
+
+  <h2 id="s5">第 5 站 · 引擎：开始编排</h2>
+
+  <p><strong>打开：</strong><code>backend/app/services/agent_engine.py</code> → <code>AgentEngine.stream_turn()</code></p>
+
+  <p>这是整个后端的大脑。<strong>它是一个异步生成器</strong>——每完成一个阶段就 <code>yield</code> 一个事件，
+  事件被上层转成 SSE 推给前端。</p>
+
+  <p>执行顺序严格固定：</p>
+
+  <pre><code><span class="kw">yield</span> <span class="st">"turn_start"</span>, TurnStartEvent(...)
+
+result = <span class="kw">await</span> retriever.retrieve(query, workspace_id, anchor)
+<span class="kw">yield</span> <span class="st">"retrieval"</span>, RetrievalEvent(...)
+
+decision = router.route(query, result, override)
+<span class="kw">yield</span> <span class="st">"modality_decision"</span>, ModalityDecisionEvent(...)
+
+<span class="kw">async for</span> chunk <span class="kw">in</span> self._compose_reply_stream(...):
+    <span class="kw">yield</span> <span class="st">"token"</span>, TokenEvent(delta=chunk)
+
+<span class="kw">yield</span> <span class="st">"artifact"</span>, ArtifactEvent(...)
+<span class="kw">yield</span> <span class="st">"citations"</span>, CitationsEvent(...)
+<span class="kw">yield</span> <span class="st">"turn_end"</span>, TurnEndEvent(...)</code></pre>
+
+  <p>为什么用生成器而不是普通函数？因为要<strong>边算边发</strong>。用户不用等全部算完才看到文字，
+  第一个 token 出来就推过去了（这就是 TTFT 只有几毫秒的原因）。</p>
+
+  <h2 id="s6">第 6 站 · 检索：找到课本片段</h2>
+
+  <p><strong>打开：</strong><code>backend/app/services/retriever.py</code> → <code>Retriever.retrieve()</code></p>
+
+  <p>四步（详细算法见 <a href="../03-架构设计/4. 检索与路由.html">检索与路由</a>）：</p>
+
+  <ol class="steps">
+    <li>
+      <span class="st-title">章节精确过滤</span>
+      <p>如果 query 里有章节号（<code>4.1</code>），或者 anchor 带了 <code>section_code</code>，
+      先用 SQL 捞出该节所有切片。这是"目录树锚定"的实现。</p>
+    </li>
+    <li>
+      <span class="st-title">双通道打分</span>
+      <p>BM25（词面匹配）+ 向量余弦（语义相似）。两个通道各有盲区，互补。</p>
+    </li>
+    <li>
+      <span class="st-title">加权融合取 Top-8</span>
+      <p><code>0.35×bm25 + 0.45×cosine + 0.15×section_bonus + 0.05×page_bonus</code></p>
+    </li>
+    <li>
+      <span class="st-title">覆盖判定</span>
+      <p>调 <code>text_signals.content_words()</code> 提实词，算命中率。低于 0.45 → <code>NO_MATCH</code>。</p>
+    </li>
+  </ol>
+
+  <p>产出是一个 <code>RetrievalResult</code>，含 <code>grader_status</code>、<code>chunks</code>、<code>top_score</code>、<code>section_scope</code>。</p>
+
+  <h2 id="s7">第 7 站 · 路由：决定出什么形态</h2>
+
+  <p><strong>打开：</strong><code>backend/app/services/router.py</code> → <code>route()</code></p>
+
+  <p>判断该出 PPT / 2D / 3D。优先级：</p>
+
+  <ol>
+    <li>用户显式指定（<code>artifact_type_override</code>）→ <strong>直接用，不判断</strong></li>
+    <li>否则按关键词打分：空间类 → 3D，过程类 → 2D，离散类 → PPT</li>
+    <li>都没命中 → 默认 PPT</li>
+  </ol>
+
+  <p>返回 <code>{artifact_type, reason, user_override}</code>。<code>reason</code> 会直接显示给用户，
+  所以必须是人话，不能是 <code>"matched_keyword: impact"</code> 这种。</p>
+
+  <h2 id="s8">第 8 站 · 生成：填 JSON AST</h2>
+
+  <p><strong>打开：</strong><code>backend/app/services/agent_engine.py</code> →
+  <code>_create_artifact_stream()</code> / <code>_patch_artifact_stream()</code></p>
+
+  <p>这里分两条路：</p>
+
+  <h3>路径 A：新建产物（无锚点）</h3>
+
+  <ol>
+    <li>组装提示词：检索到的课本片段 + 目标 AST 的 JSON Schema</li>
+    <li>调 <code>llm_client.chat_json()</code>（或 <code>mock_generator</code>，演示模式下）</li>
+    <li>Pydantic 校验 → 失败则把错误回灌给模型重试（最多 3 次）</li>
+    <li>全失败 → 降级到 mock，保证用户不会空手</li>
+  </ol>
+
+  <h3>路径 B：增量补丁（有锚点）</h3>
+
+  <ol>
+    <li>从数据库读出当前 artifact 的 spec</li>
+    <li>把 spec 摘要 + 锚点 + 用户问题一起给模型，要求它输出 <strong>PatchOp 数组</strong></li>
+    <li>调 <code>patch_engine.apply_patch()</code> 应用补丁</li>
+    <li>校验通过后写新版本</li>
+  </ol>
+
+  <div class="danger">
+    <p><strong>路径 B 的关键约束：<code>update_node</code> 的 payload 只带被改字段。</strong>
+    前端必须做字段级 merge。这一条写错，渲染器当场崩——详见
+    <a href="../03-架构设计/5. 增量补丁与 SSE.html#merge">增量补丁</a>。</p>
+  </div>
+
+  <h2 id="s9">第 9 站 · 落库：写两张表</h2>
+
+  <p><strong>打开：</strong><code>backend/app/db/repository.py</code></p>
+
+  <p>新建或 patch 都要写两张表：</p>
+
+  <table>
+    <thead><tr><th style="width:200px">表</th><th>写什么</th></tr></thead>
+    <tbody>
+      <tr><td><code>artifacts</code></td><td>更新 <code>spec_json</code>（最新版）+ <code>version</code> +1</td></tr>
+      <tr><td><code>artifact_versions</code></td><td><strong>INSERT</strong> 一行快照（append-only，绝不 UPDATE）</td></tr>
+    </tbody>
+  </table>
+
+  <p>另外每轮对话结束还要写两条 <code>messages</code>（user + assistant），供刷新后恢复会话。</p>
+
+  <div class="warn">
+    <p><strong>写版本快照必须 <code>copy.deepcopy</code>。</strong>SQLAlchemy 的 <code>JSON</code> 类型不追踪嵌套原地修改。
+    如果快照和 <code>artifact.spec_json</code> 共享同一个 dict 对象，后续修改 artifact 会连带改到历史行。</p>
+  </div>
+
+  <h2 id="s10">第 10 站 · 回流：前端重渲染</h2>
+
+  <p><strong>打开：</strong><code>frontend/src/hooks/useChatStream.ts</code> 的事件分发 → <code>store/useWorkspaceStore.ts</code></p>
+
+  <p>每个 SSE 事件对应一个 store 更新动作：</p>
+
+  <table>
+    <thead><tr><th style="width:170px">事件</th><th>store 动作</th><th>界面变化</th></tr></thead>
+    <tbody>
+      <tr><td><code>turn_start</code></td><td><code>beginStreaming()</code></td><td>输入框禁用，显示"生成中"</td></tr>
+      <tr><td><code>token</code></td><td><code>appendToken(delta)</code></td><td>文字逐字出现</td></tr>
+      <tr><td><code>retrieval</code></td><td>存 grader 状态与命中片段</td><td>引用可展开</td></tr>
+      <tr><td><code>modality_decision</code></td><td>存路由理由</td><td>显示"为什么生成 PPT"</td></tr>
+      <tr><td><code>artifact</code></td><td><code>upsertArtifact()</code></td><td>右侧画布渲染产物</td></tr>
+      <tr><td><code>citations</code></td><td>挂到消息上</td><td>底部出现引用列表</td></tr>
+      <tr><td><code>turn_end</code></td><td><code>endStreaming()</code></td><td>输入框恢复可用</td></tr>
+    </tbody>
+  </table>
+
+  <p>Zustand 的状态一变，订阅它的组件自动重渲染。右侧 <code>ArtifactHost</code> 按
+  <code>spec.type</code> 策略分发到对应渲染器，画面就出来了。</p>
+
+  <div class="tip">
+    <p><strong>到这一步，一次提问就完整走完了。</strong>你现在应该能回答这些问题：</p>
+    <ul style="margin-top:8px">
+      <li>想改"为什么生成 PPT"那句话的文案 → 改 <code>router.py</code></li>
+      <li>想改 PPT 某一页的样式 → 改 <code>components/canvas/layouts/*.tsx</code></li>
+      <li>想改引用页码的排序 → 改 <code>agent_engine._build_citations</code></li>
+      <li>想加一个新的 SSE 事件 → 改 <code>schemas/chat.py</code> + <code>useChatStream.ts</code> 两处</li>
+    </ul>
+  </div>
+
+  <h2>整条链路的文件依赖图</h2>
+
+  <pre><code>Composer.tsx
+    ↓ onSend(text, anchor)
+useChatStream.ts ──→ api/sse.ts ──→ POST /api/chat/stream
+    ↑                                    ↓
+store/useWorkspaceStore.ts        api/chat_stream.py
+    ↑                                    ↓
+    │                          services/agent_engine.py
+    │                                    ├─→ retriever.py ─→ text_signals.py
+    │                                    ├─→ router.py
+    │                                    ├─→ llm_client.py / mock_generator.py
+    │                                    ├─→ patch_engine.py
+    │                                    └─→ db/repository.py
+    └──────────── SSE 事件回流 ───────────┘
+
+    ↓ 状态变化
+ArtifactHost.tsx
+    ├─→ SlideRenderer.tsx  → layouts/*.tsx
+    ├─→ Anim2DRenderer.tsx → lib/anim2d.ts
+    └─→ Scene3DRenderer.tsx → lib/scene3d.ts</code></pre>
+
+  <div class="pager">
+    <a href="../03-架构设计/5. 增量补丁与 SSE.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">架构设计 · 5. 增量补丁与 SSE</div>
+    </a>
+    <a class="next" href="2. 后端代码地图.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">2. 后端代码地图</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

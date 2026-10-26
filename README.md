@@ -4,6 +4,28 @@
 
 ---
 
+## 文档
+
+**完整文档站入口：`docs/index.html`**（浏览器直接打开，无需启动服务）
+
+共 20 篇，分 6 类：
+
+| 分类 | 篇数 | 适合谁 |
+|---|---|---|
+| `01-快速开始` | 2 | 所有人：项目定位、环境搭建、五分钟跑起来 |
+| `02-用户手册` | 4 | 使用者：上传教材、对话学习、画布交互、常见问题 |
+| `03-架构设计` | 5 | 维护者：系统总览、数据模型、DSL 契约、检索与路由、增量补丁与 SSE |
+| `04-开发指南` | 5 | **开发者**：一次提问的完整旅程、前后端代码地图、动手改功能、测试与调试 |
+| `05-运维部署` | 2 | 运维：部署方案与成本、故障排查 |
+| `06-项目档案` | 2 | 所有人：需求与验收标准、16 个踩坑记录 |
+
+> 如果你是第一次接触这个项目，读这三篇就够：
+> `01-快速开始/1` → `01-快速开始/2` → `04-开发指南/1`。
+
+Markdown 源文档保留在 `docs/` 根目录（`PRD.md` / `ARCHITECTURE.md` / `SPEC.md` / `IMPL-NOTES.md` / `QA-REPORT-backend.md`），HTML 文档站是它们面向不同读者的重组版本。
+
+---
+
 ## 一、核心设计：DSL 契约驱动渲染
 
 本项目**不允许 LLM 直接生成 HTML / Three.js 源码**。LLM 只负责填充 JSON AST，前端用确定性渲染器渲染。这是整个系统稳定性的根基。
@@ -100,11 +122,13 @@ python scripts/make_sample_pdf.py
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `DATABASE_URL` | `sqlite+aiosqlite:///./data/app.db` | 换成 `postgresql+asyncpg://...` 即切换 PG + pgvector |
-| `LLM_BASE_URL` | `https://api.deepseek.com/v1` | OpenAI 兼容端点 |
+| `LLM_BASE_URL` | `https://api.openai.com/v1` | OpenAI 兼容端点（DeepSeek / 通义 / 本地 vLLM 都行） |
 | `LLM_API_KEY` | 空 | **留空则进入演示模式**（内置确定性生成器），全链路仍可跑通 |
-| `LLM_MODEL_ROUTER` | `deepseek-flash` | 轻量任务（路由/评估/答疑） |
-| `LLM_MODEL_GENERATOR` | `deepseek-v4-pro` | 复杂 JSON AST 生成 |
+| `LLM_MODEL_ROUTER` | `gpt-4o-mini` | 轻量任务（路由/评估/答疑） |
+| `LLM_MODEL_GENERATOR` | `gpt-4o` | 复杂 JSON AST 生成 |
+| `GRADER_CONTENT_HIT_MIN_RATIO` | `0.45` | 实词命中率门槛，低于它判「课本未覆盖」。**换教材要重标** |
 | `MAX_UPLOAD_MB` | 50 | 上传体积上限 |
+| `MAX_PDF_PAGES` | 600 | 单份 PDF 页数上限 |
 | `ARTIFACT_VERSION_KEEP` | 20 | Artifact 历史版本保留窗口 |
 
 **演示模式说明**：`LLM_API_KEY` 为空时自动走内置 mock 生成器（纯函数、确定性、同输入同输出），UI 顶部会常驻黄色「演示模式」标识。这是为了让项目在没有任何 API Key 的机器上也能完整跑通验收链路。

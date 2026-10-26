@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2. 对话学习怎么用 · 用户手册</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>用户手册</span><span class="sep">/</span>
+      <span class="cur">2. 对话学习怎么用</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">2</span>对话学习怎么用</h1>
+  <p class="lede">同样是提问，问法不同，得到的东西质量差很远。这篇讲清楚两种模式的区别、引用怎么读、以及怎么问才有效。</p>
+
+  <div class="toc">
+    <div class="toc-h">本篇内容</div>
+    <ol>
+      <li><a href="#mode">两种模式：严格 vs 拓展</a></li>
+      <li><a href="#cite">引用怎么读</a></li>
+      <li><a href="#ext">怎么识别"超纲拓展"</a></li>
+      <li><a href="#nomatch">"课本未覆盖"是什么意思</a></li>
+      <li><a href="#ask">怎么问才有效</a></li>
+      <li><a href="#reason">那行小字"为什么生成 PPT"</a></li>
+      <li><a href="#flow">一次完整的学习流程示例</a></li>
+    </ol>
+  </div>
+
+  <h2 id="mode">两种模式：严格 vs 拓展</h2>
+
+  <p>顶栏有一个模式切换开关。这是整个产品最重要的一个选择，直接决定你拿到的是"考试答案"还是"理解材料"。</p>
+
+  <table>
+    <thead><tr><th style="width:180px">模式</th><th>行为</th><th>什么时候用</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>严格按课本</strong><br><code>syllabus_strict</code></td>
+        <td>只用检索到的课本原文回答，每条事实陈述后面强制带 <code>[p.94]</code> 这样的页码。
+        不加入任何课本外内容。</td>
+        <td><strong>备考、写作业、要交的答案。</strong>这是默认模式。</td>
+      </tr>
+      <tr>
+        <td><strong>含拓展</strong><br><code>hybrid_extended</code></td>
+        <td>先给课本基准答案（带页码），再用一块视觉上明显区分的「深度拓展」补充课本外的背景、因果、延伸。</td>
+        <td>想真正理解、或者老师问了一个课本没直接答的问题</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="warn">
+    <p><strong>默认是「严格按课本」，这个默认值是有意选的。</strong>核心用户是备考学生，"考试不答偏"的优先级高于"讲得更丰富"。
+    如果你发现自己总在切到拓展模式，说明你可能在用理解型学习而不是应试型——那也没问题，切换一下就好。</p>
+  </div>
+
+  <h2 id="cite">引用怎么读</h2>
+
+  <p>严格模式下，回答里的页码不是装饰，是<strong>可点击的</strong>。点 <code>[p.76-77]</code> 会在消息下方展开课本对应位置的原文字段。</p>
+
+  <pre><code>【课本依据】Reaksi Masyarakat
+
+- 马来人社会普遍反对 Malayan Union，认为它削弱了苏丹与马来州的地位 [p.76]
+- 各州苏丹在压力下缺席签约仪式，形成事实上的抵制 [p.77]
+
+┌─ 引用来源 ────────────────────────────┐
+│  ● Reaksi Masyarakat（p.76-77）        │  ← 点击展开原文
+│  ● Kuasa Sultan（p.74-75）             │
+│  ● Latar Belakang Malayan Union（p.72-73）│
+└───────────────────────────────────────┘</code></pre>
+
+  <div class="tip">
+    <p><strong>养成点开引用的习惯。</strong>这是这套系统区别于通用 AI 的核心价值——每一句都能追溯到课本第几页。
+    如果某条引用点开发现原文跟结论对不上，那是需要反馈的问题，不是正常现象。</p>
+  </div>
+
+  <h3>引用的排序规则</h3>
+  <p>
+    引用列表按<strong>书页顺序</strong>排列（p.72 → p.74 → p.76），不是按相关度。
+    因为它是"出处清单"，你翻书时希望按页码顺序走，而不是按系统打分顺序走。
+  </p>
+
+  <h3>为什么有时会列出同一节的多个子节</h3>
+  <p>
+    如果你锚定了 4.1 这一节，引用里可能出现 4.1.1、4.1.2、4.1.3。
+    这是<strong>正常的</strong>——子节属于该节的范围，内容都算"这一节讲的"。不是 bug。
+  </p>
+
+  <h2 id="ext">怎么识别"超纲拓展"</h2>
+
+  <p>拓展模式下，回答会分成两层，视觉上明显不同：</p>
+
+  <pre><code>【课本依据】……
+（这部分带页码，是考试基准）
+
+┃ 深度拓展（超出课本范围）
+┃ ─────────────────────────
+┃ 这里讲的是课本没有展开的背景，比如当时的国际形势、
+┃ 后续的历史影响。这部分<strong>不带页码</strong>，因为不在课本里。
+┃ 考试按上面那部分答，这部分帮你理解"为什么会这样"。</code></pre>
+
+  <p>三个识别特征：</p>
+  <ul>
+    <li>开头明确写「含超纲内容」</li>
+    <li>用<strong>琥珀色左边框</strong>的引用块包起来</li>
+    <li>里面的内容<strong>不带页码</strong></li>
+  </ul>
+
+  <div class="danger">
+    <p><strong>考试时只答带页码的部分。</strong>拓展内容是帮你理解的，不是评分标准。
+    这是产品设计里刻意做的视觉区分——防止学生把"AI 补充的背景"当成"课本要求掌握的内容"写进答卷。</p>
+  </div>
+
+  <h2 id="nomatch">"课本未覆盖"是什么意思</h2>
+
+  <p>当你问的内容课本里确实没有，系统会明确说「课本未覆盖」，并且：</p>
+
+  <ul>
+    <li>正文<strong>不出现任何页码</strong></li>
+    <li>引用列表<strong>为空</strong></li>
+    <li>不会编造一个看起来像模像样的出处</li>
+  </ul>
+
+  <p>例如问「为什么天空是蓝色的」，得到的会是：</p>
+
+  <pre><code>【课本未覆盖】
+
+这个问题在已上传的教材（Form 4 Sejarah）中没有找到相关内容。
+建议：确认是否问对了科目，或切换到「含拓展」模式获取通用知识补充。</code></pre>
+
+  <div class="note">
+    <p><strong>这是刻意设计的"不回答"。</strong>如果系统对任何问题都能编出一段带页码的历史课答案，
+    那所有引用都不可信了。宁可明确说"没覆盖"，也不能假装覆盖了。</p>
+  </div>
+
+  <h2 id="ask">怎么问才有效</h2>
+
+  <table>
+    <thead><tr><th style="width:50%">✅ 这样问效果好</th><th>❌ 这样问效果差</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>「4.1 Malayan Union 对苏丹的影响」</td>
+        <td>「讲讲这个」（没有指代对象，系统不知道"这个"是什么）</td>
+      </tr>
+      <tr>
+        <td>点目录树节点 → 自动填「学习 4.1」</td>
+        <td>手打「我想学第四章第一节」（词面跟课本对不上，可能匹配失败）</td>
+      </tr>
+      <tr>
+        <td>「为什么马来人会反对 Malayan Union」</td>
+        <td>「为什么」（太短，实词不足）</td>
+      </tr>
+      <tr>
+        <td>「用 3D 展示议会大厦的内部结构」</td>
+        <td>「用 3D」（没说展示什么）</td>
+      </tr>
+      <tr>
+        <td>「把第 3 页的公民权条件拆细一点」</td>
+        <td>「再详细点」（没说哪一页、详细什么）</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>三条实用原则</h3>
+
+  <ol>
+    <li><strong>带上具体名词。</strong>「苏丹」「Malayan Union」「公民权」这类实词，是检索的关键。
+    全是"这个""那个""怎么样"的问句，实词命中率不够，容易被判「课本未覆盖」。</li>
+    <li><strong>要精确就点目录树，不要手打章节号。</strong>点一下等于告诉系统"这一节确实存在"，命中率 100%。</li>
+    <li><strong>要改画布内容，先点那个元素再问。</strong>这样系统知道你要改哪里，只改那一处。直接在输入框说"改一下"它不知道改哪儿。</li>
+  </ol>
+
+  <h2 id="reason">那行小字"为什么生成 PPT"</h2>
+
+  <p>每次生成产物，消息里会有一行灰色小字，比如：</p>
+
+  <pre><code>为什么生成 PPT：问句命中「影响」，属于离散有序、需要逐条阅读的信息 → PPT 课件</code></pre>
+
+  <p>这是系统的<strong>形态路由理由</strong>。它不是装饰——是让你能判断"这个形态对不对"的依据。</p>
+
+  <p>如果理由不合理（比如你问的是空间结构，它却给了 PPT），直接在下一句说「用 3D 展示」，
+  系统会 100% 遵循你的指定，不再自动判断。</p>
+
+  <h2 id="flow">一次完整的学习流程示例</h2>
+
+  <div class="flow">
+    <div class="flow-box hl">
+      <div class="bt">① 点目录树 4.1</div>
+      <div class="bd">输入框自动填「学习 4.1」</div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box">
+      <div class="bt">② 得到 PPT + 带页码的回答</div>
+      <div class="bd">先通读一遍，点开引用核对原文</div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box">
+      <div class="bt">③ 点 PPT 第 3 页追问</div>
+      <div class="bd">"公民权条件这块没看懂，拆细一点"</div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box">
+      <div class="bt">④ 只有第 3 页变了</div>
+      <div class="bd">版本号 +1，可回看旧版本对比</div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box">
+      <div class="bt">⑤ 切拓展模式补背景</div>
+      <div class="bd">理解"为什么会这样"，但不写进答卷</div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box">
+      <div class="bt">⑥ 用随堂测验自测</div>
+      <div class="bd">PPT 里点选项看答案与解析</div>
+    </div>
+  </div>
+
+  <div class="pager">
+    <a href="1. 上传你的第一本教材.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">1. 上传你的第一本教材</div>
+    </a>
+    <a class="next" href="3. 画布交互与追问.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">3. 画布交互与追问</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

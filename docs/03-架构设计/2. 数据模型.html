@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2. 数据模型 · 架构设计</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>架构设计</span><span class="sep">/</span>
+      <span class="cur">2. 数据模型</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">2</span>数据模型</h1>
+  <p class="lede">7 张表，一套模型同时适配 SQLite 与 PostgreSQL。核心设计是「版本 append-only」和「向量独立表」。</p>
+
+  <div class="toc">
+    <div class="toc-h">本篇内容</div>
+    <ol>
+      <li><a href="#er">表关系总览</a></li>
+      <li><a href="#tables">七张表逐一看</a></li>
+      <li><a href="#version">为什么版本表是 append-only</a></li>
+      <li><a href="#dual">dual-mode 兼容怎么做到</a></li>
+      <li><a href="#pitfall">两个容易踩的坑</a></li>
+    </ol>
+  </div>
+
+  <h2 id="er">表关系总览</h2>
+
+  <pre><code>workspaces ──┬── documents ──┬── document_chunks ── chunk_vectors
+             │               │      (1:N)              (1:1)
+             │               └── (toc_tree 存 JSON)
+             │
+             ├── artifacts ────── artifact_versions
+             │      (1:N)              (1:N, append-only)
+             │
+             └── messages
+                    (会话历史，供刷新恢复)</code></pre>
+
+  <p>所有子表都带 <code>workspace_id</code> 并 <code>ON DELETE CASCADE</code>。
+  删一个工作区，它的文档、切片、向量、产物、消息全部连带删除。</p>
+
+  <h2 id="tables">七张表逐一看</h2>
+
+  <h3>1. <code>workspaces</code> — 对话工作区</h3>
+
+  <table>
+    <thead><tr><th style="width:150px">字段</th><th style="width:120px">类型</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>String(36)</td><td>UUID 主键</td></tr>
+      <tr><td><code>title</code></td><td>String(255)</td><td>工作区名称</td></tr>
+      <tr><td><code>created_at</code></td><td>DateTime</td><td>创建时间</td></tr>
+      <tr><td><code>last_active_at</code></td><td>DateTime</td><td>最近活动时间，列表按它倒序</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>隔离边界。</strong>所有检索都强制带 <code>workspace_id</code> 过滤。
+  同一个 PDF 传到两个工作区，切片 <code>chunk_id</code> 集合零交集——这是 P0-01 的硬验收。</p>
+
+  <h3>2. <code>documents</code> — 上传的文件</h3>
+
+  <table>
+    <thead><tr><th style="width:150px">字段</th><th style="width:120px">类型</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>String(36)</td><td>主键</td></tr>
+      <tr><td><code>workspace_id</code></td><td>FK</td><td>所属工作区</td></tr>
+      <tr><td><code>filename</code></td><td>String(255)</td><td>原始文件名</td></tr>
+      <tr><td><code>stored_path</code></td><td>String(512)</td><td>磁盘路径（可为空，如体检失败未落盘）</td></tr>
+      <tr><td><code>page_count</code></td><td>Integer</td><td>页数</td></tr>
+      <tr><td><code>status</code></td><td>String(20)</td><td><code>pending</code> / <code>parsing</code> / <code>ready</code> / <code>failed</code> / <code>cancelled</code></td></tr>
+      <tr><td><code>progress</code></td><td>Integer</td><td>0~100，解析中每 0.3 秒更新</td></tr>
+      <tr><td><code>error_code</code> / <code>error_message</code></td><td>String / Text</td><td>失败时的错误码与中文提示</td></tr>
+      <tr><td><code>toc_tree</code></td><td>JSON</td><td>目录树，结构 <code>[{code, title, level, start_page, end_page, children}]</code></td></tr>
+      <tr><td><code>parser_mode</code></td><td>String(20)</td><td>解析模式（如 <code>page_fallback</code> 表示按页兜底）</td></tr>
+    </tbody>
+  </table>
+
+  <div class="warn">
+    <p><code>toc_tree</code> 里的字段是 <strong><code>start_page</code> / <code>end_page</code></strong>，
+    而 <code>document_chunks</code> 里是 <strong><code>page_start</code> / <code>page_end</code></strong>。
+    两套命名不一致是历史遗留，<strong>前端 TS 类型必须按实际字段写</strong>，写错会导致目录树点击定位静默失效。</p>
+  </div>
+
+  <h3>3. <code>document_chunks</code> — 结构化切片</h3>
+
+  <table>
+    <thead><tr><th style="width:150px">字段</th><th style="width:120px">类型</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>String(36)</td><td>主键</td></tr>
+      <tr><td><code>document_id</code> / <code>workspace_id</code></td><td>FK</td><td>双外键，便于按工作区直接检索</td></tr>
+      <tr><td><code>section_code</code></td><td>String(50)</td><td><strong>章节号，恒非空</strong>（识别失败时填 <code>P0001</code> 这样的伪章节）</td></tr>
+      <tr><td><code>section_title</code></td><td>String(255)</td><td>章节标题</td></tr>
+      <tr><td><code>level</code></td><td>Integer</td><td>层级 1~4</td></tr>
+      <tr><td><code>chunk_index</code></td><td>Integer</td><td>全局连续序号，用于稳定排序</td></tr>
+      <tr><td><code>page_start</code> / <code>page_end</code></td><td>Integer</td><td>1 基闭区间，可回溯到真实页码</td></tr>
+      <tr><td><code>content</code></td><td>Text</td><td>切片正文</td></tr>
+      <tr><td><code>char_len</code></td><td>Integer</td><td>字数，用于碎块合并判断</td></tr>
+    </tbody>
+  </table>
+
+  <p>两个索引：<code>(workspace_id, section_code)</code> 用于章节精确过滤，
+  <code>(document_id, chunk_index)</code> 用于稳定排序。</p>
+
+  <h3>4. <code>chunk_vectors</code> — 向量（独立表）</h3>
+
+  <table>
+    <thead><tr><th style="width:150px">字段</th><th style="width:120px">类型</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>chunk_id</code></td><td>FK</td><td><strong>唯一约束</strong> <code>uq_vec_chunk</code>，一个切片一条向量</td></tr>
+      <tr><td><code>workspace_id</code> / <code>document_id</code></td><td>String(36)</td><td>冗余存储，避免检索时 JOIN</td></tr>
+      <tr><td><code>dim</code></td><td>Integer</td><td>维度，默认 1536</td></tr>
+      <tr><td><code>vector</code></td><td>Text</td><td>SQLite 模式存 JSON 数组；PG 模式映射 <code>vector(1536)</code></td></tr>
+      <tr><td><code>model</code></td><td>String(80)</td><td>产生该向量的模型标识，便于换模型时区分</td></tr>
+    </tbody>
+  </table>
+
+  <h3>5. <code>artifacts</code> — 产物（指向最新版本）</h3>
+
+  <table>
+    <thead><tr><th style="width:150px">字段</th><th style="width:120px">类型</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>String(36)</td><td>主键</td></tr>
+      <tr><td><code>title</code></td><td>String(255)</td><td>产物标题</td></tr>
+      <tr><td><code>artifact_type</code></td><td>String(20)</td><td><code>ppt</code> / <code>anim_2d</code> / <code>scene_3d</code></td></tr>
+      <tr><td><code>version</code></td><td>Integer</td><td><strong>当前最新版本号</strong>，每次 patch +1</td></tr>
+      <tr><td><code>spec_json</code></td><td>JSON</td><td>当前最新版本的完整 AST</td></tr>
+      <tr><td><code>anchor_section</code></td><td>String(50)</td><td>生成时锚定的章节，用于后续追问的范围推断</td></tr>
+    </tbody>
+  </table>
+
+  <h3>6. <code>artifact_versions</code> — 版本历史（append-only）</h3>
+
+  <table>
+    <thead><tr><th style="width:150px">字段</th><th style="width:120px">类型</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>artifact_id</code></td><td>FK</td><td>所属产物</td></tr>
+      <tr><td><code>version</code></td><td>Integer</td><td>版本号，与 <code>artifact_id</code> 组成唯一约束</td></tr>
+      <tr><td><code>spec_json</code></td><td>JSON</td><td><strong>该版本的完整快照</strong>（deepcopy，不与 artifacts 共享对象）</td></tr>
+      <tr><td><code>patch_ops</code></td><td>JSON</td><td>产生该版本所用的补丁指令（v1 为 null）</td></tr>
+      <tr><td><code>origin_turn_id</code></td><td>String(36)</td><td>来源回合 ID，可追溯到哪次对话</td></tr>
+    </tbody>
+  </table>
+
+  <h3>7. <code>messages</code> — 会话历史</h3>
+
+  <table>
+    <thead><tr><th style="width:180px">字段</th><th style="width:120px">类型</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>role</code></td><td>String(16)</td><td><code>user</code> / <code>assistant</code></td></tr>
+      <tr><td><code>content_markdown</code></td><td>Text</td><td>消息正文</td></tr>
+      <tr><td><code>knowledge_scope</code></td><td>String(24)</td><td><code>syllabus_strict</code> / <code>hybrid_extended</code></td></tr>
+      <tr><td><code>citations</code></td><td>JSON</td><td><code>[{label, section_code, page_start, page_end}]</code></td></tr>
+      <tr><td><code>anchor</code></td><td>JSON</td><td>该轮携带的锚点（可为 null），刷新恢复时还原</td></tr>
+      <tr><td><code>artifact_id</code> / <code>artifact_version</code></td><td>String / Integer</td><td>关联产物</td></tr>
+      <tr><td><code>demo_mode</code></td><td>Bool</td><td>该轮是否演示模式产出，可追溯</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="version">为什么版本表是 append-only</h2>
+
+  <p>这是整个数据模型里最重要的一个设计。看这段逻辑：</p>
+
+  <pre><code>patch 一次时发生什么：
+
+1. artifact.spec_json  ← 新的完整 AST（当前版本）
+2. INSERT artifact_versions (version=N+1, spec_json=新快照, patch_ops=本次ops)
+
+<span class="cm">// 注意：绝不 UPDATE 任何已有的 version 行</span></code></pre>
+
+  <table>
+    <thead><tr><th style="width:150px">设计</th><th>好处</th></tr></thead>
+    <tbody>
+      <tr><td>artifacts 只存最新</td><td>读最新版本不用扫历史表，一次查询</td></tr>
+      <tr><td>versions 只追加</td><td>历史永不丢失，可随时回看任意版本</td></tr>
+      <tr><td>每个版本存完整快照</td><td>回看时不用重放补丁链，直接读</td></tr>
+    </tbody>
+  </table>
+
+  <p>代价是存储冗余（20 个版本 ≈ 20 份 AST）。但 AST 是纯 JSON，几 KB 到几十 KB，
+  20 个版本也就几百 KB，换来的是"回看零成本"和"历史不可篡改"。</p>
+
+  <div class="danger">
+    <p><strong>写快照必须 <code>copy.deepcopy</code>。</strong>
+    SQLAlchemy 的 <code>JSON</code> 类型<strong>不追踪嵌套结构的原地修改</strong>。
+    如果 <code>artifact.spec_json</code> 和新版本行的 <code>spec_json</code> 是同一个 dict 对象，
+    后续对 artifact 的原地修改会同时改到历史行的内存对象，一旦该行因别的原因 flush，脏数据就写回历史了。</p>
+    <p style="margin-top:10px">回归测试用<strong>对象身份断言</strong>锁死：<code>version_row.spec_json is not artifact.spec_json</code>。换浅拷贝立刻红。</p>
+  </div>
+
+  <h2 id="dual">dual-mode 兼容怎么做到</h2>
+
+  <p>同一套 <code>models.py</code> 同时跑 SQLite 和 PostgreSQL，靠三件事：</p>
+
+  <table>
+    <thead><tr><th style="width:150px">问题</th><th>做法</th></tr></thead>
+    <tbody>
+      <tr><td>UUID 类型</td><td>统一用 <code>String(36)</code> + Python 侧 <code>uuid4().hex</code> 生成，不用 PG 的 <code>UUID</code> 类型</td></tr>
+      <tr><td>JSON 类型</td><td>用 SQLAlchemy 通用 <code>JSON</code>，SQLite 存 TEXT，PG 存 JSONB</td></tr>
+      <tr><td>向量类型</td><td><strong>不用数据库原生向量列</strong>，统一存 <code>Text</code>（JSON 数组），检索在 Python 侧算余弦</td></tr>
+    </tbody>
+  </table>
+
+  <p>向量这一步是关键取舍：放弃 pgvector 的索引加速，换来"业务代码完全不感知数据库类型"。
+  千级 chunk 量级下，Python 侧暴力余弦完全够快（实测全库检索毫秒级）。</p>
+
+  <h3>向量存储的协议抽象</h3>
+
+  <pre><code><span class="cm"># db/vector_store.py</span>
+<span class="kw">class</span> <span class="fn">EmbeddingStore</span>(Protocol):
+    <span class="kw">async def</span> <span class="fn">upsert_vectors</span>(...)      <span class="cm"># 写入/覆盖</span>
+    <span class="kw">async def</span> <span class="fn">search_similar</span>(...)       <span class="cm"># 余弦检索</span>
+    <span class="kw">async def</span> <span class="fn">delete_by_document</span>(...)   <span class="cm"># 删文档时清理</span>
+
+<span class="cm"># 工厂按 DATABASE_URL 返回不同实现</span>
+<span class="kw">def</span> <span class="fn">build_vector_store</span>() -&gt; EmbeddingStore:
+    <span class="kw">if</span> url.startswith(<span class="st">"postgresql"</span>): <span class="kw">return</span> PgVectorStore(...)
+    <span class="kw">return</span> MemoryVectorStore(...)</code></pre>
+
+  <div class="note">
+    <p><strong>业务代码里不允许出现 <code>if is_postgres</code>。</strong>
+    判断只允许出现在这个工厂函数里，其他地方一律面向 <code>EmbeddingStore</code> 协议编程。
+    验收时会 <code>grep -r "is_postgres" backend/app</code>，必须零结果。</p>
+  </div>
+
+  <h2 id="pitfall">两个容易踩的坑</h2>
+
+  <h3>坑一：SQLite 相对路径锚定</h3>
+  <p>
+    <code>DATABASE_URL</code> 默认是 <code>sqlite+aiosqlite:///./data/app.db</code>，相对路径锚定在 <code>backend/</code>。
+    如果你有时用 <code>uvicorn --app-dir backend</code>（工作目录是项目根），有时 <code>cd backend &amp;&amp; uvicorn</code>，
+    会落到<strong>两个不同的 db 文件</strong>，表现为"上传过的 PDF 重启后消失"。
+  </p>
+
+  <h3>坑二：WAL 伴生文件</h3>
+  <p>
+    SQLite 开启 WAL 模式后会生成 <code>app.db-wal</code> 和 <code>app.db-shm</code>。
+    <code>.gitignore</code> 必须包含这三个模式（<code>*.db</code> / <code>*.db-wal</code> / <code>*.db-shm</code>），
+    否则伴生文件会被误提交进仓库。
+  </p>
+
+  <div class="pager">
+    <a href="1. 系统总览.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">1. 系统总览</div>
+    </a>
+    <a class="next" href="3. DSL 契约.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">3. DSL 契约</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

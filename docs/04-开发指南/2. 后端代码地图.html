@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2. 后端代码地图 · 开发指南</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>开发指南</span><span class="sep">/</span>
+      <span class="cur">2. 后端代码地图</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">2</span>后端代码地图</h1>
+  <p class="lede">每个文件干什么、关键函数在哪、按什么顺序读。最后附一张「我想改 X 该去哪个文件」速查表。</p>
+
+  <div class="toc">
+    <div class="toc-h">本篇内容</div>
+    <ol>
+      <li><a href="#order">推荐阅读顺序</a></li>
+      <li><a href="#root">根目录与配置</a></li>
+      <li><a href="#db">db/ 数据层</a></li>
+      <li><a href="#schemas">schemas/ 契约层</a></li>
+      <li><a href="#services">services/ 服务层</a></li>
+      <li><a href="#api">api/ 接口层</a></li>
+      <li><a href="#tests">tests/ 测试</a></li>
+      <li><a href="#cheat">速查：我想改 X 该去哪</a></li>
+    </ol>
+  </div>
+
+  <h2 id="order">推荐阅读顺序</h2>
+
+  <p>不要按字母顺序读，会迷路。按这个顺序，每一步都建立在前一步之上：</p>
+
+  <div class="flow">
+    <div class="flow-box hl">
+      <div class="bt">① config.py</div>
+      <div class="bd">先知道有哪些可调参数</div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box">
+      <div class="bt">② schemas/artifacts.py</div>
+      <div class="bd">核心契约，理解数据结构</div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box">
+      <div class="bt">③ db/models.py</div>
+      <div class="bd">数据怎么存</div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box">
+      <div class="bt">④ services/retriever.py</div>
+      <div class="bd">最有技术含量的一块</div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box">
+      <div class="bt">⑤ services/agent_engine.py</div>
+      <div class="bd">主流程编排</div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box">
+      <div class="bt">⑥ api/chat_stream.py</div>
+      <div class="bd">怎么包装成 HTTP</div>
+    </div>
+  </div>
+
+  <h2 id="root">根目录与配置</h2>
+
+  <table>
+    <thead><tr><th style="width:200px">文件</th><th>职责</th><th>关键内容</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>app/main.py</code></td>
+        <td>FastAPI 入口</td>
+        <td>挂载 3 个 router、注册全局异常处理器、lifespan 里初始化 DB 与向量存储、CORS</td>
+      </tr>
+      <tr>
+        <td><code>app/config.py</code></td>
+        <td>所有配置项</td>
+        <td><code>Settings</code> 类（pydantic-settings），从 <code>.env</code> 读。含 DB URL、模型名、各种阈值</td>
+      </tr>
+      <tr>
+        <td><code>app/errors.py</code></td>
+        <td>错误码枚举</td>
+        <td><code>ErrorCode</code>（21 个码）+ <code>AppError</code> 异常类。前端 <code>api/client.ts</code> 镜像同一份</td>
+      </tr>
+      <tr>
+        <td><code>app/logging_conf.py</code></td>
+        <td>日志配置</td>
+        <td><code>log_event()</code> 结构化日志，带 <code>turn_id</code> 可追踪整条链路</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <p><strong>先读 <code>config.py</code> 的价值：</strong>它告诉你这个系统有哪些"旋钮"。
+    看一遍你就知道哪些行为可以调（阈值、上限、模型名），哪些是硬编码在逻辑里的。</p>
+  </div>
+
+  <h2 id="db">db/ 数据层</h2>
+
+  <table>
+    <thead><tr><th style="width:200px">文件</th><th>职责</th><th>关键函数/类</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>db/models.py</code></td>
+        <td>7 张表的 SQLAlchemy 声明</td>
+        <td><code>Workspace</code> / <code>Document</code> / <code>DocumentChunk</code> / <code>ChunkVector</code> / <code>Artifact</code> / <code>ArtifactVersion</code> / <code>Message</code></td>
+      </tr>
+      <tr>
+        <td><code>db/session.py</code></td>
+        <td>异步连接池</td>
+        <td><code>get_session()</code>（请求级事务依赖）、<code>init_db()</code>、<code>dispose_engine()</code></td>
+      </tr>
+      <tr>
+        <td><code>db/vector_store.py</code></td>
+        <td>向量存取抽象</td>
+        <td><code>EmbeddingStore</code> 协议 + <code>MemoryVectorStore</code> + <code>PgVectorStore</code> + <code>build_vector_store()</code></td>
+      </tr>
+      <tr>
+        <td><code>db/repository.py</code></td>
+        <td>数据访问封装</td>
+        <td><code>apply_artifact_patch()</code>（版本追加 + 快照前移）、<code>append_artifact_version()</code>、各类 <code>require_*</code> 查询</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="warn">
+    <p><strong><code>repository.py</code> 是唯一允许写 SQL 的地方。</strong>
+    API 层和服务层都不该直接 <code>session.execute()</code>。
+    这样做的好处是"改查询逻辑只改一处"，坏处是 repository 会变长——但比散落各处好。</p>
+  </div>
+
+  <h2 id="schemas">schemas/ 契约层</h2>
+
+  <table>
+    <thead><tr><th style="width:200px">文件</th><th>职责</th><th>关键内容</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>schemas/artifacts.py</code></td>
+        <td><strong>三种 JSON AST</strong></td>
+        <td><code>SlideDeckSpec</code> / <code>Keyframe2DSpec</code> / <code>SceneGraph3DSpec</code>，以及基类 <code>AstModel</code>（含注入防护）</td>
+      </tr>
+      <tr>
+        <td><code>schemas/patch.py</code></td>
+        <td>补丁协议</td>
+        <td><code>PatchOp</code> / <code>PatchRequest</code> / <code>NODE_PATH_RE</code> 正则</td>
+      </tr>
+      <tr>
+        <td><code>schemas/chat.py</code></td>
+        <td>SSE 事件契约</td>
+        <td>8 个 Event 类 + <code>encode_sse()</code> + <code>SSE_EVENT_MODELS</code> + <code>EVENT_ORDER</code></td>
+      </tr>
+      <tr>
+        <td><code>schemas/api.py</code></td>
+        <td>HTTP 出参 DTO</td>
+        <td><code>WorkspaceOut</code> / <code>DocumentOut</code> / <code>TocNodeOut</code> / <code>ChunkOut</code> / <code>ArtifactOut</code> / <code>ArtifactVersionOut</code></td>
+      </tr>
+      <tr>
+        <td><code>schemas/common.py</code></td>
+        <td>通用工具</td>
+        <td><code>ApiResponse</code>（统一响应包装）、<code>canonical_json()</code>、<code>canonical_tree()</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="danger">
+    <p><strong>改这些文件等于改前后端契约。</strong>必须同步改前端 <code>src/types/*.ts</code>，
+    否则类型对不上。规则见 <a href="../03-架构设计/3. DSL 契约.html#ts">DSL 契约 · 四条铁律</a>。</p>
+  </div>
+
+  <h2 id="services">services/ 服务层</h2>
+
+  <p>这是项目的主体，10 个文件。按数据流顺序列：</p>
+
+  <h3>知识管线（上传时跑）</h3>
+
+  <table>
+    <thead><tr><th style="width:200px">文件</th><th>职责</th><th>关键点</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>pdf_parser.py</code></td>
+        <td>PDF → 章节结构 + 逐页文本</td>
+        <td>正则识别 <code>Chapter 4</code>/<code>4.1</code>/<code>4.1.2</code>；识别失败走 <code>page_fallback</code>；<strong>体检在落盘前做</strong></td>
+      </tr>
+      <tr>
+        <td><code>chunker.py</code></td>
+        <td>按章节切片</td>
+        <td>页面归属排他（切片不重叠）、碎块合并（&lt;200 字并入前块）、<code>chunk_index</code> 全局连续</td>
+      </tr>
+      <tr>
+        <td><code>embedding.py</code></td>
+        <td>文本 → 向量</td>
+        <td>本地确定性实现：<code>blake2b</code> 哈希到 1536 维桶 + L2 归一化。<strong>禁止 <code>random</code>/内置 <code>hash()</code></strong></td>
+      </tr>
+      <tr>
+        <td><code>tasks.py</code></td>
+        <td>解析任务管理</td>
+        <td><code>asyncio.Task</code> + 0.3 秒进度落库 + 可取消。不引入 Celery/Redis</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>检索管线（提问时跑）</h3>
+
+  <table>
+    <thead><tr><th style="width:200px">文件</th><th>职责</th><th>关键点</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>retriever.py</code></td>
+        <td>混合检索 + 覆盖判定</td>
+        <td>章节过滤 → BM25 + 余弦 → 加权融合 → <strong>实词命中率门槛</strong> → 三态判定</td>
+      </tr>
+      <tr>
+        <td><code>text_signals.py</code></td>
+        <td>实词提取</td>
+        <td>中文 bigram + 虚词剔除 + 套话过滤；<code>has_explicit_section_reference()</code> 判章节引用</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>生成管线（提问时跑）</h3>
+
+  <table>
+    <thead><tr><th style="width:200px">文件</th><th>职责</th><th>关键点</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>router.py</code></td>
+        <td>形态路由</td>
+        <td>显式 override 优先 → 关键词打分 → 默认 PPT。产出人话 <code>reason</code></td>
+      </tr>
+      <tr>
+        <td><code>llm_client.py</code></td>
+        <td>模型调用</td>
+        <td>httpx 直连 OpenAI 兼容端点；JSON 抽取（剥 ```json 围栏）；校验失败回灌重试</td>
+      </tr>
+      <tr>
+        <td><code>mock_generator.py</code></td>
+        <td>演示模式生成器</td>
+        <td><strong>纯函数</strong>，同输入同输出。从检索切片抽句填充模板，不是纯占位符</td>
+      </tr>
+      <tr>
+        <td><code>agent_engine.py</code></td>
+        <td><strong>主流程编排</strong></td>
+        <td><code>stream_turn()</code> 异步生成器，按序 yield 8 类事件；<code>_create_artifact_stream</code> / <code>_patch_artifact_stream</code></td>
+      </tr>
+      <tr>
+        <td><code>patch_engine.py</code></td>
+        <td>补丁执行</td>
+        <td><code>apply_patch()</code>：deepcopy → 定点写入 → 校验 → 回滚。含 <code>fingerprint()</code> 与 <code>assert_only_subtree_changed()</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <p><strong>为什么 <code>agent_engine.py</code> 是最大的文件？</strong>因为它是编排层，
+    天然要协调所有服务。如果它变得难读，正确做法是往下抽服务，而不是在它内部加 if 分支。</p>
+  </div>
+
+  <h2 id="api">api/ 接口层</h2>
+
+  <table>
+    <thead><tr><th style="width:200px">文件</th><th>职责</th><th>端点</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>workspaces.py</code></td>
+        <td>工作区、文档、上传、目录树、切片</td>
+        <td>12 个（含 <code>GET /api/health</code> 在 main.py）</td>
+      </tr>
+      <tr>
+        <td><code>chat_stream.py</code></td>
+        <td>SSE 流式对话 + 非流式</td>
+        <td><code>POST /api/chat/stream</code>、<code>POST /api/chat</code></td>
+      </tr>
+      <tr>
+        <td><code>artifacts.py</code></td>
+        <td>产物 CRUD、版本、补丁</td>
+        <td>5 个</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>API 层只做三件事：<strong>解析请求 → 调服务 → 包装响应</strong>。不写业务逻辑。</p>
+
+  <h2 id="tests">tests/ 测试</h2>
+
+  <table>
+    <thead><tr><th style="width:250px">文件</th><th>测什么</th></tr></thead>
+    <tbody>
+      <tr><td><code>conftest.py</code></td><td>夹具：临时 SQLite、HTTP 客户端、三种 AST 样例、样本 PDF</td></tr>
+      <tr><td><code>test_contracts.py</code></td><td>三种 AST 的正反例、注入防护</td></tr>
+      <tr><td><code>test_patch_engine.py</code></td><td>5 种 op、字节级不变断言</td></tr>
+      <tr><td><code>test_pdf_parser.py</code></td><td>章节识别、page_fallback、异常 PDF</td></tr>
+      <tr><td><code>test_retriever.py</code></td><td>混合检索、Top-5 同章、workspace 隔离</td></tr>
+      <tr><td><code>test_router.py</code></td><td>10 条预置问句路由准确率</td></tr>
+      <tr><td><code>test_mock_determinism.py</code></td><td>跨进程 AST 指纹一致（防 <code>PYTHONHASHSEED</code> 陷阱）</td></tr>
+      <tr><td><code>test_api_smoke.py</code></td><td>SSE 8 事件顺序、版本自增</td></tr>
+      <tr><td><code>test_acceptance_p0_*.py</code></td><td><strong>QA 写的 P0 验收测试</strong>（53 条），逐条对应 PRD</td></tr>
+      <tr><td><code>test_regression_*.py</code></td><td>修过的 bug 的回归用例</td></tr>
+    </tbody>
+  </table>
+
+  <div class="tip">
+    <p><strong>读测试比读源码快。</strong>想知道某个函数怎么用，去看它的测试用例——
+    测试里一定有最典型的调用方式，而且断言会告诉你"正常行为应该是什么"。</p>
+  </div>
+
+  <h2 id="cheat">速查：我想改 X 该去哪</h2>
+
+  <table>
+    <thead><tr><th style="width:270px">我想……</th><th>改这个文件</th></tr></thead>
+    <tbody>
+      <tr><td>调检索返回几条</td><td><code>config.py</code> 的 <code>RETRIEVAL_TOP_K</code></td></tr>
+      <tr><td>改"课本未覆盖"的判定严格度</td><td><code>config.py</code> 的 <code>GRADER_CONTENT_HIT_MIN_RATIO</code></td></tr>
+      <tr><td>改章节号识别规则</td><td><code>services/pdf_parser.py</code> 的正则常量</td></tr>
+      <tr><td>改"为什么生成 PPT"的理由文案</td><td><code>services/router.py</code></td></tr>
+      <tr><td>加一种新的 PPT 布局</td><td><code>schemas/artifacts.py</code>（Literal）+ 前端 <code>layouts/</code> 新建 + <code>slideLayouts.tsx</code> 注册</td></tr>
+      <tr><td>改深度拓展的包装格式</td><td><code>services/agent_engine.py</code> 的 <code>_compose_reply</code></td></tr>
+      <tr><td>改引用页码排序</td><td><code>services/agent_engine.py</code> 的 <code>_build_citations</code></td></tr>
+      <tr><td>加一个新的 SSE 事件</td><td><code>schemas/chat.py</code> + <code>agent_engine.stream_turn</code> + 前端 <code>useChatStream.ts</code></td></tr>
+      <tr><td>改错误码</td><td><code>errors.py</code> + 前端 <code>api/client.ts</code>（两处必须同步）</td></tr>
+      <tr><td>加一个新接口</td><td><code>api/</code> 下对应文件 + <code>main.py</code> 挂载（已自动）+ 前端 <code>api/client.ts</code></td></tr>
+      <tr><td>换真实 embedding 模型</td><td><code>config.py</code> 的 <code>EMBEDDING_MODE=remote</code> + <code>services/embedding.py</code></td></tr>
+      <tr><td>切换到 PostgreSQL</td><td><code>.env</code> 的 <code>DATABASE_URL</code>（代码不用改）</td></tr>
+    </tbody>
+  </table>
+
+  <div class="pager">
+    <a href="1. 一次提问的完整旅程.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">1. 一次提问的完整旅程</div>
+    </a>
+    <a class="next" href="3. 前端代码地图.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">3. 前端代码地图</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3. DSL 契约 · 架构设计</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>架构设计</span><span class="sep">/</span>
+      <span class="cur">3. DSL 契约</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">3</span>DSL 契约</h1>
+  <p class="lede">整个系统的「灵魂桥梁」。前后端唯一的耦合点就是这三个 JSON 结构，写错一个字段名，渲染器就会崩。</p>
+
+  <div class="toc">
+    <div class="toc-h">本篇内容</div>
+    <ol>
+      <li><a href="#why">为什么是 JSON 而不是代码</a></li>
+      <li><a href="#ppt">SlideDeckSpec（PPT）</a></li>
+      <li><a href="#anim">Keyframe2DSpec（2D 动画）</a></li>
+      <li><a href="#scene">SceneGraph3DSpec（3D 场景）</a></li>
+      <li><a href="#ts">Pydantic → TypeScript 的四条铁律</a></li>
+      <li><a href="#guard">校验与注入防护</a></li>
+      <li><a href="#extend">怎么安全地扩展契约</a></li>
+    </ol>
+  </div>
+
+  <h2 id="why">为什么是 JSON 而不是代码</h2>
+
+  <table>
+    <thead><tr><th style="width:150px">维度</th><th>LLM 直接写渲染代码</th><th>LLM 填 JSON（本项目）</th></tr></thead>
+    <tbody>
+      <tr><td>一次成功率</td><td>约 20%（Three.js 场景穿模、材质丢失、语法错误）</td><td>约 100%（结构错了 Pydantic 直接拒绝）</td></tr>
+      <tr><td>出图耗时</td><td>服务端渲染 30~60 秒</td><td>前端毫秒级</td></tr>
+      <tr><td>可交互性</td><td>视频无法交互</td><td>每个元素是 React 组件，可点击、可 hover、可锚定</td></tr>
+      <tr><td>安全性</td><td>需沙盒执行任意代码</td><td>只解析数据，无代码执行</td></tr>
+      <tr><td>可增量修改</td><td>几乎不可能（要改源码）</td><td>JSON Pointer 定位 + 局部替换</td></tr>
+    </tbody>
+  </table>
+
+  <p>代价是契约必须设计得足够有表达力。这是本项目最需要小心维护的部分——
+  <strong>新增字段要考虑向后兼容，改字段名等于破坏前后端契约</strong>。</p>
+
+  <h2 id="ppt">SlideDeckSpec（PPT）</h2>
+
+  <pre><code><span class="kw">class</span> <span class="fn">SlideDeckSpec</span>(BaseModel):
+    type: Literal[<span class="st">"ppt"</span>] = <span class="st">"ppt"</span>      <span class="cm"># 判别字段</span>
+    topic: str
+    slides: list[SlideNode]
+
+<span class="kw">class</span> <span class="fn">SlideNode</span>(BaseModel):
+    node_id: str                    <span class="cm"># "slide-1"，用于锚点定位</span>
+    layout: Literal[<span class="st">"title_hero"</span>, <span class="st">"bullet_points"</span>, <span class="st">"comparison"</span>,
+                    <span class="st">"timeline"</span>, <span class="st">"cause_effect"</span>, <span class="st">"quiz"</span>]
+    title: str
+    subtitle: str | None
+    bullets: list[str]                                  <span class="cm"># 恒为数组，不返回 null</span>
+    comparison_left: list[str] | None
+    comparison_right: list[str] | None
+    timeline_items: list[TimelineItem] | None           <span class="cm"># 扩展字段</span>
+    quiz_questions: list[QuizQuestion] | None           <span class="cm"># 扩展字段</span>
+    speaker_notes: str                                  <span class="cm"># 口语化讲解，别浪费</span>
+    source_ref: str                                     <span class="cm"># "Bab 4.1, p.94"</span></code></pre>
+
+  <h3>6 种布局与所需字段的对应</h3>
+
+  <table>
+    <thead><tr><th style="width:150px">layout</th><th>必填字段</th><th>渲染效果</th></tr></thead>
+    <tbody>
+      <tr><td><code>title_hero</code></td><td><code>title</code> + <code>subtitle</code></td><td>大标题页，留白足</td></tr>
+      <tr><td><code>bullet_points</code></td><td><code>bullets</code></td><td>要点列表，带序号</td></tr>
+      <tr><td><code>comparison</code></td><td><code>comparison_left</code> + <code>comparison_right</code></td><td>左右两栏对照</td></tr>
+      <tr><td><code>timeline</code></td><td><code>timeline_items</code></td><td>横向时间轴，节点带页码</td></tr>
+      <tr><td><code>cause_effect</code></td><td><code>bullets</code>（作为因果链节点）</td><td>箭头连接「因 → 果」</td></tr>
+      <tr><td><code>quiz</code></td><td><code>quiz_questions</code></td><td>题干 + 选项，点选后显形答案</td></tr>
+    </tbody>
+  </table>
+
+  <div class="warn">
+    <p><strong>字段与布局不匹配时渲染器必须降级，不能白屏。</strong>
+    比如 <code>layout: "comparison"</code> 但 <code>comparison_left</code> 是 null，应该回退成 <code>bullet_points</code> 的样子，
+    而不是抛异常。每个布局组件都要有这种兜底。</p>
+  </div>
+
+  <h2 id="anim">Keyframe2DSpec（2D 动画）</h2>
+
+  <pre><code><span class="kw">class</span> <span class="fn">Keyframe2DSpec</span>(BaseModel):
+    type: Literal[<span class="st">"anim_2d"</span>] = <span class="st">"anim_2d"</span>
+    title: str
+    steps: list[KeyframeStep]
+
+<span class="kw">class</span> <span class="fn">KeyframeStep</span>(BaseModel):
+    step_index: int
+    narration: str                     <span class="cm"># 当前步骤的旁白</span>
+    source_ref: str
+    entities: list[Entity2D]           <span class="cm"># 当前步骤所有元素的状态</span>
+
+<span class="kw">class</span> <span class="fn">Entity2D</span>(BaseModel):
+    id: str                            <span class="cm"># 注意是 id，不是 node_id</span>
+    shape: Literal[<span class="st">"circle"</span>, <span class="st">"rect"</span>, <span class="st">"arrow"</span>, <span class="st">"label_box"</span>, <span class="st">"zone"</span>]
+    label: str
+    x: float                           <span class="cm"># 归一化 0~1000，不是像素</span>
+    y: float                           <span class="cm"># 归一化 0~600</span>
+    color: str                         <span class="cm"># 必须取自调色板</span>
+    details: str                       <span class="cm"># 点击弹出的详细解释</span>
+    source_page: int | None            <span class="cm"># 扩展字段</span></code></pre>
+
+  <h3>两个关键约定</h3>
+
+  <dl class="kv">
+    <dt>坐标归一化</dt><dd>固定 <code>0~1000 × 0~600</code> 的逻辑坐标系，前端按容器实际尺寸等比缩放。这样同一份 AST 在任何屏幕尺寸下都正确</dd>
+    <dt>补间由前端做</dt><dd>关键帧只描述"某个步骤时元素在哪"，中间的过渡动画由 GSAP 计算。所以不需要为每一帧都生成数据</dd>
+  </dl>
+
+  <div class="note">
+    <p><strong>为什么不用像素？</strong>因为画布尺寸随窗口变化。用归一化坐标，同一个 spec 在手机和大屏上都能正确布局，
+    不需要重新生成。</p>
+  </div>
+
+  <h2 id="scene">SceneGraph3DSpec（3D 场景）</h2>
+
+  <pre><code><span class="kw">class</span> <span class="fn">SceneGraph3DSpec</span>(BaseModel):
+    type: Literal[<span class="st">"scene_3d"</span>] = <span class="st">"scene_3d"</span>
+    title: str
+    nodes: list[Node3D]
+    camera_tour: list[CameraPreset]    <span class="cm"># 预设导览机位</span>
+
+<span class="kw">class</span> <span class="fn">Node3D</span>(BaseModel):
+    id: str
+    primitive: Literal[<span class="st">"box"</span>, <span class="st">"sphere"</span>, <span class="st">"cylinder"</span>,
+                       <span class="st">"cone"</span>, <span class="st">"terrain_plane"</span>, <span class="st">"arrow_link"</span>]
+    label: str
+    position: tuple[float, float, float]     <span class="cm"># 3 元元组，不是数组</span>
+    scale: tuple[float, float, float]
+    rotation: tuple[float, float, float]     <span class="cm"># 扩展字段</span>
+    color: str
+    annotation_markdown: str                 <span class="cm"># 悬浮标注内容</span>
+    parent_id: str | None                    <span class="cm"># 扩展：父子层级</span>
+    source_page: int | None
+
+<span class="kw">class</span> <span class="fn">CameraPreset</span>(BaseModel):
+    name: str
+    position: tuple[float, float, float]
+    target: tuple[float, float, float]
+    explanation: str</code></pre>
+
+  <h3>6 种图元</h3>
+
+  <table>
+    <thead><tr><th style="width:150px">primitive</th><th>对应几何</th><th>典型用途</th></tr></thead>
+    <tbody>
+      <tr><td><code>box</code></td><td>立方体</td><td>建筑、墙体、箱子</td></tr>
+      <tr><td><code>sphere</code></td><td>球体</td><td>天体、原子、圆顶</td></tr>
+      <tr><td><code>cylinder</code></td><td>圆柱</td><td>柱子、管道、炮管</td></tr>
+      <tr><td><code>cone</code></td><td>圆锥</td><td>塔尖、山峰、箭头锥体</td></tr>
+      <tr><td><code>terrain_plane</code></td><td>平面地形</td><td>地面、战场、地形起伏</td></tr>
+      <tr><td><code>arrow_link</code></td><td>连接箭头</td><td>表示"通向""属于""影响"</td></tr>
+    </tbody>
+  </table>
+
+  <div class="warn">
+    <p><code>position</code> 必须是 <strong>3 元元组</strong>。TS 侧要写 <code>[number, number, number]</code>，
+    <strong>不能写 <code>number[]</code></strong>——后者类型不报错但运行时 R3F 拿不到完整坐标，几何体直接消失。</p>
+  </div>
+
+  <h2 id="ts">Pydantic → TypeScript 的四条铁律</h2>
+
+  <p>后端 Python 定义、前端 TS 手写对应接口（不用 codegen，因为字段不多且手写更可控）。四条规则必须遵守：</p>
+
+  <table>
+    <thead><tr><th style="width:60px">#</th><th style="width:210px">规则</th><th>违反后果</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><strong>可选字段写 <code>T | null</code>，不写 <code>T?</code></strong></td>
+        <td>后端恒返回 <code>null</code> 而不是省略字段。用 <code>?</code> 会导致运行时到处 <code>undefined</code>，渲染器崩</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><strong>三元组写元组类型</strong> <code>[number,number,number]</code></td>
+        <td>写 <code>number[]</code> 类型不报错但运行时坐标不全</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><strong>全链路 snake_case，不做 camelCase 转换</strong></td>
+        <td>加转换层会引入一类"字段名对不上但编译通过"的 bug</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><strong>用 <code>spec.type</code> 做判别联合</strong>，禁止 <code>any</code> 承接</td>
+        <td>丢类型安全，IDE 无法提示，重构时全靠 grep</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>字段名易错点</h3>
+
+  <table>
+    <thead><tr><th style="width:190px">模型</th><th>字段名</th><th>容易写成</th></tr></thead>
+    <tbody>
+      <tr><td><code>SlideNode</code> / <code>Node3D</code></td><td><code>node_id</code></td><td><code>id</code></td></tr>
+      <tr><td><code>Entity2D</code></td><td><code>id</code></td><td><code>node_id</code></td></tr>
+      <tr><td><code>TocNode</code></td><td><code>start_page</code> / <code>end_page</code></td><td><code>page_start</code> / <code>page_end</code></td></tr>
+      <tr><td><code>ChunkOut</code></td><td><code>page_start</code> / <code>page_end</code></td><td><code>start_page</code> / <code>end_page</code></td></tr>
+      <tr><td><code>ArtifactOut</code></td><td><code>spec</code></td><td><code>spec_json</code>（那是数据库列名）</td></tr>
+    </tbody>
+  </table>
+
+  <div class="danger">
+    <p><strong>目录树和切片的页码字段命名是反的</strong>（<code>start_page</code> vs <code>page_start</code>），
+    这是历史遗留。写错不会报错，只会让"点目录树定位页码"静默失效——<strong>最难排查的一类 bug</strong>。</p>
+  </div>
+
+  <h2 id="guard">校验与注入防护</h2>
+
+  <h3>Pydantic 强校验</h3>
+
+  <p>所有 AST 都继承一个基类，带 <code>extra="forbid"</code>（多余字段直接拒绝）和递归的字符串扫描：</p>
+
+  <pre><code><span class="kw">class</span> <span class="fn">AstModel</span>(BaseModel):
+    model_config = ConfigDict(extra=<span class="st">"forbid"</span>)
+
+    <span class="fn">@model_validator</span>(mode=<span class="st">"after"</span>)
+    <span class="kw">def</span> <span class="fn">_reject_markup</span>(self):
+        <span class="cm"># 递归扫所有字符串值（含 dict 的键）</span>
+        <span class="cm"># 命中 &lt;script / &lt;html / &lt;div / &lt;style / onerror= / javascript: /</span>
+        <span class="cm">#      function( / (=&gt; / import / three.  任一即抛错</span></code></pre>
+
+  <p>为什么要在契约层拦 HTML/JS？因为 spec 会被前端直接渲染。如果模型输出里混进
+  <code>&lt;script&gt;</code> 或 <code>onerror=</code>，就是 XSS 风险。这道闸门在数据入口就掐死，
+  比在前端做转义更可靠。</p>
+
+  <h3>校验失败怎么办</h3>
+
+  <div class="flow">
+    <div class="flow-box">
+      <div class="bt">LLM 输出 JSON</div>
+      <div class="bd">可能带 ```json 围栏、前后噪声</div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box">
+      <div class="bt">抽取 + Pydantic 校验</div>
+      <div class="bd">失败 → 把错误信息回灌给模型重试</div>
+    </div>
+    <div class="flow-arrow">↓ 最多 3 次</div>
+    <div class="flow-box">
+      <div class="bt">全失败 → 降级 mock</div>
+      <div class="bd">保证用户永远能拿到产物，不会空手</div>
+    </div>
+  </div>
+
+  <p>重试期间会发 <code>error</code> 事件（<code>retryable: true</code>），但<strong>不中断流</strong>。
+  用户会看到一条提示，然后继续等结果。</p>
+
+  <h2 id="extend">怎么安全地扩展契约</h2>
+
+  <p>假设你要加一个"图片分栏"布局。按这个顺序改，缺一步就会出问题：</p>
+
+  <ol class="steps">
+    <li>
+      <span class="st-title">后端加字段（只加可选字段）</span>
+      <p><code>schemas/artifacts.py</code> 里给 <code>SlideNode</code> 加 <code>image_ref: str | None = None</code>，
+      并在 <code>layout</code> 的 Literal 里加 <code>"image_split"</code>。</p>
+      <p><strong>绝不能改已有字段名或类型</strong>——那会破坏所有已落库的历史 spec。</p>
+    </li>
+    <li>
+      <span class="st-title">前端 TS 同步</span>
+      <p><code>types/artifact.ts</code> 加 <code>image_ref: string | null</code>，
+      <code>SlideLayout</code> 联合类型加 <code>"image_split"</code>。</p>
+    </li>
+    <li>
+      <span class="st-title">写渲染器并注册</span>
+      <p>新建 <code>layouts/ImageSplitLayout.tsx</code>，在 <code>slideLayouts.tsx</code> 的
+      <code>LAYOUT_REGISTRY</code> 里注册。策略分发靠这个注册表，漏了就是空白页。</p>
+    </li>
+    <li>
+      <span class="st-title">让 mock 生成器能产出</span>
+      <p><code>mock_generator.py</code> 里加上这个布局的确定性生成逻辑，否则演示模式下永远看不到它。</p>
+    </li>
+    <li>
+      <span class="st-title">补测试</span>
+      <p>契约正反例（<code>test_contracts.py</code>）、渲染冒烟（<code>SlideRenderer.test.tsx</code>）、
+      mock 确定性（<code>test_mock_determinism.py</code>）。</p>
+    </li>
+  </ol>
+
+  <div class="tip">
+    <p><strong>只加不改。</strong>契约演进唯一安全的策略是"新增可选字段 + 新 literal 值"。
+    一旦改了已有字段的名字或语义，所有历史版本的 spec 都会失效，而版本历史是 append-only 的，
+    你没法批量迁移。</p>
+  </div>
+
+  <div class="pager">
+    <a href="2. 数据模型.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">2. 数据模型</div>
+    </a>
+    <a class="next" href="4. 检索与路由.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">4. 检索与路由</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

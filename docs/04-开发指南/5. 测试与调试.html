@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>5. 测试与调试 · 开发指南</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>开发指南</span><span class="sep">/</span>
+      <span class="cur">5. 测试与调试</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">5</span>测试与调试</h1>
+  <p class="lede">五种测试各管一段、怎么跑、怎么写；以及出问题时按什么顺序排查。这一篇是日常开发用得最多的。</p>
+
+  <div class="toc">
+    <div class="toc-h">本篇内容</div>
+    <ol>
+      <li><a href="#layer">五层测试各管什么</a></li>
+      <li><a href="#run">怎么跑</a></li>
+      <li><a href="#write">怎么写一个新测试</a></li>
+      <li><a href="#debug">调试的四个入口</a></li>
+      <li><a href="#error">常见错误对照表</a></li>
+      <li><a href="#anti">三条测试纪律</a></li>
+    </ol>
+  </div>
+
+  <h2 id="layer">五层测试各管什么</h2>
+
+  <table>
+    <thead><tr><th style="width:130px">层</th><th style="width:100px">数量</th><th>管什么</th><th>跑多快</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>契约测试</td><td>~30</td>
+        <td>AST 结构对不对、非法输入是否被拒、注入防护</td>
+        <td>毫秒级</td>
+      </tr>
+      <tr>
+        <td>单元测试</td><td>~80</td>
+        <td>单个函数的行为：补丁引擎、检索打分、章节解析、路由</td>
+        <td>毫秒级</td>
+      </tr>
+      <tr>
+        <td>API 测试</td><td>~40</td>
+        <td>HTTP 端点：状态码、响应结构、SSE 事件顺序</td>
+        <td>秒级</td>
+      </tr>
+      <tr>
+        <td>验收测试</td><td>53</td>
+        <td>PRD 的 12 条 P0 逐条验收（QA 写的，是验收基准）</td>
+        <td>秒级</td>
+      </tr>
+      <tr>
+        <td>端到端</td><td>38 项</td>
+        <td>真实起服务、真实上传 PDF、真实 SSE 流</td>
+        <td>十几秒</td>
+      </tr>
+      <tr>
+        <td>前端测试</td><td>153</td>
+        <td>SSE 解析、JSON Pointer、指纹、坐标换算、布局渲染</td>
+        <td>3 秒</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <p><strong>金字塔原则：</strong>越底层的测试越多越快，越顶层越少越慢。
+    如果发现自己在写大量端到端测试，说明底层抽得不够——大部分逻辑应该能在函数级测掉。</p>
+  </div>
+
+  <h2 id="run">怎么跑</h2>
+
+  <h3>后端</h3>
+
+  <pre><code><span class="cm"># 全量（约 30 秒）</span>
+cd backend
+.venv\Scripts\python.exe -m pytest tests -q
+
+<span class="cm"># 只跑某个文件</span>
+.venv\Scripts\python.exe -m pytest tests/test_patch_engine.py -q
+
+<span class="cm"># 只跑某个用例（名字模糊匹配）</span>
+.venv\Scripts\python.exe -m pytest tests -k <span class="st">"subtree"</span> -q
+
+<span class="cm"># 失败时显示详细断言</span>
+.venv\Scripts\python.exe -m pytest tests -q -vv
+
+<span class="cm"># 只跑上次失败的</span>
+.venv\Scripts\python.exe -m pytest tests --lf</code></pre>
+
+  <h3>前端</h3>
+
+  <pre><code>cd frontend
+
+npm test                <span class="cm"># 单跑一次</span>
+npm run test:watch      <span class="cm"># 监听模式，改文件自动重跑</span>
+npm test -- sse         <span class="cm"># 只跑 sse 相关</span>
+
+npm run typecheck       <span class="cm"># 只做类型检查，不构建（快）</span>
+npm run build           <span class="cm"># 类型检查 + 构建</span></code></pre>
+
+  <h3>端到端</h3>
+
+  <pre><code><span class="cm"># 终端 1：起服务</span>
+cd backend
+.venv\Scripts\python.exe -m uvicorn app.main:app --port 8123
+
+<span class="cm"># 终端 2：跑冒烟脚本</span>
+cd backend
+.venv\Scripts\python.exe ../scripts/e2e_smoke.py</code></pre>
+
+  <p>输出是 38 项 PASS/FAIL 清单，最后一行汇总。任何 FAIL 都会打印实际值。</p>
+
+  <h2 id="write">怎么写一个新测试</h2>
+
+  <h3>后端测试的骨架</h3>
+
+  <p><code>backend/tests/conftest.py</code> 已经提供了现成夹具：</p>
+
+  <table>
+    <thead><tr><th style="width:150px">夹具</th><th>给你什么</th></tr></thead>
+    <tbody>
+      <tr><td><code>client</code></td><td>已接好临时数据库的 HTTP 客户端</td></tr>
+      <tr><td><code>session</code></td><td>异步数据库会话</td></tr>
+      <tr><td><code>sample_pdf_path</code></td><td>生成的 113 页样本 PDF 路径</td></tr>
+      <tr><td><code>ppt_spec</code> / <code>anim_spec</code> / <code>scene_spec</code></td><td>三种 AST 的合法样例</td></tr>
+    </tbody>
+  </table>
+
+  <p>写一个测试：</p>
+
+  <pre><code><span class="kw">async def</span> <span class="fn">test_my_feature</span>(client):
+    <span class="cm">"""一句话说明这个测试验证什么。"""</span>
+    resp = <span class="kw">await</span> client.post(<span class="st">"/api/workspaces"</span>, json={<span class="st">"title"</span>: <span class="st">"测试"</span>})
+    <span class="kw">assert</span> resp.status_code == 200
+    <span class="kw">assert</span> resp.json()[<span class="st">"code"</span>] == <span class="st">"OK"</span></code></pre>
+
+  <h3>前端测试的骨架</h3>
+
+  <pre><code><span class="kw">import</span> { describe, expect, it } <span class="kw">from</span> <span class="st">"vitest"</span>;
+
+describe(<span class="st">"模块名"</span>, () =&gt; {
+  it(<span class="st">"具体行为描述"</span>, () =&gt; {
+    expect(<span class="fn">yourFunction</span>(input)).toBe(expected);
+  });
+});</code></pre>
+
+  <h3>什么值得写测试</h3>
+
+  <table>
+    <thead><tr><th>值得写</th><th>不值得写</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>
+          <ul style="margin:0">
+            <li>纯函数（有明确输入输出）</li>
+            <li>边界条件（空数组、null、超长）</li>
+            <li>曾经出过 bug 的地方（回归）</li>
+            <li>契约校验（正例 + 反例）</li>
+          </ul>
+        </td>
+        <td>
+          <ul style="margin:0">
+            <li>纯展示组件（除非有交互逻辑）</li>
+            <li>框架自带的行为</li>
+            <li>"能跑就行"的胶水代码</li>
+            <li>需要大量 mock 才能测的东西（通常是设计问题）</li>
+          </ul>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="debug">调试的四个入口</h2>
+
+  <h3>入口一：后端日志</h3>
+
+  <p>所有关键节点都有 <code>log_event()</code>，带 <code>turn_id</code> 可以串起一整轮：</p>
+
+  <pre><code><span class="cm"># 终端里看</span>
+uvicorn app.main:app --reload --log-level debug
+
+<span class="cm"># 或改 .env 的 LOG_LEVEL=DEBUG</span></code></pre>
+
+  <p>典型输出：</p>
+
+  <pre><code>retrieval_done    turn_id=abc123 grader_status=SYLLABUS_MATCH top_score=0.5916
+modality_route    turn_id=abc123 artifact_type=ppt user_override=false
+artifact_created  turn_id=abc123 artifact_id=8df752fd version=1</code></pre>
+
+  <p><strong>用 <code>turn_id</code> grep 一遍</strong>，就能看到这一轮完整的执行轨迹。</p>
+
+  <h3>入口二：直接 curl API</h3>
+
+  <p>前端表现异常时，先用 curl 排除是前端还是后端的问题：</p>
+
+  <pre><code><span class="cm"># 健康检查</span>
+curl http://127.0.0.1:8000/api/health
+
+<span class="cm"># 看 SSE 原始输出（-N 关闭缓冲）</span>
+curl -N -X POST http://127.0.0.1:8000/api/chat/stream \
+  -H <span class="st">"Content-Type: application/json"</span> \
+  -d <span class="st">'{"workspace_id":"xxx","query":"4.1 讲了什么","mode":"syllabus_strict"}'</span></code></pre>
+
+  <p>能看到完整的事件流，逐行 <code>event: xxx</code> / <code>data: {...}</code>。</p>
+
+  <h3>入口三：浏览器控制台</h3>
+
+  <table>
+    <thead><tr><th style="width:130px">看什么</th><th>怎么用</th></tr></thead>
+    <tbody>
+      <tr><td>Console</td><td>红色报错、<code>console.log</code> 输出</td></tr>
+      <tr><td>Network</td><td>看 <code>/api/chat/stream</code> 的请求体、响应头、流式内容</td></tr>
+      <tr><td>React DevTools</td><td>看组件树和 props，确认数据有没有传到位</td></tr>
+      <tr><td>Elements</td><td>看 DOM 结构和实际生效的 CSS</td></tr>
+    </tbody>
+  </table>
+
+  <h3>入口四：断点</h3>
+
+  <p><strong>后端：</strong>在 VS Code 里配 <code>launch.json</code>：</p>
+
+  <pre><code>{
+  <span class="st">"name"</span>: <span class="st">"FastAPI"</span>,
+  <span class="st">"type"</span>: <span class="st">"debugpy"</span>,
+  <span class="st">"request"</span>: <span class="st">"launch"</span>,
+  <span class="st">"module"</span>: <span class="st">"uvicorn"</span>,
+  <span class="st">"args"</span>: [<span class="st">"app.main:app"</span>, <span class="st">"--reload"</span>],
+  <span class="st">"cwd"</span>: <span class="st">"${workspaceFolder}/backend"</span>
+}</code></pre>
+
+  <p><strong>前端：</strong>浏览器 DevTools 的 Sources 面板，直接点行号下断点，支持查看变量和单步。</p>
+
+  <div class="tip">
+    <p><strong>调试 SSE 时最有用的一招：</strong>在 <code>api/sse.ts</code> 解析出每个事件的地方加一行
+    <code>console.log("[SSE]", event, data)</code>。所有事件按顺序打印出来，
+    一眼就能看出是"事件没到"还是"到了但没处理"。</p>
+  </div>
+
+  <h2 id="error">常见错误对照表</h2>
+
+  <table>
+    <thead><tr><th style="width:250px">现象</th><th>大概率原因</th><th>去哪看</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>401/403</code> 或 CORS 报错</td>
+        <td>后端没起，或 CORS 白名单没含前端地址</td>
+        <td><code>config.py</code> 的 <code>CORS_ORIGINS</code></td>
+      </tr>
+      <tr>
+        <td>前端一直"生成中"</td>
+        <td>SSE 没收到 <code>turn_end</code>（异常路径漏发）</td>
+        <td><code>chat_stream.py</code> 的兜底逻辑</td>
+      </tr>
+      <tr>
+        <td>画布白屏</td>
+        <td>spec 字段缺失导致渲染器抛异常</td>
+        <td>浏览器 Console；<code>ArtifactHost</code> 的 ErrorBoundary</td>
+      </tr>
+      <tr>
+        <td>点画布没反应</td>
+        <td>锚点没设置成功，或点击事件没绑定</td>
+        <td>React DevTools 看 store 的 <code>anchor</code></td>
+      </tr>
+      <tr>
+        <td>patch 后整页都变了</td>
+        <td><code>update_node</code> 被写成整体替换（没做 merge）</td>
+        <td><code>useArtifactPatch.ts</code></td>
+      </tr>
+      <tr>
+        <td>上传后目录树只有 Page 1/2/3</td>
+        <td>章节号识别失败，走了 page_fallback</td>
+        <td><code>pdf_parser.py</code> 的正则</td>
+      </tr>
+      <tr>
+        <td>什么问题都说"课本未覆盖"</td>
+        <td>实词门槛太高，或 embedding 没生成</td>
+        <td><code>retriever.py</code> + <code>text_signals.py</code></td>
+      </tr>
+      <tr>
+        <td>无关问题也能答</td>
+        <td>门槛太低，或 BM25 归一化用了相对值</td>
+        <td><code>config.py</code> 的 <code>GRADER_CONTENT_HIT_MIN_RATIO</code></td>
+      </tr>
+      <tr>
+        <td>两次生成结果不一样</td>
+        <td>代码里混进了 <code>random</code> / 内置 <code>hash()</code></td>
+        <td><code>mock_generator.py</code>、<code>embedding.py</code></td>
+      </tr>
+      <tr>
+        <td>并发 patch 报 500</td>
+        <td>乐观锁没翻译成 409</td>
+        <td><code>api/artifacts.py</code> 的 <code>IntegrityError</code> 捕获</td>
+      </tr>
+      <tr>
+        <td>重启后数据没了</td>
+        <td>SQLite 相对路径锚定问题（CWD 不同）</td>
+        <td>固定 <code>cd backend</code> 再启动</td>
+      </tr>
+      <tr>
+        <td>3D 白屏</td>
+        <td><code>@react-three/fiber</code> 装成 v8（不兼容 React 19）</td>
+        <td><code>package.json</code> 版本</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="anti">三条测试纪律</h2>
+
+  <div class="danger">
+    <p><strong>① 关键断言要独立实现。</strong>
+    用 <code>patch_engine.assert_only_subtree_changed</code> 去验证补丁引擎，等于自己验自己。
+    测试侧应该重写一份独立实现。项目的 <code>tests/acceptance_support.py</code> 就是这么做的。</p>
+  </div>
+
+  <div class="danger">
+    <p><strong>② 失败的测试是资产，不要为了全绿而删断言或放宽条件。</strong>
+    测试红了说明发现了问题。改成"能过"的样子，等于把问题藏起来。
+    正确做法是：修源码让它变绿，或者明确标注 <code>xfail</code> 并写清原因。</p>
+  </div>
+
+  <div class="danger">
+    <p><strong>③ 正例和反例必须成对出现。</strong>
+    "相关问题能检索到"和"无关问题必须拒绝"要一起测。
+    只测前者，阈值调到极低也能全绿；只测后者，全判 <code>NO_MATCH</code> 也能全绿。
+    <strong>成对测试才能锁住真实行为。</strong></p>
+  </div>
+
+  <div class="pager">
+    <a href="4. 动手改第一个功能.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">4. 动手改第一个功能</div>
+    </a>
+    <a class="next" href="../05-运维部署/1. 部署方案.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">运维部署 · 1. 部署方案</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

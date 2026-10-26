@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1. 这个项目是什么 · 快速开始</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>快速开始</span><span class="sep">/</span>
+      <span class="cur">1. 这个项目是什么</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">1</span>这个项目是什么</h1>
+  <p class="lede">先搞清楚它解决什么问题、和普通 AI 聊天有什么本质区别。这决定了你后面能不能理解它的架构选择。</p>
+
+  <div class="toc">
+    <div class="toc-h">本篇内容</div>
+    <ol>
+      <li><a href="#why">它要解决的真实问题</a></li>
+      <li><a href="#diff">和「聊天框式 AI 助教」的三个本质区别</a></li>
+      <li><a href="#what">三种产物分别对应什么知识类型</a></li>
+      <li><a href="#core">整个系统最核心的一条设计原则</a></li>
+      <li><a href="#stack">技术栈与目录结构</a></li>
+    </ol>
+  </div>
+
+  <h2 id="why">它要解决的真实问题</h2>
+
+  <p>
+    假设一个马来西亚中学生要学 KSSM Form 4 历史课本第 4.1 节「Malayan Union 对苏丹的影响」。
+    他去问通用 AI，会得到一段还不错的文字。但这段文字有三个致命问题：
+  </p>
+
+  <ul>
+    <li><strong>不知道是不是课本要的答案。</strong>AI 讲得可能比课本更全面，但考试按课本评分。学生答得越"全面"，越可能答偏。</li>
+    <li><strong>没法核对。</strong>AI 说的每句话，学生无法快速定位到课本第几页去验证。不可核对的内容，学习时不敢信。</li>
+    <li><strong>纯文字讲不清结构和过程。</strong>疆域怎么变的、权力怎么转移的、地形怎么影响战局的——文字描述再多，也不如一张会动的图。</li>
+  </ul>
+
+  <p>这个项目针对这三点分别给了答案：</p>
+
+  <table>
+    <thead><tr><th style="width:130px">问题</th><th>这个项目的做法</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>怕答偏</td>
+        <td>双模式回答：<code>syllabus_strict</code>（严格按课本，每句带页码）与 <code>hybrid_extended</code>（课本基准 + 明确标注的超纲拓展）。默认前者。</td>
+      </tr>
+      <tr>
+        <td>没法核对</td>
+        <td>每条事实陈述强制带 <code>[p.94]</code> 这样的页码引用，点开能看到课本原文片段。检索不到就明确说「课本未覆盖」，<strong>禁止编造页码</strong>。</td>
+      </tr>
+      <tr>
+        <td>讲不清结构</td>
+        <td>根据知识点属性自动选形态：离散知识点→PPT，随时间演变→2D 动画，需要空间想象→3D 场景。</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="diff">和「聊天框式 AI 助教」的三个本质区别</h2>
+
+  <h3>区别一：产物是「活的」，不是一个静态回答</h3>
+
+  <p>
+    普通 AI 生成一份 PPT，你只能说"重做一遍"。这个项目里，学生点 PPT 第 3 页，输入框自动挂上一个锚点标签：
+  </p>
+
+  <pre><code>┌─────────────────────────────────────────┐
+│  针对「第 3 页 · 公民权条件」追问…      │  ← 锚点已绑定
+│  ℹ 回答将只更新该节点，其余页面不动      │
+└─────────────────────────────────────────┘</code></pre>
+
+  <p>
+    提交后，后端只返回一个 <code>update_node</code> 补丁，前端只改那一页。**其余 5 页字节级不变**。
+    这不是优化，是产品逻辑——学生改一页，不该让整份 PPT 重新生成、丢掉前面调好的内容。
+  </p>
+
+  <h3>区别二：形态由系统判断，不是用户选</h3>
+
+  <p>
+    用户不需要知道"这个知识点该用什么形式呈现"。系统根据问句语义路由：
+  </p>
+
+  <pre><code>"Malayan Union 对苏丹的影响有哪些"   → PPT（离散有序，逐条阅读）
+"马来半岛各州如何逐步被纳入联邦"     → 2D 动画（随时间演变的空间过程）
+"议会大厦的内部结构是怎样的"         → 3D 场景（需要空间想象）</code></pre>
+
+  <p>
+    而且每次都会给一句人话理由（如"问句命中「影响」，属于离散有序、需要逐条阅读的信息 → PPT 课件"），
+    显示在对话里。用户如果不同意，可以说"用 3D 展示"，系统 100% 遵循。
+  </p>
+
+  <h3>区别三：回答的边界是显式的，不是模糊的</h3>
+
+  <p>
+    检索后先做一次相关性评估，输出三种状态之一：
+  </p>
+
+  <table>
+    <thead><tr><th style="width:170px">状态</th><th>含义</th><th>系统行为</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>SYLLABUS_MATCH</code></td>
+        <td>课本里有，且足以回答</td>
+        <td>严格依据课本切片生成，每条带页码</td>
+      </tr>
+      <tr>
+        <td><code>PARTIAL_OR_BEYOND</code></td>
+        <td>课本提了一点，但问题更深</td>
+        <td>双层回答：第一层课本基准（带页码），第二层「深度拓展」用琥珀色引用块明确隔开</td>
+      </tr>
+      <tr>
+        <td><code>NO_MATCH</code></td>
+        <td>课本完全没覆盖</td>
+        <td>明确说「课本未覆盖」，<strong>引用列表为空，正文不出现任何页码</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="warn">
+    <p><strong><code>NO_MATCH</code> 这条是产品的生命线。</strong>如果系统对"为什么天空是蓝色的"也回一段带页码的历史课内容，
+    学生就会开始怀疑所有引用——那整个「严格按课本」的卖点就崩了。所以判定逻辑必须足够严格，
+    详见 <a href="../03-架构设计/4. 检索与路由.html">检索与路由</a>。</p>
+  </div>
+
+  <h2 id="what">三种产物分别对应什么知识类型</h2>
+
+  <div class="flow">
+    <div class="flow-row">
+      <div class="flow-box">
+        <div class="bt">PPT 课件</div>
+        <div class="bd">6 种布局：标题页 / 要点 / 对比 / 时间轴 / 因果链 / 随堂测验</div>
+      </div>
+      <div class="flow-box">
+        <div class="bt">2D 推演动画</div>
+        <div class="bd">关键帧 + 元素补间，可拖时间轴、逐帧步进</div>
+      </div>
+      <div class="flow-box">
+        <div class="bt">3D 空间场景</div>
+        <div class="bd">几何体组装 + 悬浮标注点 + 相机导览</div>
+      </div>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th style="width:150px">产物</th><th>适合什么</th><th>具体例子</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>PPT</strong></td>
+        <td>离散、有序、需要逐条记住的信息</td>
+        <td>影响有哪几条、两个制度的差异对比、事件的时间顺序、考自己一道题</td>
+      </tr>
+      <tr>
+        <td><strong>2D 动画</strong></td>
+        <td>随时间演变的过程、路径、力的分解</td>
+        <td>疆域逐步扩张、航线开辟、权力从苏丹转移到总督、受力分析</td>
+      </tr>
+      <tr>
+        <td><strong>3D 场景</strong></td>
+        <td>需要空间想象的结构</td>
+        <td>建筑内部布局、地形与战局关系、机械结构、分子构型</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="core">整个系统最核心的一条设计原则</h2>
+
+  <div class="danger">
+    <p><strong>绝对禁止让大模型直接生成 HTML / Three.js / Manim 源码。</strong></p>
+  </div>
+
+  <p>
+    这是全项目最重要的一条约束。原因很实在：让 LLM 直接写 Three.js 代码，十次有八次会出现镜头穿模、
+    材质丢失、语法崩溃。让它在服务端跑 Manim 渲染视频，要 30~60 秒，学生早关了。
+  </p>
+
+  <p>所以采用<strong>受控 DSL 驱动渲染</strong>：</p>
+
+  <div class="flow">
+    <div class="flow-box hl">
+      <div class="bt">LLM 只填 JSON</div>
+      <div class="bd">SlideDeckSpec / Keyframe2DSpec / SceneGraph3DSpec</div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box">
+      <div class="bt">Pydantic 强校验</div>
+      <div class="bd">结构不对直接拒绝，不让坏数据进前端</div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-box">
+      <div class="bt">前端策略分发渲染</div>
+      <div class="bd">按 type 选渲染器，毫秒级出图，100% 不崩</div>
+    </div>
+  </div>
+
+  <p>
+    这样做的三个直接收益：<strong>零编译等待</strong>（不用等打包）、<strong>不会崩</strong>（渲染器是确定性代码，
+    不是模型临时写的）、<strong>天然可交互</strong>（每个元素都是 React 组件，能点击能 hover）。
+  </p>
+
+  <p>
+    代价是：JSON 契约必须设计得足够表达力。这是整个项目最需要小心维护的部分，
+    详见 <a href="../03-架构设计/3. DSL 契约.html">DSL 契约</a>。
+  </p>
+
+  <h2 id="stack">技术栈与目录结构</h2>
+
+  <p>选型原则是「AI 代码生成准确率最高 + 单机可拉起 + 前后端类型完全对齐」，不追求架构先进。</p>
+
+  <table>
+    <thead><tr><th style="width:120px">层</th><th>选型</th><th>为什么</th></tr></thead>
+    <tbody>
+      <tr><td>前端框架</td><td>React 19 + TS + Vite 7</td><td>AI 训练语料最丰富；强类型能挡住大量"看起来对但属性名写错"的错误</td></tr>
+      <tr><td>样式</td><td>TailwindCSS 3.4</td><td>不用起 CSS 文件，类名即样式</td></tr>
+      <tr><td>状态</td><td>Zustand</td><td>比 Redux 少写 80% 模板代码</td></tr>
+      <tr><td>分栏</td><td>Allotment</td><td>左右可拖拽，开箱即用</td></tr>
+      <tr><td>后端</td><td>FastAPI + Pydantic v2</td><td>原生 async，Pydantic 能强制 LLM 输出合法 JSON</td></tr>
+      <tr><td>数据库</td><td>SQLite（默认）/ PostgreSQL + pgvector</td><td>默认零依赖开箱即跑，生产可切</td></tr>
+    </tbody>
+  </table>
+
+  <div class="tree"><span class="d">backend/</span>
+├── <span class="d">app/</span>
+│   ├── main.py            <span class="c"># FastAPI 入口</span>
+│   ├── config.py          <span class="c"># 所有配置项</span>
+│   ├── errors.py          <span class="c"># 错误码（前后端共用同一份定义）</span>
+│   ├── <span class="d">db/</span>              <span class="c"># 7 张表、向量存储、数据访问</span>
+│   ├── <span class="d">schemas/</span>         <span class="c"># 三种 JSON AST、PatchOp、8 类 SSE 事件</span>
+│   ├── <span class="d">services/</span>        <span class="c"># 解析、切片、检索、路由、生成、补丁</span>
+│   └── <span class="d">api/</span>             <span class="c"># 21 个 HTTP 端点</span>
+└── <span class="d">tests/</span>               <span class="c"># 240 个用例</span>
+
+<span class="d">frontend/</span>
+└── <span class="d">src/</span>
+    ├── <span class="d">types/</span>            <span class="c"># 与后端 Pydantic 严格对应的 TS 接口</span>
+    ├── <span class="d">api/</span>              <span class="c"># HTTP 客户端 + 手写 SSE 解析器</span>
+    ├── <span class="d">store/</span>            <span class="c"># Zustand 全局状态</span>
+    ├── <span class="d">components/</span>
+    │   ├── <span class="d">layout/</span>       <span class="c"># 双栏工作区</span>
+    │   ├── <span class="d">chat/</span>         <span class="c"># 对话、锚点、引用、目录树</span>
+    │   └── <span class="d">canvas/</span>       <span class="c"># 三种渲染器 + 6 种 PPT 布局</span>
+    ├── <span class="d">hooks/</span>            <span class="c"># useChatStream / useArtifactPatch</span>
+    └── <span class="d">lib/</span>              <span class="c"># JSON Pointer、指纹、坐标换算</span>
+
+<span class="d">docs/</span>                     <span class="c"># 你正在看的这套文档</span>
+<span class="d">scripts/</span>                  <span class="c"># 端到端冒烟脚本</span></div>
+
+  <div class="pager">
+    <a href="../index.html">
+      <div class="dir">← 返回</div>
+      <div class="ttl">文档中心</div>
+    </a>
+    <a class="next" href="2. 环境搭建与运行.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">2. 环境搭建与运行</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

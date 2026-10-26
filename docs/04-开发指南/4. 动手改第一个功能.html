@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4. 动手改第一个功能 · 开发指南</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">文档中心</a><span class="sep">/</span>
+      <span>开发指南</span><span class="sep">/</span>
+      <span class="cur">4. 动手改第一个功能</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1><span class="num">4</span>动手改第一个功能</h1>
+  <p class="lede">三个实战，从易到难：改后端逻辑 → 改前端界面 → 加一个新字段贯穿全链路。每个都有完整步骤和验证方法。</p>
+
+  <div class="note">
+    <p><strong>先决条件：</strong>你已经按 <a href="../01-快速开始/2. 环境搭建与运行.html">环境搭建</a> 跑起来了，
+    并且 <code>pytest</code> 和 <code>npm test</code> 都是绿的。<strong>改动前先确认基线是绿的</strong>——
+    否则改完出错你分不清是自己改坏的还是本来就坏的。</p>
+  </div>
+
+  <div class="toc">
+    <div class="toc-h">三个实战</div>
+    <ol>
+      <li><a href="#a">实战 A：改后端路由规则（约 10 分钟）</a></li>
+      <li><a href="#b">实战 B：给 PPT 加一个复制按钮（约 20 分钟）</a></li>
+      <li><a href="#c">实战 C：加一个字段贯穿全链路（约 40 分钟）</a></li>
+      <li><a href="#rule">改代码的五条纪律</a></li>
+    </ol>
+  </div>
+
+  <h2 id="a">实战 A：改后端路由规则</h2>
+
+  <p><strong>目标：</strong>让问句里出现"地图"时也路由到 3D 场景（现在只有"结构/布局"等词才触发）。</p>
+
+  <h3>步骤 1：找到关键词表</h3>
+
+  <p>打开 <code>backend/app/services/router.py</code>，找到空间类关键词的列表。大概长这样：</p>
+
+  <pre><code>SPATIAL_KEYWORDS = (
+    <span class="st">"结构"</span>, <span class="st">"布局"</span>, <span class="st">"内部"</span>, <span class="st">"剖面"</span>,
+    <span class="st">"相对位置"</span>, <span class="st">"方位"</span>, ...
+)</code></pre>
+
+  <h3>步骤 2：加关键词</h3>
+
+  <pre><code>SPATIAL_KEYWORDS = (
+    <span class="st">"结构"</span>, <span class="st">"布局"</span>, <span class="st">"内部"</span>, <span class="st">"剖面"</span>,
+    <span class="st">"相对位置"</span>, <span class="st">"方位"</span>,
+    <span class="st">"地图"</span>, <span class="st">"地形"</span>, <span class="st">"疆域"</span>,   <span class="cm"># ← 新增</span>
+)</code></pre>
+
+  <h3>步骤 3：改理由文案（重要）</h3>
+
+  <p>同一文件里有个 <code>reason</code> 的拼接逻辑。原来可能是：</p>
+
+  <pre><code>reason = <span class="st">f"问句命中「{hit}」，涉及空间结构，3D 场景更能建立空间感"</span></code></pre>
+
+  <p>加了地图类词后，这个理由对"地图"就不太贴切了。改成更通用的表述：</p>
+
+  <pre><code>reason = <span class="st">f"问句命中「{hit}」，涉及空间关系或地理分布，3D 场景比平面图更直观"</span></code></pre>
+
+  <div class="tip">
+    <p><strong>理由文案为什么重要？</strong>它会直接显示给用户，是用户判断"这个形态对不对"的依据。
+    写 <code>"matched_keyword: map"</code> 用户看不懂；写人话用户才能反馈"不对，我要 PPT"。</p>
+  </div>
+
+  <h3>步骤 4：补测试</h3>
+
+  <p>打开 <code>backend/tests/test_router.py</code>，找到预置问句列表，加一条：</p>
+
+  <pre><code>{
+    <span class="st">"query"</span>: <span class="st">"马来半岛的地图各州分布是怎样的"</span>,
+    <span class="st">"expected"</span>: <span class="st">"scene_3d"</span>,
+},</code></pre>
+
+  <h3>步骤 5：跑测试验证</h3>
+
+  <pre><code>cd backend
+.venv\Scripts\python.exe -m pytest tests/test_router.py -q</code></pre>
+
+  <p>应该是全绿。如果挂了，看断言信息里期望什么、实际什么。</p>
+
+  <h3>步骤 6：真机验证</h3>
+
+  <p>重启后端（<code>--reload</code> 会自动重启），前端发一句"马来半岛的地图各州分布"，看画布是否出 3D 场景、理由是否是新的文案。</p>
+
+  <h3>步骤 7：提交</h3>
+
+  <pre><code>git add backend
+git commit -m <span class="st">"feat(router): 地图/地形/疆域类问句路由到 3D 场景"</span></code></pre>
+
+  <h2 id="b">实战 B：给 PPT 加一个复制按钮</h2>
+
+  <p><strong>目标：</strong>画布工具栏加一个「复制为 Markdown」按钮，把当前 PPT 的所有页面文字复制到剪贴板。</p>
+
+  <h3>步骤 1：先想清楚数据从哪来</h3>
+
+  <p>PPT 的 spec 存在 store 里。要拿到它，用选择器：</p>
+
+  <pre><code><span class="kw">import</span> { useWorkspaceStore, selectActiveArtifact } <span class="kw">from</span> <span class="st">"@/store/useWorkspaceStore"</span>;
+
+<span class="kw">const</span> artifact = useWorkspaceStore(selectActiveArtifact);</code></pre>
+
+  <div class="note">
+    <p><strong>为什么用选择器而不是 <code>useWorkspaceStore(state =&gt; state)</code>？</strong>
+    后者订阅整个 store，任何状态变化都会重渲染这个组件。选择器只订阅需要的那一块。</p>
+  </div>
+
+  <h3>步骤 2：写转换函数</h3>
+
+  <p>新建 <code>frontend/src/lib/exportMarkdown.ts</code>：</p>
+
+  <pre><code><span class="kw">import</span> <span class="kw">type</span> { ArtifactSpec, SlideDeckSpec } <span class="kw">from</span> <span class="st">"@/types/artifact"</span>;
+
+<span class="kw">export function</span> <span class="fn">slideDeckToMarkdown</span>(spec: SlideDeckSpec): <span class="kw">string</span> {
+  <span class="kw">const</span> lines: <span class="kw">string</span>[] = [<span class="st">`# ${spec.topic}`</span>, <span class="st">""</span>];
+
+  spec.slides.forEach((slide, i) =&gt; {
+    lines.push(<span class="st">`## ${i + 1}. ${slide.title}`</span>);
+    <span class="kw">if</span> (slide.subtitle) lines.push(<span class="st">`&gt; ${slide.subtitle}`</span>);
+
+    slide.bullets.forEach((b) =&gt; lines.push(<span class="st">`- ${b}`</span>));
+
+    <span class="kw">if</span> (slide.comparison_left &amp;&amp; slide.comparison_right) {
+      lines.push(<span class="st">"| 左 | 右 |"</span>, <span class="st">"|---|---|"</span>);
+      <span class="kw">const</span> n = Math.max(slide.comparison_left.length, slide.comparison_right.length);
+      <span class="kw">for</span> (<span class="kw">let</span> j = 0; j &lt; n; j++) {
+        lines.push(<span class="st">`| ${slide.comparison_left[j] ?? ""} | ${slide.comparison_right[j] ?? ""} |`</span>);
+      }
+    }
+
+    <span class="kw">if</span> (slide.speaker_notes) lines.push(<span class="st">""</span>, <span class="st">`&gt; 讲解：${slide.speaker_notes}`</span>);
+    lines.push(<span class="st">""</span>, <span class="st">`*出处：${slide.source_ref}*`</span>, <span class="st">""</span>);
+  });
+
+  <span class="kw">return</span> lines.join(<span class="st">"\n"</span>);
+}</code></pre>
+
+  <h3>步骤 3：在工具栏加按钮</h3>
+
+  <p>打开 <code>frontend/src/components/canvas/CanvasToolbar.tsx</code>，加一个按钮：</p>
+
+  <pre><code><span class="kw">const</span> handleCopy = <span class="kw">async</span> () =&gt; {
+  <span class="kw">if</span> (!artifact || artifact.spec.type !== <span class="st">"ppt"</span>) <span class="kw">return</span>;
+
+  <span class="kw">const</span> md = slideDeckToMarkdown(artifact.spec);
+  <span class="kw">try</span> {
+    <span class="kw">await</span> navigator.clipboard.writeText(md);
+    setToast(<span class="st">"已复制到剪贴板"</span>);
+  } <span class="kw">catch</span> {
+    setToast(<span class="st">"复制失败，请检查浏览器权限"</span>);
+  }
+};
+
+&lt;button onClick={handleCopy} disabled={artifact?.spec.type !== <span class="st">"ppt"</span>}&gt;
+  复制为 Markdown
+&lt;/button&gt;</code></pre>
+
+  <div class="warn">
+    <p><strong><code>artifact.spec.type !== "ppt"</code> 这个判断不能省。</strong>
+    TypeScript 会用它做<strong>类型收窄</strong>——判断之后 <code>artifact.spec</code> 才被识别为
+    <code>SlideDeckSpec</code>，才能访问 <code>.slides</code>。不判断会编译报错。</p>
+  </div>
+
+  <h3>步骤 4：写单元测试</h3>
+
+  <p>新建 <code>frontend/src/lib/exportMarkdown.test.ts</code>：</p>
+
+  <pre><code><span class="kw">import</span> { describe, expect, it } <span class="kw">from</span> <span class="st">"vitest"</span>;
+<span class="kw">import</span> { slideDeckToMarkdown } <span class="kw">from</span> <span class="st">"./exportMarkdown"</span>;
+
+describe(<span class="st">"slideDeckToMarkdown"</span>, () =&gt; {
+  it(<span class="st">"输出包含标题与要点"</span>, () =&gt; {
+    <span class="kw">const</span> md = slideDeckToMarkdown({
+      type: <span class="st">"ppt"</span>,
+      topic: <span class="st">"测试主题"</span>,
+      slides: [{
+        node_id: <span class="st">"slide-1"</span>, layout: <span class="st">"bullet_points"</span>,
+        title: <span class="st">"第一页"</span>, subtitle: <span class="kw">null</span>, bullets: [<span class="st">"要点一"</span>],
+        comparison_left: <span class="kw">null</span>, comparison_right: <span class="kw">null</span>,
+        timeline_items: <span class="kw">null</span>, quiz_questions: <span class="kw">null</span>,
+        speaker_notes: <span class="st">"讲解"</span>, source_ref: <span class="st">"p.1"</span>,
+      }],
+    });
+    expect(md).toContain(<span class="st">"# 测试主题"</span>);
+    expect(md).toContain(<span class="st">"- 要点一"</span>);
+  });
+});</code></pre>
+
+  <h3>步骤 5：验证</h3>
+
+  <pre><code>cd frontend
+npm test
+npm run build</code></pre>
+
+  <p>然后真机点一下按钮，粘贴到别处看效果。</p>
+
+  <h3>步骤 6：提交</h3>
+
+  <pre><code>git add frontend
+git commit -m <span class="st">"feat(canvas): PPT 支持复制为 Markdown"</span></code></pre>
+
+  <h2 id="c">实战 C：加一个字段贯穿全链路</h2>
+
+  <p><strong>目标：</strong>给 PPT 每一页加一个 <code>difficulty</code> 字段（<code>"basic" | "advanced"</code>），
+  前端用不同颜色角标显示。这个实战走完契约扩展的完整流程。</p>
+
+  <div class="danger">
+    <p><strong>只能加可选字段，不能改已有字段。</strong>历史版本的 spec 是 append-only 的，
+    改了已有字段的语义，所有旧数据都会失效且无法批量迁移。</p>
+  </div>
+
+  <h3>步骤 1：后端契约加字段</h3>
+
+  <p><code>backend/app/schemas/artifacts.py</code> 的 <code>SlideNode</code>：</p>
+
+  <pre><code>difficulty: Literal[<span class="st">"basic"</span>, <span class="st">"advanced"</span>] | <span class="kw">None</span> = <span class="kw">None</span>
+<span class="cm"># 必须有默认值 None，否则历史 spec 校验失败</span></code></pre>
+
+  <h3>步骤 2：前端类型同步</h3>
+
+  <p><code>frontend/src/types/artifact.ts</code> 的 <code>SlideNode</code>：</p>
+
+  <pre><code>difficulty: <span class="st">"basic"</span> | <span class="st">"advanced"</span> | <span class="kw">null</span>;</code></pre>
+
+  <h3>步骤 3：让 mock 生成器产出它</h3>
+
+  <p><code>backend/app/services/mock_generator.py</code> 里生成 slide 的地方，加一行：</p>
+
+  <pre><code>difficulty = <span class="st">"basic"</span> <span class="kw">if</span> i &lt; len(slides) // 2 <span class="kw">else</span> <span class="st">"advanced"</span></code></pre>
+
+  <p>不加这行，演示模式下这个字段永远是 <code>null</code>，你看不到效果。</p>
+
+  <h3>步骤 4：前端渲染</h3>
+
+  <p>打开 <code>frontend/src/components/canvas/SlideRenderer.tsx</code>，在页面角落加角标：</p>
+
+  <pre><code>{slide.difficulty &amp;&amp; (
+  &lt;span className={slide.difficulty === <span class="st">"advanced"</span>
+    ? <span class="st">"badge-advanced"</span> : <span class="st">"badge-basic"</span>}&gt;
+    {slide.difficulty === <span class="st">"advanced"</span> ? <span class="st">"进阶"</span> : <span class="st">"基础"</span>}
+  &lt;/span&gt;
+)}</code></pre>
+
+  <h3>步骤 5：补三层测试</h3>
+
+  <table>
+    <thead><tr><th style="width:220px">层</th><th>测什么</th></tr></thead>
+    <tbody>
+      <tr><td><code>test_contracts.py</code></td><td>带 <code>difficulty</code> 的 spec 能通过校验；传非法值被拒</td></tr>
+      <tr><td><code>test_mock_determinism.py</code></td><td>两次生成都带同一个 difficulty 值</td></tr>
+      <tr><td><code>SlideRenderer.test.tsx</code></td><td><code>difficulty: "advanced"</code> 时渲染出「进阶」角标</td></tr>
+    </tbody>
+  </table>
+
+  <h3>步骤 6：全量回归</h3>
+
+  <pre><code>cd backend &amp;&amp; .venv\Scripts\python.exe -m pytest tests -q
+cd ../frontend &amp;&amp; npm test &amp;&amp; npm run build</code></pre>
+
+  <p>三条都绿才算完成。任何一条红，说明改动破坏了某个已有假设。</p>
+
+  <h3>步骤 7：验证旧数据兼容</h3>
+
+  <p>这是最容易被忘的一步。找一个改动前生成的产物，打开看是否还能正常渲染
+  （旧 spec 里没有 <code>difficulty</code> 字段，应该显示为无角标，而不是报错）。</p>
+
+  <div class="tip">
+    <p><strong>为什么这一步重要？</strong>因为版本历史是 append-only 的，旧 spec 永远存在。
+    新代码必须能读旧数据——这是"只加可选字段"规则的价值所在。</p>
+  </div>
+
+  <h2 id="rule">改代码的五条纪律</h2>
+
+  <ol class="steps">
+    <li>
+      <span class="st-title">先跑测试确认基线是绿的</span>
+      <p>不然改完出错你分不清是谁的问题。</p>
+    </li>
+    <li>
+      <span class="st-title">只加不改（对契约而言）</span>
+      <p>新增可选字段 + 新 literal 值，安全。改字段名或语义，危险。</p>
+    </li>
+    <li>
+      <span class="st-title">前后端契约必须同步改</span>
+      <p>后端 Pydantic 改了，前端 <code>types/*.ts</code> 必须一起改。只改一边，运行时才报错，编译期发现不了。</p>
+    </li>
+    <li>
+      <span class="st-title">改完必须三层验证</span>
+      <p>后端 pytest → 前端 npm test → 真机点一遍。少一层就可能漏掉"测试过了但实际不能用"。</p>
+    </li>
+    <li>
+      <span class="st-title">提交信息写清"为什么"</span>
+      <p><code>"feat(router): 地图类问句路由到 3D"</code> 比 <code>"update router.py"</code> 有用得多。
+      半年后你或别人看 git log 时，只有前者能帮你定位。</p>
+    </li>
+  </ol>
+
+  <div class="pager">
+    <a href="3. 前端代码地图.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">3. 前端代码地图</div>
+    </a>
+    <a class="next" href="5. 测试与调试.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">5. 测试与调试</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>
