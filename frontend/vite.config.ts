@@ -40,5 +40,19 @@ export default defineConfig({
     outDir: "dist",
     sourcemap: true,
     target: "es2022",
+    rollupOptions: {
+      output: {
+        /**
+         * 手动分包：KaTeX + markdown 插件链占了 bundle 的一半以上，且**首屏不需要**。
+         * 拆出去后主包只剩 React + 业务代码，首屏解析更快，也顺手消掉
+         * 「chunk > 500kB」的告警（不拆的话每次构建都在噪声里，容易漏掉真正的告警）。
+         */
+        manualChunks: {
+          react: ["react", "react-dom"],
+          markdown: ["react-markdown", "remark-gfm", "remark-math", "rehype-katex"],
+          katex: ["katex"],
+        },
+      },
+    },
   },
 });

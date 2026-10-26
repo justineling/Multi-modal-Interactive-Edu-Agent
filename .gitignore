@@ -43,6 +43,9 @@ uploads/
 logs/
 *.log
 
+# ---- 联调截图（e2e / 真机验证的现场产物，仅供本地排查）----
+frontend/.e2e-shots/
+
 # ---- OS / Editor ----
 .DS_Store
 Thumbs.db
