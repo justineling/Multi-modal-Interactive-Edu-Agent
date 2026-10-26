@@ -120,7 +120,12 @@ class LLMClient:
         temperature: float = 0.2,
         response_format: bool = True,
     ) -> dict[str, Any]:
-        """请求一个 JSON 对象。JSON 解析失败会内部重试（最多 LLM_MAX_RETRIES 次）。"""
+        """请求一个 JSON 对象。JSON 解析失败会内部重试（最多 LLM_MAX_RETRIES 次）。
+
+        默认模型是 `LLM_MODEL_GENERATOR`（重模型），与 `stream_text` 的默认值**故意不同**：
+        这里的产物是强结构 AST，字段名/枚举错一个就整份作废、要回灌错误重试（每次重试都是
+        一次完整请求，成本远高于单次慢一点）。准确率优先于延迟，所以用重模型。
+        """
         payload: dict[str, Any] = {
             "model": model or self._settings.LLM_MODEL_GENERATOR,
             "messages": [
@@ -165,9 +170,19 @@ class LLMClient:
         temperature: float = 0.4,
         on_delta: Callable[[str], None] | None = None,
     ) -> AsyncIterator[str]:
-        """流式产出正文增量。TTFT 直接取决于这个接口的首个 chunk 到达时间。"""
+        """流式产出正文增量。TTFT 直接取决于这个接口的首个 chunk 到达时间。
+
+        **默认模型是 `LLM_MODEL_ROUTER`（轻量模型），不是 GENERATOR** —— 这是分层路由的
+        落地位置，此前两边都取 GENERATOR，导致「配了 router 却从没用上」：
+        - 正文是自然语言讲解，用户盯空屏超过 3 秒就以为卡死（P0-05① 的 TTFT 验收）。
+          实测同一段讲解，重模型首 token 要 55 秒，轻量模型 1~2 秒，而学生根本看不出
+          措辞上的差异 —— 用重模型换来的那点文采，代价是 55 倍的首字延迟，不划算。
+        - 结构化 AST（`complete_json`）正相反：字段名错一个整份作废，必须用准确率更高的
+          GENERATOR，多等几秒值得。
+        两个默认值因此不对称，改动任一默认值前请先想清楚这条取舍。
+        """
         payload = {
-            "model": model or self._settings.LLM_MODEL_GENERATOR,
+            "model": model or self._settings.LLM_MODEL_ROUTER,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},

@@ -36,7 +36,7 @@ from app.db.session import get_session_factory
 from app.db.vector_store import get_vector_store
 from app.errors import AppError, ErrorCode
 from app.logging_conf import log_event
-from app.schemas.artifacts import Citation, parse_artifact_spec
+from app.schemas.artifacts import PALETTE, Citation, parse_artifact_spec
 from app.schemas.chat import (
     Anchor,
     ArtifactEvent,
@@ -79,8 +79,114 @@ _SYSTEM_PROMPT = (
 )
 _ARTIFACT_SYSTEM_PROMPT = (
     "你是教学 JSON 生成器。只输出一个 JSON 对象，不要解释、不要 Markdown 围栏。"
-    "严禁输出 HTML、CSS 或 JavaScript 代码。颜色只能取自给定调色板。"
+    "严禁输出 HTML、CSS 或 JavaScript 代码。"
+    "字段名必须与用户消息里给出的契约**逐字一致**，不得自创字段、不得改名"
+    "（例如不许用 heading 代替 title、不许用 section 代替 topic、"
+    "不许用 content 代替 speaker_notes，也不许出现契约之外的任何键）。"
+    "契约里声明为「数组或 null」的字段，用不到时写 null，不要省略整个键。"
 )
+
+# 调色板拼成一行写进契约，避免模型编造 #FF0000 这类不在 §9.5 里的颜色被校验拒绝。
+_PALETTE_TEXT = " ".join(PALETTE)
+
+# 每种产物的「字段契约」：字段名 + 类型 + 枚举取值 + 业务约束 + 一个最小合法示例。
+#
+# 为什么手写而不用 `model_json_schema()`：pydantic 的 schema 输出充满 $defs / anyOf /
+# title 噪音，单是 PPT 就要 4k+ token，而且**看不出**「用不到的字段必须显式写 null」
+# 这类关键约定（它只体现在 required 数组里，模型读不出来）。手写版约 500 token，
+# 枚举取值与必填规则一眼可见。首次真实链路验证中，缺这份契约导致模型自创
+# heading/section 字段、连续 3 次校验失败（错误数 15→21→26，越改越乱）后降级 mock。
+_ARTIFACT_CONTRACT: dict[str, str] = {
+    "ppt": (
+        "【输出契约：ppt】\n"
+        '顶层：{"type":"ppt","topic":"课件主题","slides":[每页对象...]}\n'
+        "每页对象的字段（11 个键全部必须出现，用不到的写 null，不要省略）：\n"
+        "- node_id：字符串，按 slide-1、slide-2 递增\n"
+        "- layout：只能是 title_hero / bullet_points / timeline / comparison / cause_effect / quiz\n"
+        "- title：字符串\n"
+        "- subtitle：字符串或 null\n"
+        "- bullets：字符串数组，没有就给 []\n"
+        "- comparison_left：字符串数组或 null\n"
+        "- comparison_right：字符串数组或 null\n"
+        "- timeline_items：数组或 null，"
+        '元素为 {"year":"1946","label":"...","detail":"...","source_page":76}\n'
+        "- quiz_questions：数组或 null，元素为 "
+        '{"question":"...","options":["选项一","选项二","选项三"],"answer_index":0,"explanation":"..."}'
+        "（options 至少 2 项，answer_index 必须落在 options 下标范围内）\n"
+        "- speaker_notes：字符串，教师口播讲解 2~3 句，要讲课本里的具体内容，"
+        "不要写「这一节我们讲……」这类空话\n"
+        '- source_ref：字符串，格式 "4.1.3, p.76"\n'
+        "业务约束：共 5~8 页；第 1 页 layout 必须是 title_hero 且 title 用一句话概括本节主题"
+        "（与 topic 一致即可）；最后 1 页 layout 必须是 quiz；"
+        "中间各页在 bullet_points / timeline / comparison / cause_effect 里至少用 3 种不同取值；"
+        "bullet_points 页给 3~5 条 bullets；"
+        "timeline 页必须给 timeline_items 且至少 2 条，comparison 页必须给 comparison_left 与 "
+        "comparison_right（各 2~4 条），quiz 页必须给 quiz_questions 且至少 2 题，"
+        "其余页对应字段写 null。\n"
+        "最小合法示例（1 页，字段齐全，照此结构扩到 5~8 页）：\n"
+        '{"type":"ppt","topic":"马来亚联合邦的成立","slides":[{"node_id":"slide-1",'
+        '"layout":"title_hero","title":"马来亚联合邦的成立","subtitle":"4.1 · p.76",'
+        '"bullets":[],"comparison_left":null,"comparison_right":null,'
+        '"timeline_items":null,"quiz_questions":null,'
+        '"speaker_notes":"1946 年英国提出马来亚联合邦计划，把各州与槟城、马六甲合并，'
+        '并削弱苏丹在州内的主权。","source_ref":"4.1.1, p.76"}]}'
+    ),
+    "anim_2d": (
+        "【输出契约：anim_2d】\n"
+        '顶层：{"type":"anim_2d","title":"动画主题","steps":[每个关键帧...]}\n'
+        "每个关键帧的字段（4 个键全部必须出现）：\n"
+        "- step_index：整数，从 0 开始递增\n"
+        "- narration：字符串，该帧的旁白解说 1~3 句\n"
+        '- source_ref：字符串，格式 "4.1.3, p.76"；课本未覆盖时写 "Extended Knowledge"\n'
+        "- entities：数组，该帧的画面元素\n"
+        "每个 entity 的字段（8 个键全部必须出现）：\n"
+        "- id：字符串，同一帧内唯一（entity-0、entity-1 递增）\n"
+        "- shape：只能是 circle / rect / arrow / label_box / zone\n"
+        "- label：字符串，画面上的短标签\n"
+        "- x、y：数字。逻辑画布 1000×600，写元素**中心点**坐标，不是像素\n"
+        "- color：只能取这些值：" + _PALETTE_TEXT + "\n"
+        "- details：字符串，该元素的详细说明\n"
+        "- source_page：整数或 null\n"
+        "业务约束：2~5 个关键帧；每帧 2~5 个 entity；"
+        "画面要体现「随时间推进」—— 同一主体在不同帧的位置或标签应发生变化。\n"
+        "最小合法示例（1 帧，照此扩到 2~5 帧）：\n"
+        '{"type":"anim_2d","title":"联合邦计划的推进过程","steps":[{"step_index":0,'
+        '"narration":"1946 年英国公布联合邦计划，各地马来人开始组织反对。",'
+        '"source_ref":"4.1.1, p.76","entities":[{"id":"entity-0","shape":"zone",'
+        '"label":"1946","x":320.0,"y":300.0,"color":"#2563EB",'
+        '"details":"计划公布阶段的舆论反应。","source_page":76}]}]}'
+    ),
+    "scene_3d": (
+        "【输出契约：scene_3d】\n"
+        '顶层：{"type":"scene_3d","title":"场景主题","nodes":[每个节点...],'
+        '"camera_tour":[每个机位...]}\n'
+        "每个 node 的字段（10 个键全部必须出现，用不到的写 null）：\n"
+        "- id：字符串，全局唯一（node-0、node-1 递增）\n"
+        "- primitive：只能是 box / sphere / cylinder / cone / terrain_plane / arrow_link\n"
+        "- label：字符串\n"
+        "- position：[x, y, z] 三个数字的数组（不能写成字符串，也不能写成对象）\n"
+        "- scale：[x, y, z] 三个数字的数组\n"
+        "- rotation：[x, y, z] 三个数字的数组\n"
+        "- color：只能取这些值：" + _PALETTE_TEXT + "\n"
+        "- annotation_markdown：字符串，该部件的知识点标注\n"
+        "- source_page：整数或 null\n"
+        "- parent_id：字符串或 null，表示从属于哪个节点的 id（主体写 null）\n"
+        "每个机位的字段（4 个键全部必须出现）：\n"
+        "- name：字符串；position：[x, y, z]；target：[x, y, z]；explanation：字符串\n"
+        "业务约束：3~8 个 node（1 个主体 + 若干部件，部件用 parent_id 挂到主体上）；"
+        "2~4 个机位。\n"
+        "最小合法示例（1 个节点 + 1 个机位，照此扩展）：\n"
+        '{"type":"scene_3d","title":"马六甲城墙结构","nodes":[{"id":"node-0",'
+        '"primitive":"box","label":"城墙主体","position":[0.0,1.5,0.0],'
+        '"scale":[2.0,1.0,2.0],"rotation":[0.0,0.0,0.0],"color":"#2563EB",'
+        '"annotation_markdown":"墙体以红土夯实，厚度约两米。","source_page":34,'
+        '"parent_id":null}],"camera_tour":[{"name":"全景","position":[8.0,6.0,8.0],'
+        '"target":[0.0,1.5,0.0],"explanation":"先看整体比例与体量关系。"}]}'
+    ),
+}
+
+# 兜底：未知类型按 ppt 契约走（与 mock_generator.generate_spec 的退化策略一致）
+_DEFAULT_ARTIFACT_CONTRACT = _ARTIFACT_CONTRACT["ppt"]
 
 
 @dataclass(frozen=True)
@@ -809,13 +915,23 @@ class AgentEngine:
     def _artifact_prompt(
         self, req: TurnRequest, decision: RouteDecision, context: MockContext
     ) -> str:
+        """构造产物生成提示词。
+
+        **必须把目标形态的字段契约原文贴进来**（`_ARTIFACT_CONTRACT`）：
+        只写「请输出符合 JSON Schema 的对象」而不给 Schema，模型只能靠猜字段名 ——
+        实测它会输出 `title`/`section`/`heading` 这类自创字段，被 `extra="forbid"`
+        逐条拒绝，重试时错误数还会越改越多（15→21→26），最终降级 mock。
+        契约 + 一个最小合法示例是最省 token 的确定性约束方式。
+        """
+        contract = _ARTIFACT_CONTRACT.get(decision.artifact_type, _DEFAULT_ARTIFACT_CONTRACT)
         return (
             f"目标形态：{decision.artifact_type}\n"
             f"章节：{context.section_code} {context.section_title}\n"
             f"用户诉求：{req.query}\n"
-            f"课本事实：\n"
+            "课本事实（只能依据以下内容生成，不得编造页码或事实）：\n"
             + "\n".join(f"- {fact}" for fact in context.facts[:8])
-            + "\n\n请输出符合该形态 JSON Schema 的完整对象（含 type 字段）。"
+            + f"\n\n{contract}\n"
+            "现在输出这一个 JSON 对象，不要任何解释文字、不要 Markdown 围栏。"
         )
 
 
