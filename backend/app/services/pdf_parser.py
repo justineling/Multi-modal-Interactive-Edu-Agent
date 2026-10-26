@@ -102,9 +102,23 @@ class _Heading:
 # --------------------------------------------------------------------------- #
 # 打开与体检
 # --------------------------------------------------------------------------- #
-def _open_document(path: str | Path) -> Any:
+def _open_document(source: str | Path | bytes) -> Any:
+    """打开 PDF。`source` 可以是路径，也可以是**字节内容**。
+
+    为什么必须支持 bytes（P0-02② 的孤儿文件问题）：
+    PyMuPDF 的 `open(路径)` 在**打开失败**时会留下一个 OS 级文件句柄，而这个句柄的
+    生命周期绑在异常的 traceback 帧上 —— 也就是说，只要 `AppError.__cause__` 还活着
+    （上传接口的错误分支里必然活着），文件就删不掉，Windows 上表现为
+    `PermissionError: [WinError 32]`。实测：`from None` 去掉异常链也无效，
+    只有「PyMuPDF 完全不接触路径」才能让 `unlink` 立刻成功。
+    因此上传体检走 `open(stream=..., filetype="pdf")`：字节由调用方从内存给，
+    PyMuPDF 不打开文件，也就没有句柄可残留。
+    """
     try:
-        document = pymupdf.open(str(path))
+        if isinstance(source, bytes):
+            document = pymupdf.open(stream=source, filetype="pdf")
+        else:
+            document = pymupdf.open(str(source))
     except Exception as exc:
         # 扩展名对但内容坏掉 / 根本不是 PDF：给统一的可读错误，不让底层异常裸奔到 500
         raise AppError(ErrorCode.PDF_PARSE_FAILED, f"无法打开 PDF 文件：{exc}") from exc
@@ -118,13 +132,16 @@ def _open_document(path: str | Path) -> Any:
     return document
 
 
-def inspect_pdf(path: str | Path, *, max_pages: int | None = None) -> int:
+def inspect_pdf(source: str | Path | bytes, *, max_pages: int | None = None) -> int:
     """上传时的快速体检：只读元信息，返回页数。
 
     放在上传接口里而不是解析任务里，是因为 P0-02② 要求「加密 / 0 页」**立刻**返回明确
     错误码；等后台任务失败了再报，用户已经看到进度条在转了。
+
+    `source` 传 **bytes** 是上传接口的推荐用法：体检在落盘之前完成，体检失败时磁盘上
+    根本没有文件，从结构上消除「失败留下孤儿文件」（见 `_open_document` 的句柄说明）。
     """
-    document = _open_document(path)
+    document = _open_document(source)
     try:
         page_count = document.page_count
     finally:

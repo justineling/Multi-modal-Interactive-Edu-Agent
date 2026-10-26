@@ -199,23 +199,29 @@ async def upload_document(
     )
     await session.flush()
 
-    target = settings.upload_dir / f"{document.id}.pdf"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(content)
-
+    # 体检用**内存字节**，在落盘之前完成（`inspect_pdf(bytes)` 走 PyMuPDF 的 stream 模式）。
+    # 这样「体检失败」与「磁盘上出现文件」在时序上互斥，孤儿文件从结构上不可能产生 ——
+    # 不依赖 unlink 是否成功（Windows 上 PyMuPDF 打开失败时句柄绑在异常 traceback 上，
+    # 只要错误分支里的 AppError 还活着，unlink 必抛 WinError 32）。
     try:
-        page_count = inspect_pdf(target, max_pages=settings.MAX_PDF_PAGES)
+        page_count = inspect_pdf(content, max_pages=settings.MAX_PDF_PAGES)
     except AppError as exc:
-        # 体检失败：把已落盘的文件删掉，别留垃圾；错误码原样抛给前端。
-        # 删除必须 best-effort：Windows 上 PyMuPDF 可能仍持有句柄（WinError 32），
-        # 若让 PermissionError 穿透，就会把「明确错误码」换成「未处理异常 500」，
-        # 比不删文件糟糕得多 —— 清理失败只记日志，原错误照常返回（P0-02②）。
-        _remove_quietly(target)
         document.status = "failed"
         document.error_code = exc.code.value
         document.error_message = exc.message
         await session.flush()
         raise
+
+    target = settings.upload_dir / f"{document.id}.pdf"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        target.write_bytes(content)
+    except OSError as exc:
+        # 磁盘满 / 无写权限：这是服务端环境问题，清理半截文件后按内部错误上报
+        _remove_quietly(target)
+        raise AppError(
+            ErrorCode.INTERNAL_ERROR, f"保存上传文件失败：{exc}"
+        ) from exc
 
     document.stored_path = str(target)
     document.page_count = page_count
