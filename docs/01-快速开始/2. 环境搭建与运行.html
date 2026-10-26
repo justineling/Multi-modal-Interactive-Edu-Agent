@@ -21,22 +21,77 @@
 <div class="wrap">
 
   <h1><span class="num">2</span>环境搭建与运行</h1>
-  <p class="lede">从零到看见界面，大约 10 分钟。这一步会遇到的坑我都标出来了——尤其是最后那三个，几乎每个人都会踩一次。</p>
+  <p class="lede">从零到看见界面。有一键脚本，也有手动步骤；最后附「装到桌面」的方法和三个必踩的坑。</p>
+
+  <div class="tip">
+    <p><strong>只想看效果？别往下读。</strong>直接双击根目录的 <code>1. 启动网页端(Windows).bat</code>
+    （Mac/Linux 用 <code>2. 启动网页端(Mac-Linux).sh</code>）。脚本会自动装依赖、建配置、生成样本教材、
+    开两个窗口启动前后端，然后打开浏览器。</p>
+  </div>
 
   <div class="toc">
     <div class="toc-h">本篇内容</div>
     <ol>
+      <li><a href="#quickstart">最快方式：一键启动</a></li>
       <li><a href="#req">前置要求</a></li>
-      <li><a href="#backend">启动后端</a></li>
-      <li><a href="#frontend">启动前端</a></li>
+      <li><a href="#backend">手动启动后端</a></li>
+      <li><a href="#frontend">手动启动前端</a></li>
       <li><a href="#sample">生成样本教材</a></li>
       <li><a href="#verify">验证清单</a></li>
+      <li><a href="#pwa">装到桌面（PWA）</a></li>
       <li><a href="#env">环境变量说明</a></li>
       <li><a href="#pitfall">三个必踩的坑</a></li>
     </ol>
   </div>
 
+  <h2 id="quickstart">最快方式：一键启动</h2>
+
+  <table>
+    <thead><tr><th style="width:130px">平台</th><th style="width:280px">文件</th><th>操作</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Windows</td>
+        <td><code>1. 启动网页端(Windows).bat</code></td>
+        <td>双击</td>
+      </tr>
+      <tr>
+        <td>macOS / Linux</td>
+        <td><code>2. 启动网页端(Mac-Linux).sh</code></td>
+        <td><code>chmod +x "2. 启动网页端(Mac-Linux).sh" && ./"2. 启动网页端(Mac-Linux).sh"</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>脚本会依次做五件事，<strong>首次运行会自动补齐环境</strong>：</p>
+
+  <ol class="steps">
+    <li><span class="st-title">检查 Python 与 Node.js</span>
+      <p>缺失时给出下载链接和安装提示，不会闷着失败。</p></li>
+    <li><span class="st-title">准备后端虚拟环境</span>
+      <p><code>backend/.venv</code> 不存在则创建并 <code>pip install</code>（首次约 1-2 分钟）。</p></li>
+    <li><span class="st-title">准备配置文件</span>
+      <p><code>backend/.env</code> 不存在则从 <code>.env.example</code> 复制（默认演示模式）。</p></li>
+    <li><span class="st-title">准备前端依赖与样本教材</span>
+      <p><code>node_modules</code> 不存在则 <code>npm install</code>（首次约 1-3 分钟）；样本 PDF 不存在则现场生成。</p></li>
+    <li><span class="st-title">启动服务并打开浏览器</span>
+      <p>后端和前端各开<strong>一个独立窗口</strong>，标题分别标注端口。等就绪后自动打开 <code>http://localhost:5173</code>。</p></li>
+  </ol>
+
+  <div class="note">
+    <p><strong>停止服务：关闭那两个命令行窗口。</strong>窗口标题是「智能助教 · 后端 :8000」和「智能助教 · 前端 :5173」，
+    关哪个停哪个，日志也各看各的——比把两路日志混在一个窗口里好排查得多。</p>
+  </div>
+
+  <div class="warn">
+    <p><strong>为什么 Windows 脚本是一个 <code>.bat</code> 加一个 <code>.ps1</code>？</strong>
+    因为批处理文件的中文编码很坑：存成 UTF-8 会在中文 Windows 上被按 GBK 解析、整行截断、命令错乱；
+    存成 GBK 又会在英文 Windows 上显示乱码。解法是让 <code>.bat</code> <strong>一个中文字符都不含</strong>（纯 ASCII，任何代码页都能正确解析），
+    只负责调用 <code>scripts/start-web.ps1</code>；中文提示和全部逻辑放在 <code>.ps1</code> 里，
+    以 UTF-8 with BOM 保存，PowerShell 能正确读取。</p>
+  </div>
+
   <h2 id="req">前置要求</h2>
+
 
   <table>
     <thead><tr><th style="width:120px">工具</th><th>版本要求</th><th>检查命令</th></tr></thead>
@@ -52,7 +107,7 @@
     也不需要 PostgreSQL、Redis、Docker——这些在生产部署时才涉及。</p>
   </div>
 
-  <h2 id="backend">启动后端</h2>
+  <h2 id="backend">手动启动后端</h2>
 
   <ol class="steps">
     <li>
@@ -122,7 +177,7 @@ INFO:     Application startup complete.</code></pre>
 
   <p><code>demo_mode: true</code> 说明当前是演示模式（没配 Key），这是正常的。</p>
 
-  <h2 id="frontend">启动前端</h2>
+  <h2 id="frontend">手动启动前端</h2>
 
   <p>新开一个终端窗口（后端那个别关）：</p>
 
@@ -192,7 +247,67 @@ cd backend
 .venv\Scripts\python.exe -m uvicorn app.main:app --port 8123
 python ../scripts/e2e_smoke.py</code></pre>
 
+  <h2 id="pwa">装到桌面（PWA）</h2>
+
+  <p>界面支持安装成桌面应用。装完是一个<strong>独立窗口</strong>——没有地址栏、没有标签页，看起来和原生软件一样。</p>
+
+  <h3>怎么装</h3>
+
+  <ol class="steps">
+    <li>
+      <span class="st-title">启动服务，用 Chrome 或 Edge 打开</span>
+      <p><code>http://localhost:5173</code></p>
+    </li>
+    <li>
+      <span class="st-title">看地址栏右侧的「安装」图标</span>
+      <p>一个显示器带下箭头的图标，或者一个 ⊕ 样式的图标。点它。</p>
+    </li>
+    <li>
+      <span class="st-title">确认安装</span>
+      <p>桌面和开始菜单会出现「智能助教」，双击打开就是独立窗口。</p>
+    </li>
+  </ol>
+
+  <div class="note">
+    <p><strong>看不到安装图标？</strong>两个原因：① 用的是 Firefox 或 Safari（不支持桌面 PWA 安装）；
+    ② 访问的是 <code>127.0.0.1</code> 而不是 <code>localhost</code>——PWA 要求安全上下文，这两个在部分浏览器上不等价。</p>
+  </div>
+
+  <h3>装了之后有什么不一样</h3>
+
+  <table>
+    <thead><tr><th style="width:150px">项</th><th>效果</th></tr></thead>
+    <tbody>
+      <tr><td>窗口形态</td><td>独立窗口，无地址栏、无标签页，Alt+Tab 里是一个单独的应用</td></tr>
+      <tr><td>入口</td><td>桌面图标 / 开始菜单 / 任务栏固定</td></tr>
+      <tr><td>启动</td><td>界面壳被缓存，打开比首次加载快</td></tr>
+      <tr><td>离线时</td><td>能看到离线提示页，而不是浏览器的「无法访问此网站」</td></tr>
+    </tbody>
+  </table>
+
+  <h3>它不是「真离线」——这点要说清</h3>
+
+  <div class="danger">
+    <p><strong>PWA 只缓存界面壳，不缓存任何数据。</strong>Service Worker 里明确排除了所有 <code>/api/</code> 请求。</p>
+    <p style="margin-top:10px">这不是偷懒，是必须的：一旦缓存了对话接口 <code>POST /api/chat/stream</code>，
+    用户会永远拿到第一次的答案，而且<strong>这个 bug 是静默的</strong>——界面一切正常，只是 AI「不回复新问题」，极难排查。</p>
+    <p style="margin-top:10px"><strong>所以后端必须一直开着。</strong>后端停了之后：刷新页面 → 看到离线提示页；
+    界面壳还能加载（被缓存了），但发消息会失败。</p>
+  </div>
+
+  <h3>为什么不做成真离线（Tauri）</h3>
+
+  <p>真离线需要把 Python 后端一起打包。而 PDF 解析依赖 PyMuPDF——换成 JS 的 pdf.js 或 Rust 的 pdf-extract，
+  <strong>章节号识别质量和页码映射精度会明显下降</strong>，而那正是「严格按教材」这个卖点的地基。</p>
+
+  <p>Tauri + Python sidecar 的体积是 <strong>80~150MB</strong>，还要维护一套跨平台打包链（PyInstaller 打包 FastAPI、
+  处理 PyMuPDF 的 DLL、sidecar 生命周期管理、端口动态分配）。</p>
+
+  <p>在「用户到底需要桌面感，还是真离线」还没验证之前，PWA 是成本最低的试探：<strong>零构建链，半小时的配置，随时可弃。</strong>
+  如果后面确认要真离线（比如学校机房无网），再上 Tauri 也不迟——前端代码可以原样复用。</p>
+
   <h2 id="env">环境变量说明</h2>
+
 
   <p>全部在 <code>backend/.env</code> 里配置，默认值见 <code>backend/app/config.py</code>：</p>
 
