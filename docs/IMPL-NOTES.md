@@ -129,7 +129,10 @@
 这与 §6.2「章节号前缀匹配」语义一致（子节属于该节范围），**不是缺陷**。但由此产生两条要求：
 
 1. 测试断言不能写「带锚点追问只应出现一条引用」。
-2. UI 渲染前应按 `page_start` 升序排序，否则会出现「p.6-7 排在 p.5 前面」的观感问题。
+2. **`citations` 与 `retrieval.chunks` 的排序语义不同**：
+   - `retrieval.chunks` 按**相关性**（分数降序），这是检索结果，顺序有意义；
+   - `citations` 按**书页顺序**（`page_start` 升序），这是出处清单，让前端给清单排序属职责错位。
+   后端已在 `agent_engine._build_citations` 中按 `(page_start, page_end, section_code)` 升序输出（commit `9f8c440`），落库的 `MessageOut.citations` 同序。前端若再做一次排序是幂等的，无害。
 
 ### F3. `source_ref` 是字符串，锚点构造需解析兜底
 
@@ -148,7 +151,7 @@
 
 | 项 | 实测值 | 来源 |
 |---|---|---|
-| 后端单测 | 178 passed | `pytest backend/tests` |
+| 后端单测 | 179 passed | `pytest backend/tests` |
 | 端到端冒烟 | 38 项全通过 | `python scripts/e2e_smoke.py`（需服务运行在 :8123） |
 | 113 页 PDF 解析 | 0.41s（预算 60s） | e2e |
 | 目录树 | 3 级 / 65 节点 | e2e |
