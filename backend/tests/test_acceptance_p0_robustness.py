@@ -19,8 +19,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
-import logging
 import os
 import time
 from pathlib import Path
@@ -183,32 +181,28 @@ async def test_broken_pdf_with_valid_header_does_not_crash(client: Any) -> None:
     assert documents == [], f"体检失败的文档不应留在库里：{documents}"
 
 
-async def test_broken_pdf_cleanup_failure_is_observable(
-    client: Any, caplog: pytest.LogCaptureFixture
-) -> None:
-    """体检失败后的清理是 best-effort：文件可能因 Windows 句柄未释放而删不掉（已知 P2），
-    但**清理失败必须留下 `upload_cleanup_failed` WARNING 日志**，否则磁盘泄漏会变成
-    完全静默的问题 —— 线上只会表现为「磁盘慢慢满」，无从排查。
+async def test_broken_pdf_never_touches_disk(client: Any) -> None:
+    """体检失败不得在 `uploads/` 留下任何文件 —— 且这不是「删得干净」，是「根本不会创建」。
 
-    为什么不断言「一定没有残留」：PyMuPDF 释放句柄的时机取决于 CPython 的 GC，
-    实测同一份代码有时能删掉、有时不能（同一套用例跑两次，一次 PASS 一次 XPASS）。
-    断言「一定删掉」会变成 flaky 测试，比不测更糟。这里锁的是**可观测性契约**：
-    要么文件没了，要么日志里有 `upload_cleanup_failed`，二者必居其一。
+    历史：这条路径原来先落盘再体检，失败后 `unlink` 在 Windows 上抛 `WinError 32`
+    （PyMuPDF 打开失败的句柄绑在异常 traceback 上，只要错误分支里的 `AppError` 还活着，
+    句柄就释放不了），于是落盘文件成了无主孤儿，磁盘缓慢泄漏。
+    现在的实现改为「**先对内存字节体检，通过才落盘**」，失败路径与磁盘写入在时序上互斥，
+    因此本用例可以确定性断言「目录里什么都没有」，而不是断言「删除成功」。
+
+    顺带锁住一个更本质的东西：**用「删掉它」保证不残留，依赖「删除一定成功」这个脆弱假设；
+    让「它根本不会被创建」才是结构性保证。**
     """
     workspace_id = await create_workspace(client, "孤儿文件")
 
-    with caplog.at_level(logging.WARNING):
-        await _post_document(
-            client, workspace_id, "broken.pdf", b"%PDF-1.4\n" + b"\x00\xff garbage" * 40
-        )
+    response = await _post_document(
+        client, workspace_id, "broken.pdf", b"%PDF-1.4\n" + b"\x00\xff garbage" * 40
+    )
+    assert response.status_code >= 400, f"损坏 PDF 不应被接受：{response.status_code}"
 
     uploads = Path(os.environ["DATA_DIR"]) / "uploads"
-    leftovers = sorted(p.name for p in uploads.glob("*.pdf")) if uploads.exists() else []
-    if leftovers:
-        assert "upload_cleanup_failed" in caplog.text, (
-            f"落盘文件 {leftovers} 未被清理，且日志里没有 upload_cleanup_failed —— "
-            "清理失败被静默吞掉了（磁盘泄漏将无法排查）"
-        )
+    leftovers = sorted(p.name for p in uploads.glob("*")) if uploads.exists() else []
+    assert not leftovers, f"体检失败的文档不应落盘，实际残留：{leftovers}"
 
 
 # --------------------------------------------------------------------------- #
