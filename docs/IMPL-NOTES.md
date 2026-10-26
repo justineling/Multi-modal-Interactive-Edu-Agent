@@ -224,6 +224,55 @@
 
 ---
 
+### E11. 真实 LLM 路径首次验证暴露的两个 P0（**都是「设计写了、实现没接上」**）
+
+在配好 DeepSeek 真实 Key 后首次跑通全链路，暴露出两个 P0。这两个问题的共同特征是：**设计文档里写了，配置项也配了，但代码里没接上**。
+
+#### 问题 1：提示词里从未给出 JSON Schema
+
+**现象**：日志连续 3 次 `contract_retry`，校验错误数 **15 → 21 → 26**（回灌错误后越改越乱），每次都是一次完整的 32~46 秒调用，最后降级到 mock。用户看到的产物是 mock 模板文案（「这一节我们讲…先交代背景」），不是模型生成。
+
+**根因**：`_artifact_prompt` 只写了一句「请输出符合该形态 JSON Schema 的完整对象」，**但从未把 Schema 本身给模型**。模型只能猜：
+
+```json
+// 模型实际输出
+{"type":"ppt","title":"...","section":"...","slides":[{"heading":"...","bullets":[...]}]}
+
+// 契约要求
+{"type":"ppt","topic":"...","slides":[{"node_id":"slide-1","layout":"...","title":"...",
+ "subtitle":null,"bullets":[...],"comparison_left":null,"comparison_right":null,
+ "timeline_items":null,"quiz_questions":null,"speaker_notes":"...","source_ref":"..."}]}
+```
+
+差异：顶层 `title` 应为 `topic`、多出 `section`（`extra="forbid"` 直接拒）、`heading` 应为 `title`、缺 `node_id`/`layout`/`speaker_notes`/`source_ref`。**9 个校验错误**。
+
+**修复**：新增 `_ARTIFACT_CONTRACT`（按 ppt / anim_2d / scene_3d 三套），每套含完整字段名 + 类型 + 枚举值 + 业务约束 + **一个最小合法示例**。两个关键细节：
+
+- **示例必须自己过 `parse_artifact_spec()` 校验** —— 否则等于教模型写错格式。
+- **调色板从 `PALETTE` 动态生成**（`_PALETTE_TEXT`），不要手抄颜色值，否则将来改调色板会失同步。
+
+System prompt 里加硬规则：字段名逐字一致、不得自创（不许 `heading` 代 `title`、`section` 代 `topic`、`content` 代 `speaker_notes`）、声明为「数组或 null」的字段用不到时写 `null` 而非省略。
+
+**效果**：`contract_retry` 3 次 → **0 次**（一次通过）。
+
+#### 问题 2：`stream_text` 用错模型，分层路由从未生效
+
+**现象**：TTFT **55,366ms**（验收标准 3,000ms）。
+
+**根因**：`config.py` 里配了 `LLM_MODEL_ROUTER=deepseek-flash` 与 `LLM_MODEL_GENERATOR=deepseek-v4-pro`，README 和架构文档都强调「分层路由能省 70% 成本」。但 `llm_client.py` 里 **`stream_text` 和 `complete_json` 的 model 默认值都是 GENERATOR** —— `ROUTER` 一次都没被使用过。于是正文流式生成也走了 v4-pro 大模型，首 token 等了 55 秒。
+
+**修复**：`stream_text` 默认改用 `LLM_MODEL_ROUTER`，`complete_json` 保持 GENERATOR。取舍理由写进 docstring：正文是自然语言、TTFT 是验收指标（重模型 55s vs 轻量 1~2s，学生看不出措辞差异）；spec 是强结构、字段错一个整份作废，准确率优先于延迟。
+
+**效果**：TTFT 55,366ms → **3,232ms**。
+
+#### 三条教训
+
+1. **「配置了」不等于「用上了」。** 凡是「分层 / 可配置 / 可选」的设计，都必须验证每个分支真的被走到。验收要覆盖「配置生效」，而不只是「代码存在」。
+2. **mock 测试全绿 ≠ 功能可用。** mock 按契约正确构造，永远不会触发「模型猜错字段名」这类问题。240 个测试全绿的情况下，接上真实模型后功能等于不可用。真实模型路径必须单独验，且要验内容质量（页码是否真实、布局是否多样、有没有模板句残留）。
+3. **契约驱动的系统里，提示词本身就是契约的一部分。** Schema 不给模型，等于契约只对了一半 —— 后端有强校验，但模型不知道要满足什么。
+
+---
+
 ## 六、验证基线（供 QA 与后续回归对照）
 
 | 项 | 实测值 | 来源 |
@@ -236,3 +285,4 @@
 | TTFT（mock） | 8ms（预算 3000ms） | e2e |
 | 带锚点 patch 影响范围 | 仅 `/slides/2`，其余页字节级不变 | e2e |
 | 连续 patch 版本自增 | 1→2→3→4 | pytest |
+| **真实 LLM 模式** | **TTFT 3.2s / 5 页 5 布局 / contract_retry 0 次** | `scripts/real_llm_check.py`（DeepSeek） |
