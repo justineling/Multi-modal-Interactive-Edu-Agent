@@ -1,11 +1,16 @@
-"""回归测试 · 历史版本不可覆盖（P0-11③）与 Grader 实词覆盖门槛（P0-05④）。
+"""回归测试 · 版本快照别名加固（P0-11③ 的防线）与 Grader 实词覆盖门槛（P0-05④）。
 
-本文件是 `bugfix-engineer` 对两个 P0 缺陷修复的**独立回归基线**，与 QA 的验收测试互补：
+本文件是 `bugfix-engineer` 对两个缺陷修复的**独立回归基线**，与 QA 的验收测试互补：
 
 - 验收测试回答「用户能不能正常用」，本文件回答「这两个缺陷的**机制**有没有被真正堵住」。
   因此这里刻意从更底层的地方下断言（例如直接比对 ORM 对象的身份、直接读 `artifact_versions`
-  行），而不是只看 HTTP 200。缺陷若以另一种形式复活（比如有人把 deepcopy 换成 `dict()`），
-  验收测试可能因为键序/时序巧合仍然通过，而这里的身份断言会立刻失败。
+  行），而不是只看 HTTP 200。
+
+- 关于 P0-11③ 的措辞校准：**「历史版本被后续 patch 改写」这个缺陷不成立**（QA 已在修复前
+  代码上用 worktree 复现并确认：库内 v1 内容逐字节正确，差异纯粹是 SSE 键排序 vs REST
+  插入序）。本文件第一个用例验的是**真实存在的隐患**——三处写入曾共享同一个 dict 对象，
+  SQLAlchemy 的 `JSON` 类型不追踪嵌套原地修改，将来任何一次读路径原地改写都可能把历史行
+  带脏；它当前没有可复现的失败用例，属于防御性加固，不能报成「修了一个 P0」。
 
 - 第二个测试同时是**双向**的：无关问题必须全部 NO_MATCH（误判率），相关问题必须全部
   不是 NO_MATCH（漏判率）。只验一个方向很容易用「把阈值调到极端」蒙过去。
@@ -13,6 +18,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -31,20 +37,24 @@ from app.services.retriever import (
 )
 
 # --------------------------------------------------------------------------- #
-# P0-11③：历史版本快照与 artifacts 行必须彼此隔离
+# 版本快照别名加固：v1 行必须与 artifacts 行、与调用方手里的 spec 三方隔离
 # --------------------------------------------------------------------------- #
 async def test_version_snapshot_is_isolated_from_artifact_spec(
     db_env: Path, slide_deck_dict: dict[str, Any]
 ) -> None:
     """v1 快照落库后，`artifact.spec_json` 的任何后续变更都不得影响 v1 行的内容。
 
-    缺陷机制（修复前的真实写法）：`create_artifact(spec_json=spec)` 与
+    隐患机制（加固前的真实写法）：`create_artifact(spec_json=spec)` 与
     `append_artifact_version(spec_json=spec)` 把**同一个 dict 对象**分别挂在两行上，
     `apply_artifact_patch` 又把「新快照」同时赋给 `artifact.spec_json` 与新版本行。
     于是 artifacts 行、v1 行、调用方手里的 spec 三方共享嵌套结构；而 SQLAlchemy 的
     `JSON` 类型**不追踪嵌套结构的原地修改**，内存里改一个 `title` 不会被标记为 dirty，
     却已经把同一 session 里 v1 行对象的值改脏了 —— 该行只要因别的原因（`patch_ops`
     变更、同 session 的其它 flush）被写回，历史版本就被静默覆盖。
+
+    说明：当前代码里没有任何路径会触发它（已确认 v1 落库内容逐字节正确），
+    所以这是**防御性断言**而非缺陷复现。价值在于：一旦有人把 deepcopy 换回引用传递，
+    这里立刻变红，而不是等某次偶发的 flush 顺序把历史改掉之后再排查。
 
     本用例按「先证明对象隔离，再证明行为隔离」两步验：
     1. 身份断言：两行持有的 dict 都不能是调用方那份（也不能彼此相同）；
@@ -101,17 +111,17 @@ async def test_version_snapshot_is_isolated_from_artifact_spec(
         )
 
 
-async def test_create_time_spec_is_byte_identical_across_endpoints(
+async def test_create_time_spec_matches_readback_content(
     client: Any, seeded: dict[str, Any]
 ) -> None:
-    """创建产物时 SSE 下发的 spec，与随后 `GET /api/artifacts/{id}` 回读的 spec 必须逐字节相同。
+    """创建产物时 SSE 下发的 spec 与随后 `GET /api/artifacts/{id}` 回读的 spec **内容**必须一致。
 
-    这是 Bug 1 的**根因**回归：SSE 帧走 `canonical_json`（键排序），而 REST 原来直接返回
-    库内插入顺序，同一份内容在两个端点上字节不同。任何客户端做「创建时拿到的 spec」与
-    「回读的 spec」比对（版本预览、断线重连校验、前端缓存键）都会把纯键序差异误判成
-    「内容被改写」—— 这正是验收测试里 v1 比对失败的真正原因，而不是历史真的被覆盖了。
+    注意断言用的是 `sort_keys=True`（内容等价），**不是**保序字节比对：
+    SSE 帧走 `canonical_json`（键排序），REST 返回库内插入序，键序差异是设计内的协议行为
+    （IMPL-NOTES §六.7），不是缺陷。上一轮验收测试正是在这里用保序比对，把「纯键序差异」
+    误报成了「历史版本被改写」——本用例把这个坑钉死：**只比内容，不比键序**。
     """
-    from acceptance_support import first_event, ordered_json, sse_events
+    from acceptance_support import first_event, sse_events
 
     events = await sse_events(
         client,
@@ -126,10 +136,9 @@ async def test_create_time_spec_is_byte_identical_across_endpoints(
 
     detail = await client.get(f"/api/artifacts/{artifact['artifact_id']}")
     assert detail.status_code == 200
-    assert ordered_json(detail.json()["data"]["spec"]) == ordered_json(artifact["spec"]), (
-        "SSE 事件里的 spec 与 GET 回读的 spec 字节不一致（键序不同），"
-        "客户端会把纯键序差异误判成内容变化"
-    )
+    assert json.dumps(detail.json()["data"]["spec"], sort_keys=True, ensure_ascii=False) == (
+        json.dumps(artifact["spec"], sort_keys=True, ensure_ascii=False)
+    ), "SSE 下发的 spec 与 GET 回读的 spec 内容不一致（不只是键序问题）"
 
 
 async def test_history_version_is_byte_stable_after_patches(
