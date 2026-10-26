@@ -89,6 +89,51 @@
     </a>
   </div>
 
+  <h2>增量文档：真实模式耗时优化（P1-03）</h2>
+
+  <div class="note">
+    <p>上面 21 篇是<strong>系统级文档</strong>，随代码长期有效。这一组是<strong>一次具体改造的过程记录</strong>——
+    包括需求、设计、实测数据、被数据否掉的方案、以及 QA 的独立验证。</p>
+    <p style="margin-top:8px">它们回答的是<strong>「为什么现在是这个样子」</strong>：为什么产物用轻量模型、为什么不做分批下发、
+    为什么 TTFT 的 fork 点放在首 token 之后。改性能相关代码前值得先读。</p>
+  </div>
+
+  <table>
+    <thead><tr><th style="width:230px">文档</th><th>内容</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><a href="increments/P1-03-latency-PRD.md">P1-03-latency-PRD.md</a></td>
+        <td>增量 PRD v1.1：三层时间目标（T1–T5）、质量护栏 G1–G7、分批方案为何被归档</td>
+      </tr>
+      <tr>
+        <td><a href="increments/P1-03-latency-DESIGN.md">P1-03-latency-DESIGN.md</a></td>
+        <td>增量设计：fork/join 时序、TTFT 可证不变的论证、页码钳制、取消与错误归因、5 个实现任务</td>
+      </tr>
+      <tr>
+        <td><a href="increments/latency-profile.md">latency-profile.md</a></td>
+        <td><strong>耗时剖析（改动前）</strong>：66.3 秒到底花在哪。结论是 83.7% 在一次产物调用，其中大半是模型「思考」</td>
+      </tr>
+      <tr>
+        <td><a href="increments/flash-quality.md">flash-quality.md</a></td>
+        <td><strong>换档质量验证</strong>：轻量模型在 PPT / 2D / 3D 三形态上的契约通过率与产物质量，以及顺带挖出的页码缺陷</td>
+      </tr>
+      <tr>
+        <td><a href="increments/fork-mode-ab.md">fork-mode-ab.md</a></td>
+        <td><strong>改动后实测</strong>：T4 分段拆解、两种 fork 模式的 A/B、为什么差 0.7% 不继续追、后续手段与代价</td>
+      </tr>
+      <tr>
+        <td><a href="increments/qa-report-p1-03.md">qa-report-p1-03.md</a></td>
+        <td><strong>QA 独立验证</strong>：四条承重不变量的第三方观测、变异验证、发现的 P1 缺陷与复验结论</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="tip">
+    <p><strong>这一组的价值不在结论，在过程。</strong>里面有四个被实测否掉的优化方向（缩短提示词收益≈0、
+    <code>effort=low</code> 反而慢 17%、分批下发换档后收益趋零、减页数反而更慢），
+    每一条都配了数据和算式 —— 它们省掉的是下一个人重新试一遍的时间。</p>
+  </div>
+
   <h2>项目一句话说明</h2>
 
   <p>
@@ -135,12 +180,13 @@
   <table>
     <thead><tr><th>指标</th><th>数值</th><th>说明</th></tr></thead>
     <tbody>
-      <tr><td>后端测试</td><td><span class="badge ok">244 passed</span></td><td>含 53 条 P0 验收测试 + 回归用例</td></tr>
+      <tr><td>后端测试</td><td><span class="badge ok">356 passed</span></td><td>含 P0 验收测试 + 回归用例 + QA 独立不变量验证 38 条</td></tr>
       <tr><td>前端测试</td><td><span class="badge ok">153 passed</span></td><td>7 个文件，含 SSE 解析器 16 例</td></tr>
-      <tr><td>端到端</td><td><span class="badge ok">38 项全通过</span></td><td>真实 HTTP + SSE，非 mock 断言</td></tr>
-      <tr><td>113 页 PDF 解析</td><td>0.37 秒</td><td>验收预算是 60 秒</td></tr>
+      <tr><td>端到端</td><td><span class="badge ok">31 项全通过</span></td><td>真实 HTTP + SSE，非 mock 断言。原记「38 项」为误记</td></tr>
+      <tr><td>113 页 PDF 解析</td><td>0.41 秒</td><td>验收预算是 60 秒</td></tr>
       <tr><td>首字节 TTFT（演示模式）</td><td>7 毫秒</td><td>内置确定性生成器</td></tr>
-      <tr><td>首字节 TTFT（真实模型）</td><td><span class="badge ok">2.9 秒</span></td><td>DeepSeek 实测，验收预算 3000 毫秒</td></tr>
+      <tr><td>首字节 TTFT（真实模型）</td><td><span class="badge ok">4.14 秒</span></td><td>DeepSeek 实测 P50（n=15），门禁 ≤ 5.08 秒</td></tr>
+      <tr><td>完整产物耗时（真实模型）</td><td><span class="badge ok">18.13 秒</span></td><td>P50（n=15）。P1-03 优化前 66.3 秒，降 73%；目标 18 秒，<strong>超 0.7%</strong>；P90 24.54 秒</td></tr>
       <tr><td>增量补丁影响面</td><td>仅目标子树</td><td>其余节点字节级不变</td></tr>
       <tr><td>桌面安装</td><td><span class="badge ok">支持（PWA）</span></td><td>Chrome/Edge 地址栏安装，独立窗口运行</td></tr>
     </tbody>

@@ -147,7 +147,7 @@
       <tr><td>后端自动化用例</td><td><strong>240 passed / 0 failed</strong></td></tr>
       <tr><td>其中 P0 验收用例</td><td>53 条（QA 独立编写）</td></tr>
       <tr><td>前端自动化用例</td><td><strong>153 passed / 7 文件</strong></td></tr>
-      <tr><td>端到端冒烟</td><td><strong>38 项全通过</strong></td></tr>
+      <tr><td>端到端冒烟</td><td><strong>31 项全通过</strong></td></tr>
       <tr><td>发现的真实缺陷</td><td><strong>5 个</strong>（2 个 P0 阻塞 + 2 个 P0 红线 + 1 个 P2），全部已修</td></tr>
       <tr><td>已撤回的误报</td><td>1 个（P0-11③ 假阳性，见 <a href="2. 踩坑记录.html">踩坑记录</a>）</td></tr>
       <tr><td>P0 完全通过</td><td>9 / 12</td></tr>
@@ -230,12 +230,12 @@
       <tr>
         <td><strong>R1</strong></td>
         <td><s>真实 LLM 路径完全未验证</s> —— <strong style="color:var(--green)">已补验（2026-10-26，DeepSeek）</strong>。首次验证即暴露 2 个 P0：提示词缺 JSON Schema 导致连续 3 次校验失败降级 mock、<code>stream_text</code> 用错模型导致 TTFT 55 秒。均已修复</td>
-        <td>修复后实测：TTFT <strong>2921ms</strong>、<code>contract_retry</code> <strong>0 次</strong>、5~6 页 / 5~6 种布局、页码全部落在检索区间、patch 仅改目标子树。验证脚本 <code>scripts/real_llm_check.py</code> 已入库，可随时回归</td>
+        <td>修复后实测：TTFT <strong>2921ms</strong>（旧机器；本机复测 P50 <strong>4.14s</strong>／n=15，属环境差异，非回退）、<code>contract_retry</code> <strong>0 次</strong>、5~6 页 / 5~6 种布局、页码全部落在检索区间、patch 仅改目标子树。验证脚本 <code>scripts/real_llm_check.py</code> 已入库，可随时回归</td>
       </tr>
       <tr>
         <td><strong>R1b</strong></td>
-        <td><strong>真实模式总耗时仍偏长</strong>：5 页 PPT 约 70 秒（TTFT 已达标，但整份产物要等 generator 出完）</td>
-        <td>需产品先定「课件生成等待上限」。优化方向：分批流式下发（先出前 2 页）、或 generator 换更快档位。已在 <code>agent_engine</code> 留注释</td>
+        <td><s><strong>真实模式总耗时仍偏长</strong>：5 页 PPT 约 70 秒</s> —— <strong style="color:var(--green)">P1-03 已优化（2026-10-26）</strong>：整轮 <strong>18.13 秒</strong>（P50，n=15），降 73%</td>
+        <td>做法：产物生成换轻量档（55.5s → 10.1s）+ 正文与产物并行。目标 18 秒，<strong>实测超 0.7%</strong>；P90 24.54 秒，长尾来自产物输出量而非网络。剩余优化方向与失效模式见 <code>docs/increments/fork-mode-ab.md</code> 第八节</td>
       </tr>
       <tr>
         <td><strong>R2</strong></td>
