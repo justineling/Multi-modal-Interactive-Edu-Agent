@@ -229,8 +229,13 @@
     <tbody>
       <tr>
         <td><strong>R1</strong></td>
-        <td><strong>真实 LLM 路径完全未验证</strong>。所有测试都在演示模式（无 API Key）下跑。真实路径的重试、三次降级、超时模板只有静态审查级信心</td>
-        <td>拿到 Key 后补一条真 Key 冒烟：1 轮对话 + 1 次产物生成 + 1 次 patch，断言 <code>demo_mode: false</code></td>
+        <td><s>真实 LLM 路径完全未验证</s> —— <strong style="color:var(--green)">已补验（2026-10-26，DeepSeek）</strong>。首次验证即暴露 2 个 P0：提示词缺 JSON Schema 导致连续 3 次校验失败降级 mock、<code>stream_text</code> 用错模型导致 TTFT 55 秒。均已修复</td>
+        <td>修复后实测：TTFT <strong>2921ms</strong>、<code>contract_retry</code> <strong>0 次</strong>、5~6 页 / 5~6 种布局、页码全部落在检索区间、patch 仅改目标子树。验证脚本 <code>scripts/real_llm_check.py</code> 已入库，可随时回归</td>
+      </tr>
+      <tr>
+        <td><strong>R1b</strong></td>
+        <td><strong>真实模式总耗时仍偏长</strong>：5 页 PPT 约 70 秒（TTFT 已达标，但整份产物要等 generator 出完）</td>
+        <td>需产品先定「课件生成等待上限」。优化方向：分批流式下发（先出前 2 页）、或 generator 换更快档位。已在 <code>agent_engine</code> 留注释</td>
       </tr>
       <tr>
         <td><strong>R2</strong></td>

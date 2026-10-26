@@ -127,11 +127,12 @@
   <table>
     <thead><tr><th>指标</th><th>数值</th><th>说明</th></tr></thead>
     <tbody>
-      <tr><td>后端测试</td><td><span class="badge ok">240 passed</span></td><td>含 53 条 P0 验收测试 + 回归用例</td></tr>
+      <tr><td>后端测试</td><td><span class="badge ok">244 passed</span></td><td>含 53 条 P0 验收测试 + 回归用例</td></tr>
       <tr><td>前端测试</td><td><span class="badge ok">153 passed</span></td><td>7 个文件，含 SSE 解析器 16 例</td></tr>
       <tr><td>端到端</td><td><span class="badge ok">38 项全通过</span></td><td>真实 HTTP + SSE，非 mock 断言</td></tr>
       <tr><td>113 页 PDF 解析</td><td>0.37 秒</td><td>验收预算是 60 秒</td></tr>
-      <tr><td>首字节时间 TTFT</td><td>7 毫秒</td><td>验收预算是 3000 毫秒（演示模式）</td></tr>
+      <tr><td>首字节 TTFT（演示模式）</td><td>7 毫秒</td><td>内置确定性生成器</td></tr>
+      <tr><td>首字节 TTFT（真实模型）</td><td><span class="badge ok">2.9 秒</span></td><td>DeepSeek 实测，验收预算 3000 毫秒</td></tr>
       <tr><td>增量补丁影响面</td><td>仅目标子树</td><td>其余节点字节级不变</td></tr>
     </tbody>
   </table>
