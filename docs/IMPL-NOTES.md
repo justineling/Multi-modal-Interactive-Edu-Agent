@@ -86,6 +86,51 @@
 
 `payload` 类型为 `dict`，无法承载整个列表，故仅支持单节点路径（element / entity）。`/slides` 这类列表路径返回 `PATCH_PATH_INVALID`，需改用 `insert_node` + `delete_node` 组合。
 
+### E7. 检索覆盖判定改为「实词命中率」硬门槛（**修正 §E1 的不足，重要**）
+
+§E1 把 BM25 归一化改成 `bm25 / max(ideal, actual_max)` 是对的方向，但**不足以解决问题**。QA 验收测试实测：14 条完全无关的问题里仍有 8 条得 0.30–0.40 分被判 `PARTIAL_OR_BEYOND`。
+
+**根因**：`ideal = Σ idf(只累加 df>0 的查询词)`。当查询有 21 个词却只命中 3 个单字时，分母被压得极小，`bm25_norm` 反而逼近 1.0。实测「怎么用 Rust 写一个 WebAssembly 模块」`bm25_norm=0.998` → 总分 0.4016，**比真正需要拓展的「Malayan Union 对马来西亚宪制发展的长期影响」（0.3605）还高**。命中词全是单字（`三/分/习`、`色`、`一/写/用`），哈希向量再白送 0.02–0.07。
+
+**结论：分数本身没有覆盖判定的排序语义，不能靠调阈值解决。**
+
+**方案**：新增 `backend/app/services/text_signals.py`，把「覆盖判定」与「分数」解耦：
+
+- `content_words()`：中文取 **bigram**（不用单字，单字会把「三/分/色」这种偶然字面重合算成命中），bigram 内任一字为虚词/疑问词/指示词即丢弃（`什么/怎么/哪里/的/是/这/我/第…`），双字套话整段剔除（`如何/一个/应该…`）；英文取 ≥2 字符且非功能词；数字只认章节号 `4.1`/`4.1.2` 与 ≥3 位年份。
+- **判据**：实词在 **Top-3 切片并集**中的命中率 `< GRADER_CONTENT_HIT_MIN_RATIO(0.45)` → 直接 `NO_MATCH`，与 `top_score` 完全解耦。
+- **门槛取 0.45 的依据**：18 条无关问题最高 0.40（「矩阵特征值的几何意义」命中「特征」「意义」两个词面巧合），16 条相关问题最低 0.50，门槛落在正中，两侧各留 0.05。
+- 另加 `has_explicit_section_reference()`：**裸数字不再算「点名章节」**。原实现 `extract_section_code("帮我写 3 首…")` 返回 `"3"`，只要第 3 章切片排第一就以「用户点名了课本的一节」为由判 `SYLLABUS_MATCH`（实测 0.5235 假阳性）。同时补上汉字章号识别（`第五章`），否则实词门槛会把「第五章讲了什么」误判成 `NO_MATCH`——**新增门槛带来的漏判必须同时补掉**。
+
+**实测结果**：误判率 **0/18**，漏判率 **0/16**。
+
+**已知局限**（写进 config 注释）：0.40 与 0.50 之间的空档只有 0.10，这是纯词法方法的下限。要更稳只能上真分词或语义模型，超出「零外部依赖」约束。
+
+### E8. 协议出口的序列化必须统一（**Bug「历史版本被覆盖」的真实根因**）
+
+**现象**：QA 断言「创建 v1 → patch 到 v4 → 读回 v1」内容被改写，报 P0-11③ 不通过。
+
+**真实根因不是历史被覆盖**。直接读 sqlite 验证：`artifact_versions` 四行内容逐字节正确，v1 从未被改写。真正原因是**两条出口的序列化方式不同**：
+
+| 出口 | 序列化 | 首层键序 |
+|---|---|---|
+| SSE `artifact` 事件（`schemas/chat.py::encode_sse`） | `canonical_json`（`sort_keys=True`） | `slides, topic, type` |
+| `GET /api/artifacts/{id}`（`schemas/api.py::artifact_out`） | 直接返回库内 dict 插入顺序 | `type, topic, slides` |
+
+测试的 `original` 取自 SSE、`v1` 取自 GET，用保留键序的比对方式 → **纯键序差异被报成内容改写**。
+
+**修法（两层，都必要）**：
+
+1. `schemas/common.py` 新增 `canonical_tree()`（`json.loads(canonical_json(x))`，键排序 + 深拷贝），`artifact_out` / `artifact_version_out` / `chat_once` 的 `artifact_payload` 全部走它——**同一份内容在任何出口都是同一串字节**。
+2. **顺带堵死一个真实隐患**：`repository.apply_artifact_patch` 原先把**同一个 dict 对象**同时赋给 `artifact.spec_json` 和新版本行，`create_artifact` / `append_artifact_version` 也直接引用调用方那份。SQLAlchemy 的 `JSON` 类型不追踪嵌套原地修改，一旦该行因别的原因 flush，**被改脏的历史就会被写回**。现在三处全部 `copy.deepcopy`，回归测试用**对象身份断言**锁死（`version_row.spec_json is not artifact.spec_json`），换浅拷贝立刻红。
+
+> 教训：这条 bug 的表象（内容被改写）与根因（键序不一致 + 潜在别名）完全不同。**QA 报的现象可信，但根因必须自己查证**——按表象去改「历史版本表」会改错地方。
+
+### E9. 另外 3 个 P0 红线缺陷（QA robustness 测试抓到的）
+
+1. **`NO_MATCH` 回合仍下发 `citations`**（P0-05④）：`_build_citations` 无条件用候选切片构造引用，导致正文说「课本未覆盖」而右侧列出 p.1-4。已改为 `grader_status == NO_MATCH` 直接返回 `[]`。
+2. **并发 patch 抛未处理 `IntegrityError`**（P0-10）：乐观锁是「读→比→写」，两请求同时通过比较，第二个撞 `(artifact_id, version)` 唯一约束 → 500。已捕获并翻译为 409 `PATCH_BASE_VERSION_CONFLICT`。
+3. **改名 txt 上传时 `PermissionError` 顶替错误码**（P0-02②）：`except AppError` 分支里的 `target.unlink()` 在 Windows 抛 `WinError 32`，把「400 明确提示」变成「未处理异常」。已加 `%PDF-` 魔数前置校验（落盘前就返回 400 `UNSUPPORTED_FILE_TYPE`）+ `_remove_quietly` 兜底清理。
+
 ---
 
 ## 四、工程约束补充（实现期发现）
@@ -151,7 +196,7 @@
 
 | 项 | 实测值 | 来源 |
 |---|---|---|
-| 后端单测 | 179 passed | `pytest backend/tests` |
+| 后端单测 | 234 passed | `pytest backend/tests` |
 | 端到端冒烟 | 38 项全通过 | `python scripts/e2e_smoke.py`（需服务运行在 :8123） |
 | 113 页 PDF 解析 | 0.41s（预算 60s） | e2e |
 | 目录树 | 3 级 / 65 节点 | e2e |
