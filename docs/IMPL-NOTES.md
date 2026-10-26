@@ -105,31 +105,63 @@
 
 **已知局限**（写进 config 注释）：0.40 与 0.50 之间的空档只有 0.10，这是纯词法方法的下限。要更稳只能上真分词或语义模型，超出「零外部依赖」约束。
 
-### E8. 协议出口的序列化必须统一（**Bug「历史版本被覆盖」的真实根因**）
+### E8. 一次假阳性：「历史版本被覆盖」并不成立（**非缺陷，仅根因分析**）
+
+> **结论先行：P0-11③ 从未被违反。** QA 用 `git worktree` 在修复前代码（`c0c3c17`）上复现确认，库内 `artifact_versions` 四行内容逐字节正确，v1 从未被改写。以下仅记录这次假阳性的成因，以及由此引出的协议加固。
 
 **现象**：QA 断言「创建 v1 → patch 到 v4 → 读回 v1」内容被改写，报 P0-11③ 不通过。
 
-**真实根因不是历史被覆盖**。直接读 sqlite 验证：`artifact_versions` 四行内容逐字节正确，v1 从未被改写。真正原因是**两条出口的序列化方式不同**：
+**真实成因：两条出口的序列化方式不同。**
 
 | 出口 | 序列化 | 首层键序 |
 |---|---|---|
 | SSE `artifact` 事件（`schemas/chat.py::encode_sse`） | `canonical_json`（`sort_keys=True`） | `slides, topic, type` |
 | `GET /api/artifacts/{id}`（`schemas/api.py::artifact_out`） | 直接返回库内 dict 插入顺序 | `type, topic, slides` |
 
-测试的 `original` 取自 SSE、`v1` 取自 GET，用保留键序的比对方式 → **纯键序差异被报成内容改写**。
+测试的 `original` 取自 SSE、`v1` 取自 GET，用保留键序的方式比对 → **纯键序差异被报成内容改写**。内容完全相同。
 
-**修法（两层，都必要）**：
+**处理决定（交付总监裁定）**：
 
-1. `schemas/common.py` 新增 `canonical_tree()`（`json.loads(canonical_json(x))`，键排序 + 深拷贝），`artifact_out` / `artifact_version_out` / `chat_once` 的 `artifact_payload` 全部走它——**同一份内容在任何出口都是同一串字节**。
-2. **顺带堵死一个真实隐患**：`repository.apply_artifact_patch` 原先把**同一个 dict 对象**同时赋给 `artifact.spec_json` 和新版本行，`create_artifact` / `append_artifact_version` 也直接引用调用方那份。SQLAlchemy 的 `JSON` 类型不追踪嵌套原地修改，一旦该行因别的原因 flush，**被改脏的历史就会被写回**。现在三处全部 `copy.deepcopy`，回归测试用**对象身份断言**锁死（`version_row.spec_json is not artifact.spec_json`），换浅拷贝立刻红。
+1. **保留 `canonical_tree` 统一出口序列化，但定位为「协议加固」，不是缺陷修复。**
+   理由：同一份内容在任何出口应当是同一串字节。成本几乎为零（一个函数），能消除一整类「看起来不一样但其实一样」的困惑，也让客户端的等值比较与调试字节比对可靠。**它不修复任何 P0，也不应记入缺陷清单。**
+2. **同时保留 `repository` 三处 `spec_json` / `patch_ops` 的 `copy.deepcopy`，定位为「防御性加固」。**
+   当前无可复现失败用例，但 `repository.apply_artifact_patch` 原先把同一个 dict 对象同时赋给 `artifact.spec_json` 和新版本行，SQLAlchemy 的 `JSON` 类型不追踪嵌套原地修改——将来任何读路径的原地改写都会带脏历史行。回归测试用**对象身份断言**锁死（`version_row.spec_json is not artifact.spec_json`），换浅拷贝立刻红。
 
-> 教训：这条 bug 的表象（内容被改写）与根因（键序不一致 + 潜在别名）完全不同。**QA 报的现象可信，但根因必须自己查证**——按表象去改「历史版本表」会改错地方。
+> **教训（写给 QA 与后续维护者）**：断言「内容被改写」时，**必须区分「值不等」与「字节表示不等」**。用保留键序的字节比对去断言语义等值，会产生假阳性；反之用 `sort_keys` 比对去断言「字节级不变」，会漏掉真实的键序变化。两种断言各有其适用场景，选错方向就会误报或漏报。
+>
+> 同时这条也验证了流程的价值：**QA 报的现象可信，但根因必须独立查证**。若按表象直接去改「历史版本表」，会改错地方并引入真 bug。
 
 ### E9. 另外 3 个 P0 红线缺陷（QA robustness 测试抓到的）
 
 1. **`NO_MATCH` 回合仍下发 `citations`**（P0-05④）：`_build_citations` 无条件用候选切片构造引用，导致正文说「课本未覆盖」而右侧列出 p.1-4。已改为 `grader_status == NO_MATCH` 直接返回 `[]`。
 2. **并发 patch 抛未处理 `IntegrityError`**（P0-10）：乐观锁是「读→比→写」，两请求同时通过比较，第二个撞 `(artifact_id, version)` 唯一约束 → 500。已捕获并翻译为 409 `PATCH_BASE_VERSION_CONFLICT`。
 3. **改名 txt 上传时 `PermissionError` 顶替错误码**（P0-02②）：`except AppError` 分支里的 `target.unlink()` 在 Windows 抛 `WinError 32`，把「400 明确提示」变成「未处理异常」。已加 `%PDF-` 魔数前置校验（落盘前就返回 400 `UNSUPPORTED_FILE_TYPE`）+ `_remove_quietly` 兜底清理。
+
+### E10. 损坏 PDF 的孤儿文件：从「删得掉」改为「根本不会被创建」（P2，已结构性消除）
+
+**现象**：有 `%PDF-` 魔数头但内容损坏的文件上传后，落盘文件删不掉（Windows `WinError 32`），成为无主孤儿，长期运行会累积磁盘泄漏。
+
+**初步猜想（错）**：以为是「打开失败的 doc 没被显式 close」。实际上 `pymupdf.open()` 失败时**根本没有 doc 对象**（`doc is None`），`finally: doc.close()` 无从下手。
+
+**真实机制**（三组对照实验确认）：
+
+| 实验 | 结果 |
+|---|---|
+| A. `open(路径)` 失败 → 异常对象已出作用域 → unlink | **成功** |
+| B. `open(路径)` 失败 → 异常对象仍存活（上传错误分支的现状）→ unlink | **失败，WinError 32** |
+| C. 同上但加 `raise ... from None` 去掉异常链 | **仍失败**（`except` 块内 `sys.exc_info()` 仍持有那个帧） |
+| D. `open(stream=bytes, filetype="pdf")` | **成功** |
+
+即 PyMuPDF 在失败路径上留下一个 OS 句柄，**句柄生命周期绑在异常 traceback 的帧上**。上传接口的错误分支里 `AppError.__cause__` 必然存活，所以「先落盘 → 体检失败 → unlink」这条路上 unlink 必失败。异常对象被 GC 回收后立刻能删——这也解释了「有时能删有时不能」的观感（不是随机，取决于异常对象何时被回收）。
+
+**修法：不试图让删除成功，而是让文件根本不被创建。**
+
+1. `_open_document` / `inspect_pdf` 支持 `bytes` 入参，走 `pymupdf.open(stream=..., filetype="pdf")`——PyMuPDF 不接触文件路径，没有句柄可残留。
+2. `upload_document` 改为**先对内存字节做体检，通过后才落盘**。「体检失败」与「磁盘上出现文件」在时序上互斥，**孤儿文件从结构上不可能产生**，不再依赖「删得掉」这个假设。
+3. 落盘本身失败（磁盘满 / 无权限）单独兜底：清理半截文件 + `INTERNAL_ERROR`（服务端环境问题，不该报成客户端错误）。
+4. `parse_pdf` 的路径入参分支**一行未改**，后台解析行为零影响。
+
+**工程原则**：用「删掉它」来保证不残留，依赖的是「删除一定成功」这个脆弱假设；让「它根本不会被创建」才是结构性保证。**凡是有清理动作的地方，都该先问一句：能不能让它不需要被清理？**
 
 ---
 
@@ -196,7 +228,7 @@
 
 | 项 | 实测值 | 来源 |
 |---|---|---|
-| 后端单测 | 234 passed | `pytest backend/tests` |
+| 后端单测 | 237 passed / 0 failed | `pytest backend/tests` |
 | 端到端冒烟 | 38 项全通过 | `python scripts/e2e_smoke.py`（需服务运行在 :8123） |
 | 113 页 PDF 解析 | 0.41s（预算 60s） | e2e |
 | 目录树 | 3 级 / 65 节点 | e2e |
