@@ -1,0 +1,438 @@
+{
+  "environment": {
+    "base_url": "https://api.deepseek.com/v1",
+    "router_model": "deepseek-flash",
+    "generator_model": "deepseek-v4-pro",
+    "timeout_seconds": 300.0,
+    "max_retries": 3,
+    "retrieval_top_k": 8,
+    "embedding_mode": "local"
+  },
+  "corpus": {
+    "pdf": "sample_textbook.pdf",
+    "pages": 113,
+    "chunks": 65,
+    "ingest_ms": 0.0
+  },
+  "query": "4.3.1 1955 年选举为什么重要，讲清因果",
+  "runs": 3,
+  "stages": {
+    "1. 检索 + 相关性评估": {
+      "median": 9.4,
+      "min": 7.9,
+      "max": 88.9,
+      "n": 3
+    },
+    "2. 形态路由": {
+      "median": 0.1,
+      "min": 0.0,
+      "max": 0.1,
+      "n": 3
+    },
+    "3. 正文流式输出": {
+      "median": 39.3,
+      "min": 37.4,
+      "max": 150.1,
+      "n": 3
+    },
+    "4. 产物生成（LLM complete_json）": {
+      "median": 14130.1,
+      "min": 8593.5,
+      "max": 20898.3,
+      "n": 3
+    },
+    "5. 引用汇总 + 后校验": {
+      "median": 6.4,
+      "min": 6.0,
+      "max": 9.6,
+      "n": 3
+    },
+    "6. 落库 + 收尾": {
+      "median": 8.4,
+      "min": 7.8,
+      "max": 10.5,
+      "n": 3
+    }
+  },
+  "total": {
+    "median": 14389.3,
+    "min": 8655.6,
+    "max": 20959.1,
+    "n": 3
+  },
+  "ttft": {
+    "median": 2947.7,
+    "min": 2563.9,
+    "max": 6175.5,
+    "n": 3
+  },
+  "reply_stream": {
+    "median": 6644.9,
+    "min": 5777.9,
+    "max": 9917.2,
+    "n": 3
+  },
+  "artifact_stream": {
+    "median": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "n": 0
+  },
+  "contract_chars": 1427,
+  "turns": [
+    {
+      "total_ms": 14389.3,
+      "ttft_ms": 6175.5,
+      "stages": {
+        "1. 检索 + 相关性评估": 88.9,
+        "2. 形态路由": 0.1,
+        "3. 正文流式输出": 150.1,
+        "4. 产物生成（LLM complete_json）": 14130.1,
+        "5. 引用汇总 + 后校验": 9.6,
+        "6. 落库 + 收尾": 10.5
+      },
+      "validate_errors": 0,
+      "slide_count": 6,
+      "spec_chars": 3524,
+      "pages_are_real": true,
+      "artifact_type": "ppt",
+      "grader_status": "SYLLABUS_MATCH",
+      "route_action": "create_artifact",
+      "llm_calls": [
+        {
+          "model": "deepseek-flash",
+          "prompt_chars": 2353,
+          "system_chars": 397,
+          "user_chars": 1956,
+          "temperature": 0.2,
+          "max_tokens": null,
+          "response_format": "json_object",
+          "elapsed_ms": 14129.0,
+          "status": "ok",
+          "prompt_tokens": 1131,
+          "completion_tokens": 2229,
+          "output_chars": 3319,
+          "finish_reason": "stop",
+          "error": ""
+        }
+      ],
+      "llm_streams": [
+        {
+          "model": "(client default)",
+          "system_chars": 89,
+          "user_chars": 2802,
+          "ttft_ms": 6085.8,
+          "total_ms": 9917.2,
+          "output_chars": 1056,
+          "chunk_count": 636
+        }
+      ],
+      "spans": [
+        {
+          "label": "stage.retrieve",
+          "start": 0.1,
+          "end": 88.8,
+          "duration": 88.7
+        },
+        {
+          "label": "stage.route",
+          "start": 89.0,
+          "end": 89.0,
+          "duration": 0.1
+        },
+        {
+          "label": "stage.build_context",
+          "start": 89.1,
+          "end": 89.4,
+          "duration": 0.3
+        },
+        {
+          "label": "stage.reply_stream",
+          "start": 89.5,
+          "end": 10006.8,
+          "duration": 9917.2
+        },
+        {
+          "label": "llm.complete_json",
+          "start": 239.3,
+          "end": 14368.5,
+          "duration": 14129.2
+        },
+        {
+          "label": "stage.generate_spec",
+          "start": 239.2,
+          "end": 14369.2,
+          "duration": 14130.0
+        },
+        {
+          "label": "stage.artifact_work",
+          "start": 239.1,
+          "end": 14369.3,
+          "duration": 14130.1
+        },
+        {
+          "label": "stage.citations",
+          "start": 14378.7,
+          "end": 14378.8,
+          "duration": 0.1
+        },
+        {
+          "label": "stage.citation_filter",
+          "start": 14378.8,
+          "end": 14378.8,
+          "duration": 0.0
+        },
+        {
+          "label": "stage.persist",
+          "start": 14378.9,
+          "end": 14389.3,
+          "duration": 10.4
+        }
+      ]
+    },
+    {
+      "total_ms": 8655.6,
+      "ttft_ms": 2563.9,
+      "stages": {
+        "1. 检索 + 相关性评估": 7.9,
+        "2. 形态路由": 0.1,
+        "3. 正文流式输出": 39.3,
+        "4. 产物生成（LLM complete_json）": 8593.5,
+        "5. 引用汇总 + 后校验": 6.4,
+        "6. 落库 + 收尾": 8.4
+      },
+      "validate_errors": 0,
+      "slide_count": 7,
+      "spec_chars": 3366,
+      "pages_are_real": true,
+      "artifact_type": "ppt",
+      "grader_status": "SYLLABUS_MATCH",
+      "route_action": "create_artifact",
+      "llm_calls": [
+        {
+          "model": "deepseek-flash",
+          "prompt_chars": 2353,
+          "system_chars": 397,
+          "user_chars": 1956,
+          "temperature": 0.2,
+          "max_tokens": null,
+          "response_format": "json_object",
+          "elapsed_ms": 8591.7,
+          "status": "ok",
+          "prompt_tokens": 1131,
+          "completion_tokens": 1327,
+          "output_chars": 3164,
+          "finish_reason": "stop",
+          "error": ""
+        }
+      ],
+      "llm_streams": [
+        {
+          "model": "(client default)",
+          "system_chars": 89,
+          "user_chars": 2802,
+          "ttft_ms": 2555.7,
+          "total_ms": 5777.9,
+          "output_chars": 876,
+          "chunk_count": 533
+        }
+      ],
+      "spans": [
+        {
+          "label": "stage.retrieve",
+          "start": 0.1,
+          "end": 7.9,
+          "duration": 7.8
+        },
+        {
+          "label": "stage.route",
+          "start": 8.0,
+          "end": 8.0,
+          "duration": 0.0
+        },
+        {
+          "label": "stage.build_context",
+          "start": 8.0,
+          "end": 8.1,
+          "duration": 0.1
+        },
+        {
+          "label": "stage.reply_stream",
+          "start": 8.2,
+          "end": 5786.1,
+          "duration": 5777.9
+        },
+        {
+          "label": "llm.complete_json",
+          "start": 47.4,
+          "end": 8639.4,
+          "duration": 8592.0
+        },
+        {
+          "label": "stage.generate_spec",
+          "start": 47.3,
+          "end": 8640.7,
+          "duration": 8593.4
+        },
+        {
+          "label": "stage.artifact_work",
+          "start": 47.3,
+          "end": 8640.7,
+          "duration": 8593.5
+        },
+        {
+          "label": "stage.citations",
+          "start": 8647.0,
+          "end": 8647.1,
+          "duration": 0.1
+        },
+        {
+          "label": "stage.citation_filter",
+          "start": 8647.1,
+          "end": 8647.1,
+          "duration": 0.0
+        },
+        {
+          "label": "stage.persist",
+          "start": 8647.2,
+          "end": 8655.5,
+          "duration": 8.3
+        }
+      ]
+    },
+    {
+      "total_ms": 20959.1,
+      "ttft_ms": 2947.7,
+      "stages": {
+        "1. 检索 + 相关性评估": 9.4,
+        "2. 形态路由": 0.0,
+        "3. 正文流式输出": 37.4,
+        "4. 产物生成（LLM complete_json）": 20898.3,
+        "5. 引用汇总 + 后校验": 6.0,
+        "6. 落库 + 收尾": 7.8
+      },
+      "validate_errors": 1,
+      "slide_count": 6,
+      "spec_chars": 3447,
+      "pages_are_real": true,
+      "artifact_type": "ppt",
+      "grader_status": "SYLLABUS_MATCH",
+      "route_action": "create_artifact",
+      "llm_calls": [
+        {
+          "model": "deepseek-flash",
+          "prompt_chars": 2353,
+          "system_chars": 397,
+          "user_chars": 1956,
+          "temperature": 0.2,
+          "max_tokens": null,
+          "response_format": "json_object",
+          "elapsed_ms": 6295.9,
+          "status": "ok",
+          "prompt_tokens": 1131,
+          "completion_tokens": 1150,
+          "output_chars": 2782,
+          "finish_reason": "stop",
+          "error": ""
+        },
+        {
+          "model": "deepseek-flash",
+          "prompt_chars": 2787,
+          "system_chars": 397,
+          "user_chars": 2390,
+          "temperature": 0.2,
+          "max_tokens": null,
+          "response_format": "json_object",
+          "elapsed_ms": 14599.8,
+          "status": "ok",
+          "prompt_tokens": 1255,
+          "completion_tokens": 2510,
+          "output_chars": 3241,
+          "finish_reason": "stop",
+          "error": ""
+        }
+      ],
+      "llm_streams": [
+        {
+          "model": "(client default)",
+          "system_chars": 89,
+          "user_chars": 2802,
+          "ttft_ms": 2938.0,
+          "total_ms": 6644.9,
+          "output_chars": 1046,
+          "chunk_count": 637
+        }
+      ],
+      "spans": [
+        {
+          "label": "stage.retrieve",
+          "start": 0.1,
+          "end": 9.4,
+          "duration": 9.3
+        },
+        {
+          "label": "stage.route",
+          "start": 9.5,
+          "end": 9.5,
+          "duration": 0.0
+        },
+        {
+          "label": "stage.build_context",
+          "start": 9.5,
+          "end": 9.6,
+          "duration": 0.1
+        },
+        {
+          "label": "llm.complete_json",
+          "start": 47.0,
+          "end": 6343.1,
+          "duration": 6296.2
+        },
+        {
+          "label": "stage.reply_stream",
+          "start": 9.6,
+          "end": 6654.5,
+          "duration": 6644.9
+        },
+        {
+          "label": "llm.complete_json",
+          "start": 6344.4,
+          "end": 20944.5,
+          "duration": 14600.1
+        },
+        {
+          "label": "stage.generate_spec",
+          "start": 46.9,
+          "end": 20945.2,
+          "duration": 20898.3
+        },
+        {
+          "label": "stage.artifact_work",
+          "start": 46.9,
+          "end": 20945.2,
+          "duration": 20898.3
+        },
+        {
+          "label": "stage.citations",
+          "start": 20951.1,
+          "end": 20951.2,
+          "duration": 0.1
+        },
+        {
+          "label": "stage.citation_filter",
+          "start": 20951.2,
+          "end": 20951.2,
+          "duration": 0.0
+        },
+        {
+          "label": "stage.persist",
+          "start": 20951.3,
+          "end": 20959.0,
+          "duration": 7.7
+        }
+      ]
+    }
+  ],
+  "probes": [],
+  "patch_runs": []
+}

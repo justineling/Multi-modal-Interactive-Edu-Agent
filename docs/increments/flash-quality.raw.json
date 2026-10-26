@@ -1,0 +1,2702 @@
+{
+  "environment": {
+    "base_url": "https://api.deepseek.com/v1",
+    "router_model": "deepseek-flash",
+    "env_generator_model": "deepseek-v4-pro",
+    "effective_generator_model": "deepseek-flash",
+    "timeout_seconds": 300.0
+  },
+  "corpus": {
+    "pdf": "sample_textbook.pdf",
+    "pages": 113,
+    "chunks": 65
+  },
+  "executed_turns": 11,
+  "planned_turns": 11,
+  "aborted": "",
+  "summaries": {
+    "ppt": {
+      "artifact_type": "ppt",
+      "turns": 5,
+      "total_calls": 5,
+      "valid_calls": 5,
+      "failed_calls": 0,
+      "calls_consistent": true,
+      "call_valid_rate": 1.0,
+      "turn_pass_rate": 1.0,
+      "mock_fallback_rate": 0.0,
+      "quality_pass_rate": 0.8,
+      "retried_turns": 0,
+      "failed_check_items": {
+        "source_ref 页码真实": 1
+      },
+      "artifact_ms": {
+        "median": 10494.4,
+        "min": 7607.0,
+        "max": 26626.7,
+        "n": 5
+      },
+      "total_ms": {
+        "median": 16468.1,
+        "min": 12711.1,
+        "max": 29354.6,
+        "n": 5
+      },
+      "effective_models": [
+        "deepseek-flash"
+      ]
+    },
+    "anim_2d": {
+      "artifact_type": "anim_2d",
+      "turns": 3,
+      "total_calls": 2,
+      "valid_calls": 2,
+      "failed_calls": 0,
+      "calls_consistent": true,
+      "call_valid_rate": 1.0,
+      "turn_pass_rate": 0.6667,
+      "mock_fallback_rate": 0.0,
+      "quality_pass_rate": 0.6667,
+      "retried_turns": 0,
+      "failed_check_items": {},
+      "artifact_ms": {
+        "median": 11616.3,
+        "min": 0.0,
+        "max": 15203.1,
+        "n": 3
+      },
+      "total_ms": {
+        "median": 19982.3,
+        "min": 7193.4,
+        "max": 29035.7,
+        "n": 3
+      },
+      "effective_models": [
+        "deepseek-flash"
+      ]
+    },
+    "scene_3d": {
+      "artifact_type": "scene_3d",
+      "turns": 3,
+      "total_calls": 3,
+      "valid_calls": 3,
+      "failed_calls": 0,
+      "calls_consistent": true,
+      "call_valid_rate": 1.0,
+      "turn_pass_rate": 1.0,
+      "mock_fallback_rate": 0.0,
+      "quality_pass_rate": 1.0,
+      "retried_turns": 0,
+      "failed_check_items": {},
+      "artifact_ms": {
+        "median": 5784.7,
+        "min": 4925.9,
+        "max": 9657.3,
+        "n": 3
+      },
+      "total_ms": {
+        "median": 12647.0,
+        "min": 10827.1,
+        "max": 16436.6,
+        "n": 3
+      },
+      "effective_models": [
+        "deepseek-flash"
+      ]
+    }
+  },
+  "verdict": {
+    "verdict": "conditional",
+    "headline": "结论：`deepseek-flash` 有条件通过 —— 契约稳定性够，但结构完整性有缺口",
+    "reasons": [
+      "ppt：单次合法率 100%、回合通过率 100%、降级 mock 率 0%、质量通过率 80%（5 回合 / 5 次调用）",
+      "ppt 高频失败清单项：{'source_ref 页码真实': 1}",
+      "anim_2d：单次合法率 100%、回合通过率 67%、降级 mock 率 0%、质量通过率 67%（3 回合 / 2 次调用）",
+      "scene_3d：单次合法率 100%、回合通过率 100%、降级 mock 率 0%、质量通过率 100%（3 回合 / 3 次调用）"
+    ],
+    "blockers": [
+      "anim_2d 质量通过率 67% < 80%"
+    ],
+    "conditions": [
+      "把失败的清单项对应的业务约束写进 `_ARTIFACT_CONTRACT`（提示词补强，不改 schema）",
+      "重跑本脚本，质量通过率 ≥ 80% 且降级 mock 率 = 0 才可改默认值"
+    ]
+  },
+  "cases": [
+    {
+      "case_id": "ppt-1",
+      "artifact_type": "ppt",
+      "returned_type": "ppt",
+      "query": "4.1.2 苏丹的权力被削减，前后对比一下",
+      "layout_focus": "comparison",
+      "ok": true,
+      "error": "",
+      "llm_calls": 1,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": true,
+      "contract_error_counts": [],
+      "effective_models": [
+        "deepseek-flash"
+      ],
+      "grader_status": "SYLLABUS_MATCH",
+      "section_scope": "4.1.2",
+      "allowed_pages": [
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        88,
+        89
+      ],
+      "prompt_chars": 1988,
+      "output_chars": 3017,
+      "completion_tokens": [
+        1810
+      ],
+      "total_ms": 16468.1,
+      "ttft_ms": 3448.9,
+      "artifact_ms": 10175.5,
+      "quality": {
+        "checks": {
+          "页数 5~8": true,
+          "首页 title_hero": true,
+          "末页 quiz": true,
+          "中间页 ≥3 种布局": true,
+          "bullet_points 页 3~5 条": true,
+          "timeline 页 ≥2 条": true,
+          "comparison 页左右各 2~4 条": true,
+          "quiz 页 ≥2 题": true,
+          "node_id 唯一且非空": true,
+          "speaker_notes 非空且非模板句": true,
+          "source_ref 页码真实": true
+        },
+        "passed": true,
+        "failed": [],
+        "detail": {
+          "slide_count": 6,
+          "layouts": [
+            "title_hero",
+            "bullet_points",
+            "comparison",
+            "cause_effect",
+            "bullet_points",
+            "quiz"
+          ],
+          "middle_layouts": [
+            "bullet_points",
+            "cause_effect",
+            "comparison"
+          ],
+          "pages": {
+            "cited": [
+              76
+            ],
+            "bad": [],
+            "ok": true,
+            "allowed_min": 72,
+            "allowed_max": 89
+          }
+        }
+      },
+      "spec": {
+        "type": "ppt",
+        "topic": "4.1.2 苏丹的权力被削减：Malayan Union 宪制下的前后对比",
+        "slides": [
+          {
+            "node_id": "slide-1",
+            "layout": "title_hero",
+            "title": "4.1.2 苏丹的权力被削减：Malayan Union 宪制下的前后对比",
+            "subtitle": "4.1.2 Kuasa Sultan · 制度安排与社会影响",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "在 Malayan Union 宪制下，苏丹只保留宗教与习俗事务的权限，政治权力被大幅削减。这一节要把宪制前后的权力格局对照清楚，再看它带来的社会反应与影响。",
+            "source_ref": "4.1.2, p.76"
+          },
+          {
+            "node_id": "slide-2",
+            "layout": "bullet_points",
+            "title": "宪制安排：苏丹只剩下宗教与习俗事务的权限",
+            "subtitle": "Kuasa Sultan di bawah Malayan Union",
+            "bullets": [
+              "苏丹仅保留宗教与习俗事务的权限",
+              "政治权力被大幅削减",
+              "苏丹不再拥有对州务的实质否决权",
+              "各州主权被移交给英国总督"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "课本的表述很明确：苏丹只保留宗教与习俗事务的权限，政治权力被大幅削减。关键的一句是苏丹不再拥有对州务的实质否决权，各州主权被移交给英国总督。作答时先把这个制度安排写清楚，再谈反应与影响。",
+            "source_ref": "4.1.2, p.76"
+          },
+          {
+            "node_id": "slide-3",
+            "layout": "comparison",
+            "title": "前后对比：苏丹权力的缩与留",
+            "subtitle": "宪制前的州主权 vs Malayan Union 之下",
+            "bullets": [],
+            "comparison_left": [
+              "苏丹掌握州务的实质决定权",
+              "对州务拥有实质否决权",
+              "各州主权留在州与苏丹手中"
+            ],
+            "comparison_right": [
+              "仅保留宗教与习俗事务的权限",
+              "不再拥有对州务的实质否决权",
+              "各州主权被移交给英国总督"
+            ],
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "对比时抓住三条线：决定权、否决权、主权归属。宪制前苏丹对州务有实质否决权，宪制后这一权力消失，各州主权移交给英国总督，苏丹的权限只剩宗教与习俗事务。这样对照，削减的幅度一目了然。",
+            "source_ref": "4.1.2, p.76"
+          },
+          {
+            "node_id": "slide-4",
+            "layout": "cause_effect",
+            "title": "因果链：主权移交如何抽空苏丹的政治权力",
+            "subtitle": "从宪制措辞到权力实质",
+            "bullets": [
+              "宪法文本里的每一处措辞变化，背后都有实际的权力转移",
+              "主权移交给英国总督，苏丹失去对州务的实质否决权",
+              "苏丹权限收缩为宗教与习俗事务",
+              "公民权采属地原则，宽松的归化条件使非马来人人口结构面临改变"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "宪法文本里的每一处措辞变化，背后都有实际后果：主权移交给英国总督，苏丹的实质否决权随之消失。同一部宪制里，公民权采属地原则，宽松的归化条件使非马来人人口结构面临改变。把制度与人口结构两条线并读，才能解释后来的社会反应。",
+            "source_ref": "4.1.2, p.76"
+          },
+          {
+            "node_id": "slide-5",
+            "layout": "bullet_points",
+            "title": "作答框架：先制度、再反应、最后影响",
+            "subtitle": "层次分明才拿高分",
+            "bullets": [
+              "第一步：写出制度安排——苏丹仅保留宗教与习俗事务的权限，主权移交英国总督",
+              "第二步：写出社会反应——非马来人人口结构面临改变所引发的关注",
+              "第三步：写出影响——苏丹政治权力被大幅削减，不再拥有对州务的实质否决权",
+              "按此顺序组织答案，层次分明才拿高分"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "考试作答时先给制度安排，再给社会反应，最后给影响，层次分明才拿高分。制度安排写苏丹只剩宗教与习俗权限、主权移交总督；反应写公民权属地原则与宽松归化带来的非马来人人口结构改变；影响写苏丹政治权力被大幅削减。",
+            "source_ref": "4.1.2, p.76"
+          },
+          {
+            "node_id": "slide-6",
+            "layout": "quiz",
+            "title": "随堂检测：苏丹权力的前后变化",
+            "subtitle": "检查制度安排是否记牢",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": [
+              {
+                "question": "在 Malayan Union 宪制下，苏丹保留的权限是什么？",
+                "options": [
+                  "宗教与习俗事务",
+                  "州务的实质否决权",
+                  "各州的主权"
+                ],
+                "answer_index": 0,
+                "explanation": "课本明确写道：苏丹仅保留宗教与习俗事务的权限，政治权力被大幅削减。"
+              },
+              {
+                "question": "Malayan Union 宪制下，各州主权被移交给谁？",
+                "options": [
+                  "各州苏丹",
+                  "英国总督",
+                  "州务大臣"
+                ],
+                "answer_index": 1,
+                "explanation": "各州主权被移交给英国总督，苏丹因此不再拥有对州务的实质否决权。"
+              },
+              {
+                "question": "与苏丹权力削减同属该宪制安排的是下列哪一项？",
+                "options": [
+                  "公民权采属地原则，宽松的归化条件",
+                  "苏丹对州务保有实质否决权",
+                  "各州主权保留在州内"
+                ],
+                "answer_index": 0,
+                "explanation": "同一宪制下公民权采属地原则，宽松的归化条件使非马来人人口结构面临改变。"
+              }
+            ],
+            "speaker_notes": "这三题分别考保留权限、主权归属和同期的公民权安排，都是课本原句。学生若答错第一题，说明没有区分宗教习俗权限与政治权力；答错第二题，则是没记住主权移交给英国总督。",
+            "source_ref": "4.1.2, p.76"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "ppt-2",
+      "artifact_type": "ppt",
+      "returned_type": "ppt",
+      "query": "4.2.1 从联合邦成立到 1957 年独立的时间线",
+      "layout_focus": "timeline",
+      "ok": true,
+      "error": "",
+      "llm_calls": 1,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": true,
+      "contract_error_counts": [],
+      "effective_models": [
+        "deepseek-flash"
+      ],
+      "grader_status": "PARTIAL_OR_BEYOND",
+      "section_scope": "4.2.1",
+      "allowed_pages": [
+        70,
+        76,
+        77,
+        78,
+        79,
+        80,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91
+      ],
+      "prompt_chars": 2046,
+      "output_chars": 3339,
+      "completion_tokens": [
+        2449
+      ],
+      "total_ms": 19202.8,
+      "ttft_ms": 5198.3,
+      "artifact_ms": 11989.0,
+      "quality": {
+        "checks": {
+          "页数 5~8": true,
+          "首页 title_hero": true,
+          "末页 quiz": true,
+          "中间页 ≥3 种布局": true,
+          "bullet_points 页 3~5 条": true,
+          "timeline 页 ≥2 条": true,
+          "comparison 页左右各 2~4 条": true,
+          "quiz 页 ≥2 题": true,
+          "node_id 唯一且非空": true,
+          "speaker_notes 非空且非模板句": true,
+          "source_ref 页码真实": true
+        },
+        "passed": true,
+        "failed": [],
+        "detail": {
+          "slide_count": 6,
+          "layouts": [
+            "title_hero",
+            "bullet_points",
+            "comparison",
+            "timeline",
+            "cause_effect",
+            "quiz"
+          ],
+          "middle_layouts": [
+            "bullet_points",
+            "cause_effect",
+            "comparison",
+            "timeline"
+          ],
+          "pages": {
+            "cited": [
+              76
+            ],
+            "bad": [],
+            "ok": true,
+            "allowed_min": 70,
+            "allowed_max": 91
+          }
+        }
+      },
+      "spec": {
+        "type": "ppt",
+        "topic": "从马来亚联合邦成立到1957年独立的时间线",
+        "slides": [
+          {
+            "node_id": "slide-1",
+            "layout": "title_hero",
+            "title": "从马来亚联合邦成立到1957年独立的时间线",
+            "subtitle": "4.2.1 Penubuhan Persekutuan · 4.3 Jalan ke Arah Kemerdekaan",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "本章是全书重点：从 Malayan Union 到马来亚联合邦，再走到 1957 年独立。这条路上，1948 年 2 月 1 日联合邦成立是起点，1955 年选举与 1956 年伦敦谈判是关键节点。",
+            "source_ref": "4.2.1, p.76"
+          },
+          {
+            "node_id": "slide-2",
+            "layout": "bullet_points",
+            "title": "1948 年 2 月 1 日：马来亚联合邦成立",
+            "subtitle": "Penubuhan Persekutuan",
+            "bullets": [
+              "马来亚联合邦于 1948 年 2 月 1 日正式成立",
+              "由英国驻最高专员与各州苏丹共同治理",
+              "恢复了苏丹在州务上的权力",
+              "Malayan Union 的中央集权被部分撤回"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "1948 年 2 月 1 日成立的马来亚联合邦，治理方式是英国驻最高专员与各州苏丹共同治理。与 Malayan Union 相比，苏丹在州务上的权力得到恢复，中央集权被部分撤回。",
+            "source_ref": "4.2.1"
+          },
+          {
+            "node_id": "slide-3",
+            "layout": "comparison",
+            "title": "Malayan Union 与马来亚联合邦：权力的回调",
+            "subtitle": "处措辞变化的背后是各方力量对比的结果",
+            "bullets": [],
+            "comparison_left": [
+              "中央集权，权力集中于英国方面",
+              "苏丹在州务上的权力被削弱",
+              "各州被纳入统一的中央体制"
+            ],
+            "comparison_right": [
+              "英国驻最高专员与各州苏丹共同治理",
+              "恢复苏丹在州务上的权力",
+              "Malayan Union 的中央集权被部分撤回"
+            ],
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "对比两边的措辞就能看出差别：Malayan Union 强调中央集权、削弱苏丹；1948 年的联合邦则写明由最高专员与苏丹共同治理，并恢复苏丹在州务上的权力。这些措辞变化，背后都是各方力量对比的结果。",
+            "source_ref": "4.2.1"
+          },
+          {
+            "node_id": "slide-4",
+            "layout": "timeline",
+            "title": "从联合邦到独立的关键节点",
+            "subtitle": "1948 → 1955 → 1956 → 1957",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": [
+              {
+                "year": "1948",
+                "label": "马来亚联合邦成立",
+                "detail": "2 月 1 日成立，由英国驻最高专员与各州苏丹共同治理，苏丹在州务上的权力获恢复。",
+                "source_page": null
+              },
+              {
+                "year": "1955",
+                "label": "选举",
+                "detail": "从联合邦走向独立的过程中的关键节点之一。",
+                "source_page": null
+              },
+              {
+                "year": "1956",
+                "label": "伦敦谈判",
+                "detail": "与 1955 年选举并列的另一关键节点，指向独立。",
+                "source_page": null
+              },
+              {
+                "year": "1957",
+                "label": "独立",
+                "detail": "马来亚走上独立，本章叙述的终点。",
+                "source_page": null
+              }
+            ],
+            "quiz_questions": null,
+            "speaker_notes": "把时间轴拉直来看：1948 年 2 月 1 日联合邦成立，1955 年举行选举，1956 年在伦敦谈判，最终在 1957 年独立。课本明确指出，从联合邦到独立的关键节点就是 1955 年选举与 1956 年伦敦谈判。",
+            "source_ref": "4.3"
+          },
+          {
+            "node_id": "slide-5",
+            "layout": "cause_effect",
+            "title": "为什么措辞会变：力量对比的结果",
+            "subtitle": "从 Malayan Union 到联合邦，再到独立",
+            "bullets": [
+              "Malayan Union 的中央集权安排引发反弹",
+              "联合邦方案恢复苏丹在州务上的权力，中央集权被部分撤回",
+              "共同的治理形式写明了英国驻最高专员与各州苏丹的关系",
+              "处措辞的变化，背后都是各方力量对比的结果",
+              "1955 年选举与 1956 年伦敦谈判把进程推向 1957 年独立"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "不要把这些条文当成单纯的文字改动。从 Malayan Union 到联合邦，恢复苏丹权力、部分撤回中央集权，再到 1955 年选举和 1956 年伦敦谈判，每一步措辞变化的背后，都是各方力量对比的结果。",
+            "source_ref": "4.2.1"
+          },
+          {
+            "node_id": "slide-6",
+            "layout": "quiz",
+            "title": "检查一下：时间线与制度要点",
+            "subtitle": null,
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": [
+              {
+                "question": "马来亚联合邦在哪一天成立？",
+                "options": [
+                  "1946 年 2 月 1 日",
+                  "1948 年 2 月 1 日",
+                  "1957 年 2 月 1 日"
+                ],
+                "answer_index": 1,
+                "explanation": "课本写明马来亚联合邦于 1948 年 2 月 1 日成立。"
+              },
+              {
+                "question": "联合邦成立后，由谁共同治理？",
+                "options": [
+                  "英国驻最高专员与各州苏丹",
+                  "只由各州苏丹",
+                  "只由英国驻最高专员"
+                ],
+                "answer_index": 0,
+                "explanation": "联合邦由英国驻最高专员与各州苏丹共同治理，苏丹在州务上的权力得到恢复。"
+              },
+              {
+                "question": "从联合邦到独立，课本点出的关键节点是？",
+                "options": [
+                  "1955 年选举与 1956 年伦敦谈判",
+                  "1946 年 Malayan Union 的提出",
+                  "1948 年联合邦成立本身"
+                ],
+                "answer_index": 0,
+                "explanation": "课本指出，从联合邦到独立，关键节点是 1955 年选举与 1956 年伦敦谈判。"
+              }
+            ],
+            "speaker_notes": "这三题分别对应成立日期、治理结构和通往独立的关键节点。特别提醒学生：1948 年 2 月 1 日是联合邦成立，不是独立；独立要到 1957 年。",
+            "source_ref": "4.2.1, 4.3"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "ppt-3",
+      "artifact_type": "ppt",
+      "returned_type": "ppt",
+      "query": "5.1.1 马来西亚构想的背景要点",
+      "layout_focus": "bullet_points",
+      "ok": true,
+      "error": "",
+      "llm_calls": 1,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": true,
+      "contract_error_counts": [],
+      "effective_models": [
+        "deepseek-flash"
+      ],
+      "grader_status": "SYLLABUS_MATCH",
+      "section_scope": "5.1.1",
+      "allowed_pages": [
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        101,
+        102,
+        105,
+        106,
+        108,
+        109
+      ],
+      "prompt_chars": 1936,
+      "output_chars": 4852,
+      "completion_tokens": [
+        4523
+      ],
+      "total_ms": 29354.6,
+      "ttft_ms": 1805.4,
+      "artifact_ms": 26626.7,
+      "quality": {
+        "checks": {
+          "页数 5~8": true,
+          "首页 title_hero": true,
+          "末页 quiz": true,
+          "中间页 ≥3 种布局": true,
+          "bullet_points 页 3~5 条": true,
+          "timeline 页 ≥2 条": true,
+          "comparison 页左右各 2~4 条": true,
+          "quiz 页 ≥2 题": true,
+          "node_id 唯一且非空": true,
+          "speaker_notes 非空且非模板句": true
+        },
+        "passed": true,
+        "failed": [],
+        "detail": {
+          "slide_count": 6,
+          "layouts": [
+            "title_hero",
+            "bullet_points",
+            "cause_effect",
+            "comparison",
+            "bullet_points",
+            "quiz"
+          ],
+          "middle_layouts": [
+            "bullet_points",
+            "cause_effect",
+            "comparison"
+          ],
+          "pages": {
+            "cited": [],
+            "ok": null,
+            "reason": "无页码可判"
+          }
+        }
+      },
+      "spec": {
+        "type": "ppt",
+        "topic": "Latar Belakang Idea Malaysia",
+        "slides": [
+          {
+            "node_id": "slide-1",
+            "layout": "title_hero",
+            "title": "Latar Belakang Idea Malaysia",
+            "subtitle": "5.1.1 · Latar Belakang Idea",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "Idea Malaysia dibincangkan sebagai satu bentuk federasi yang lebih besar untuk mengimbangi nisbah etnik. Britain melihatnya sebagai cara menyelesaikan peralihan kuasa di kawasan, manakala keadaan keselamatan serantau dan rundingan politik tempatan turut membentuk idea ini.",
+            "source_ref": "5.1.1"
+          },
+          {
+            "node_id": "slide-2",
+            "layout": "bullet_points",
+            "title": "Matlamat Utama Idea",
+            "subtitle": null,
+            "bullets": [
+              "Federasi yang lebih besar diharap dapat mengimbangi nisbah etnik.",
+              "Britain mahu menyelesaikan peralihan kuasa di rantau ini melalui penyertaan wilayah.",
+              "Perang, keselamatan serantau dan rundingan politik tempatan saling mempengaruhi.",
+              "Titik masa tertentu wujud, tetapi penyesuaian institusi berterusan sehingga hujung dekad 1960-an."
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "Federasi besar bukan sekadar gabungan wilayah; ia bertujuan mengimbangi komposisi etnik. Pada masa sama, Britain mahu melengkapkan peralihan kuasa, dan proses institusi mengambil masa hingga akhir 1960-an.",
+            "source_ref": "5.1.1"
+          },
+          {
+            "node_id": "slide-3",
+            "layout": "cause_effect",
+            "title": "Faktor dan Kesan Awal",
+            "subtitle": null,
+            "bullets": [
+              "Perang dan keadaan keselamatan serantau mendorong wilayah bergabung.",
+              "Rundingan politik tempatan menentukan bentuk penyertaan.",
+              "Britain menggunakan pembentukan federasi untuk mengatur peralihan kuasa.",
+              "Kesan awal: struktur federasi perlu menyesuaikan kuasa pusat dan wilayah."
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "Faktor keselamatan dan perang menjadikan gabungan wilayah dilihat sebagai penyelesaian serantau. Namun bentuk akhirnya bergantung pada rundingan politik tempatan dan keperluan Britain menyelesaikan peralihan kuasa.",
+            "source_ref": "5.1.1"
+          },
+          {
+            "node_id": "slide-4",
+            "layout": "comparison",
+            "title": "Kelenturan dan Kos联邦制",
+            "subtitle": null,
+            "bullets": [],
+            "comparison_left": [
+              "Wilayah berbeza boleh berunding syarat penyertaan.",
+              "Kedudukan khas dan autonomi boleh dibincangkan.",
+              "Federasi boleh menyesuaikan pembahagian kuasa."
+            ],
+            "comparison_right": [
+              "Setiap kelonggaran menimbulkan kos politik.",
+              "Tuntutan wilayah perlu diseimbangkan dengan kuasa pusat.",
+              "Proses penyesuaian institusi mengambil masa."
+            ],
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "Perbandingan syarat penyertaan wilayah menunjukkan联邦制 tidak seragam. Kelenturan itu membolehkan rundingan, tetapi setiap kelonggaran membawa kos politik dan pentadbiran.",
+            "source_ref": "5.1.1"
+          },
+          {
+            "node_id": "slide-5",
+            "layout": "bullet_points",
+            "title": "Rundingan yang Sukar",
+            "subtitle": null,
+            "bullets": [
+              "Kedudukan dan susunan autonomi Singapura menjadi titik rundingan utama.",
+              "Syarat penyertaan wilayah berbeza perlu dibandingkan.",
+              "Perbezaan syarat memperlihatkan kelenturan dan kos联邦制.",
+              "Penyesuaian institusi berlanjutan sehingga akhir 1960-an."
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "Singapura disebut sebagai kes yang sukar kerana kedudukan dan autonomi perundingannya. Rundingan juga perlu menangani syarat berbeza wilayah, dan kesannya terhadap institusi berlanjutan hingga akhir 1960-an.",
+            "source_ref": "5.1.1"
+          },
+          {
+            "node_id": "slide-6",
+            "layout": "quiz",
+            "title": "Semak Kefahaman",
+            "subtitle": null,
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": [
+              {
+                "question": "Apakah matlamat utama idea federasi yang lebih besar?",
+                "options": [
+                  "Mengimbangi nisbah etnik",
+                  "Menghapuskan rundingan tempatan",
+                  "Menggantikan semua autonomi wilayah"
+                ],
+                "answer_index": 0,
+                "explanation": "Fakta menyatakan federasi lebih besar diharap dapat mengimbangi nisbah etnik."
+              },
+              {
+                "question": "Apakah peranan Britain dalam latar belakang idea ini?",
+                "options": [
+                  "Menyelesaikan peralihan kuasa di rantau ini",
+                  "Menolak semua penyertaan wilayah",
+                  "Menentukan semula sempadan tanpa rundingan"
+                ],
+                "answer_index": 0,
+                "explanation": "Britain mahu menyelesaikan peralihan kuasa di kawasan melalui proses ini."
+              },
+              {
+                "question": "Mengapakah Singapura menjadi titik rundingan?",
+                "options": [
+                  "Kedudukan dan susunan autonomi menjadi isu",
+                  "Ia tidak mempunyai kaitan dengan联邦制",
+                  "Semua wilayah menolak penyertaan"
+                ],
+                "answer_index": 0,
+                "explanation": "Kedudukan dan susunan autonomi Singapura disebut sebagai kesukaran rundingan."
+              }
+            ],
+            "speaker_notes": "Soalan pertama menguji matlamat mengimbangi nisbah etnik melalui federasi besar. Soalan seterusnya menguji peranan Britain dalam peralihan kuasa dan sebab kedudukan serta autonomi Singapura menjadi titik rundingan.",
+            "source_ref": "5.1.1"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "ppt-4",
+      "artifact_type": "ppt",
+      "returned_type": "ppt",
+      "query": "4.3.1 1955 年选举为什么重要，讲清因果",
+      "layout_focus": "cause_effect",
+      "ok": true,
+      "error": "",
+      "llm_calls": 1,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": true,
+      "contract_error_counts": [],
+      "effective_models": [
+        "deepseek-flash"
+      ],
+      "grader_status": "SYLLABUS_MATCH",
+      "section_scope": "4.3.1",
+      "allowed_pages": [
+        71,
+        72,
+        73,
+        79,
+        80,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91
+      ],
+      "prompt_chars": 1997,
+      "output_chars": 3122,
+      "completion_tokens": [
+        1322
+      ],
+      "total_ms": 12711.1,
+      "ttft_ms": 2789.5,
+      "artifact_ms": 7607.0,
+      "quality": {
+        "checks": {
+          "页数 5~8": true,
+          "首页 title_hero": true,
+          "末页 quiz": true,
+          "中间页 ≥3 种布局": true,
+          "bullet_points 页 3~5 条": true,
+          "timeline 页 ≥2 条": true,
+          "comparison 页左右各 2~4 条": true,
+          "quiz 页 ≥2 题": true,
+          "node_id 唯一且非空": true,
+          "speaker_notes 非空且非模板句": true,
+          "source_ref 页码真实": false
+        },
+        "passed": false,
+        "failed": [
+          "source_ref 页码真实"
+        ],
+        "detail": {
+          "slide_count": 7,
+          "layouts": [
+            "title_hero",
+            "bullet_points",
+            "cause_effect",
+            "comparison",
+            "bullet_points",
+            "bullet_points",
+            "quiz"
+          ],
+          "middle_layouts": [
+            "bullet_points",
+            "cause_effect",
+            "comparison"
+          ],
+          "pages": {
+            "cited": [
+              76
+            ],
+            "bad": [
+              76
+            ],
+            "ok": false,
+            "allowed_min": 71,
+            "allowed_max": 91
+          }
+        }
+      },
+      "spec": {
+        "type": "ppt",
+        "topic": "4.3.1 1955年选举：为何重要",
+        "slides": [
+          {
+            "node_id": "slide-1",
+            "layout": "title_hero",
+            "title": "4.3.1 1955年选举：为何重要",
+            "subtitle": "4.3.1 Pilihan Raya 1955",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "1955年举行的是首次联邦立法议会选举，联盟党赢得绝大多数席位。这次选举把本地政党的代表性和谈判地位同时推上台面，是理解独立进程的关键节点。",
+            "source_ref": "4.3.1, p.76"
+          },
+          {
+            "node_id": "slide-2",
+            "layout": "bullet_points",
+            "title": "1955年选举的关键事实",
+            "subtitle": "首次联邦立法议会选举",
+            "bullets": [
+              "1955年举行首次联邦立法议会选举",
+              "联盟党赢得绝大多数席位",
+              "竞选纲领把独立时间表列为首要议题",
+              "选举结果使本地政党获得与英国谈判的正当性"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "记住三个要点：首次选举、联盟党大胜、独立时间表是首要议题。大胜不是终点，而是把独立时间表变成可谈判的议程。",
+            "source_ref": "4.3.1, p.76"
+          },
+          {
+            "node_id": "slide-3",
+            "layout": "cause_effect",
+            "title": "因果链：从选票到谈判桌",
+            "subtitle": "选举结果如何转化为谈判正当性",
+            "bullets": [
+              "原因：1955年首次联邦立法议会选举举行",
+              "直接结果：联盟党赢得绝大多数席位",
+              "纲领作用：竞选纲领把独立时间表列为首要议题",
+              "影响：本地政党获得与英国谈判的正当性"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "因果要按顺序讲：先有选举，再有联盟党的大胜，然后是独立时间表成为首要议题，最后才转化为与英国谈判的正当性。别把结果说成原因。",
+            "source_ref": "4.3.1, p.76"
+          },
+          {
+            "node_id": "slide-4",
+            "layout": "comparison",
+            "title": "大胜意味着什么：两种读法",
+            "subtitle": "席位优势 vs 谈判正当性",
+            "bullets": [],
+            "comparison_left": [
+              "联盟党赢得绝大多数席位",
+              "选举层面体现本地政党的代表优势",
+              "竞选纲领把独立时间表列为首要议题"
+            ],
+            "comparison_right": [
+              "选举结果使本地政党获得与英国谈判的正当性",
+              "谈判层面把席位优势转为对外筹码",
+              "独立时间表成为对英谈判的核心议题"
+            ],
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "左边看的是选票与席位，右边看的是谈判桌上的分量。两者是同一结果的两面：席位优势本身不自动变成独立，要通过谈判正当性起作用。",
+            "source_ref": "4.3.1, p.76"
+          },
+          {
+            "node_id": "slide-5",
+            "layout": "bullet_points",
+            "title": "答题层次：先制度、再反应、后影响",
+            "subtitle": "写作用分层法",
+            "bullets": [
+              "第一层给制度安排：1955年首次联邦立法议会选举",
+              "第二层给社会反应：联盟党赢得绝大多数席位",
+              "第三层给影响：本地政党获得与英国谈判的正当性",
+              "层次分明才拿高分，不要把事情混成一段"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "写这类题先摆制度安排，再写社会反应，最后落到影响。按这个顺序写，1955年选举的重要性自然就凸显出来。",
+            "source_ref": "4.3.1, p.76"
+          },
+          {
+            "node_id": "slide-6",
+            "layout": "bullet_points",
+            "title": "一个必须守住的区分",
+            "subtitle": "政策意图与社会反应是两条线",
+            "bullets": [
+              "讨论 Malayan Union 时必须区分「英国的政策意图」与「当地社会的反应」两条线",
+              "同样地，1955年选举也要分清制度安排与政党反应",
+              "宪法文本里的每一处措辞变化，背后都是各方力量对比的结果",
+              "把两条线混写，因果就会讲乱"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "讨论 Malayan Union 时要分开写英国的政策意图和当地社会的反应；讲1955年选举也一样，制度安排与政党反应要分开。宪法文本里的每一处措辞变化，背后都是各方力量对比的结果。",
+            "source_ref": "4.3.1, p.76"
+          },
+          {
+            "node_id": "slide-7",
+            "layout": "quiz",
+            "title": "随堂检测：1955年选举",
+            "subtitle": "检验因果链是否讲得通",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": [
+              {
+                "question": "1955年选举的直接结果是什么？",
+                "options": [
+                  "联盟党赢得绝大多数席位",
+                  "英国宣布放弃马来亚",
+                  "马来亚联合邦即刻成立"
+                ],
+                "answer_index": 0,
+                "explanation": "1955年首次联邦立法议会选举中，联盟党赢得绝大多数席位。"
+              },
+              {
+                "question": "选举结果使本地政党获得了什么？",
+                "options": [
+                  "对英国宣战的权力",
+                  "与英国谈判的正当性",
+                  "直接制定宪法的全部权力"
+                ],
+                "answer_index": 1,
+                "explanation": "课本明确指出：选举结果使本地政党获得与英国谈判的正当性。"
+              },
+              {
+                "question": "联盟党竞选纲领把什么列为首要议题？",
+                "options": [
+                  "独立时间表",
+                  "税收改革",
+                  "教育语言政策"
+                ],
+                "answer_index": 0,
+                "explanation": "竞选纲领把独立时间表列为首要议题，这使选举结果与独立进程直接挂钩。"
+              }
+            ],
+            "speaker_notes": "三道题分别考结果、正当性和纲领议题，正好对应本节的三步因果。学生答错时，让他们回到「先制度、再反应、后影响」的顺序重讲一遍。",
+            "source_ref": "4.3.1, p.76"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "ppt-5",
+      "artifact_type": "ppt",
+      "returned_type": "ppt",
+      "query": "1.1.2 历史的特征，出 3 道随堂测验",
+      "layout_focus": "quiz",
+      "ok": true,
+      "error": "",
+      "llm_calls": 1,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": true,
+      "contract_error_counts": [],
+      "effective_models": [
+        "deepseek-flash"
+      ],
+      "grader_status": "SYLLABUS_MATCH",
+      "section_scope": "1.1.2",
+      "allowed_pages": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        24,
+        25
+      ],
+      "prompt_chars": 2001,
+      "output_chars": 2708,
+      "completion_tokens": [
+        1821
+      ],
+      "total_ms": 14572.9,
+      "ttft_ms": 1921.0,
+      "artifact_ms": 10494.4,
+      "quality": {
+        "checks": {
+          "页数 5~8": true,
+          "首页 title_hero": true,
+          "末页 quiz": true,
+          "中间页 ≥3 种布局": true,
+          "bullet_points 页 3~5 条": true,
+          "timeline 页 ≥2 条": true,
+          "comparison 页左右各 2~4 条": true,
+          "quiz 页 ≥2 题": true,
+          "node_id 唯一且非空": true,
+          "speaker_notes 非空且非模板句": true
+        },
+        "passed": true,
+        "failed": [],
+        "detail": {
+          "slide_count": 6,
+          "layouts": [
+            "title_hero",
+            "bullet_points",
+            "comparison",
+            "cause_effect",
+            "bullet_points",
+            "quiz"
+          ],
+          "middle_layouts": [
+            "bullet_points",
+            "cause_effect",
+            "comparison"
+          ],
+          "pages": {
+            "cited": [],
+            "ok": null,
+            "reason": "无页码可判"
+          }
+        }
+      },
+      "spec": {
+        "type": "ppt",
+        "topic": "1.1.2 历史的特征：时间性、事实性与解释性",
+        "slides": [
+          {
+            "node_id": "slide-1",
+            "layout": "title_hero",
+            "title": "历史的特征：时间性、事实性与解释性",
+            "subtitle": "1.1.2 Ciri-ciri Sejarah",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "历史具备三个基本特征：时间性、事实性与解释性。Sejarah 一词源自阿拉伯语 syajaratun，意思是树，强调时间上的生长与延续。掌握这三点，答题时才不会把事实陈述和价值判断混在一起。",
+            "source_ref": "1.1.2"
+          },
+          {
+            "node_id": "slide-2",
+            "layout": "bullet_points",
+            "title": "历史的三个基本特征",
+            "subtitle": "时间性 · 事实性 · 解释性",
+            "bullets": [
+              "时间性：历史事件有先后次序，强调生长与延续",
+              "事实性：结论必须能被史料复核，不能凭空断言",
+              "解释性：要说明事件之间的因果关系",
+              "三者缺一不可，答题时要同时交代时间、依据与原因"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "事实性要求结论可被史料复核，解释性要求说明因果关系。只讲时间而拿不出依据，或者只有结论没有原因，都不算完整的历史叙述。",
+            "source_ref": "1.1.2"
+          },
+          {
+            "node_id": "slide-3",
+            "layout": "comparison",
+            "title": "先分清：事实陈述与价值判断",
+            "subtitle": "课堂讨论的第一步",
+            "bullets": [],
+            "comparison_left": [
+              "回答“发生了什么”",
+              "结论可被史料复核",
+              "有明确出处可查"
+            ],
+            "comparison_right": [
+              "表达好坏、对错、应该与否",
+              "带有个人或立场色彩",
+              "不能当作史料证据使用"
+            ],
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "课堂讨论时先分清事实陈述与价值判断，再谈因果，答题才不会偏题。价值判断可以讨论，但它不能代替可被史料复核的事实陈述。",
+            "source_ref": "1.1.2"
+          },
+          {
+            "node_id": "slide-4",
+            "layout": "cause_effect",
+            "title": "解释性：说明因果关系",
+            "subtitle": "为什么不能只列事件",
+            "bullets": [
+              "解释性要求说明因果关系，而不是把事件一条条堆起来",
+              "原因要能指向具体的人、事、条件",
+              "缺少出处的叙述只能算传说，不能作为考试依据",
+              "分清事实与价值判断后，再谈因果，逻辑才站得住"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "解释性要求说明因果关系，这一点是历史区别于单纯记事的地方。先确认事实有史料支撑，再去追问原因，结论才有说服力。",
+            "source_ref": "1.1.2"
+          },
+          {
+            "node_id": "slide-5",
+            "layout": "bullet_points",
+            "title": "从 syajaratun 到史料依据",
+            "subtitle": "时间性与事实性的来源",
+            "bullets": [
+              "Sejarah 一词源自阿拉伯语 syajaratun，意为树",
+              "树有生长与延续，对应历史的时间性",
+              "事实性要求结论可被史料复核，出处必须交代清楚",
+              "缺少出处的叙述只能算传说，不能作为考试依据"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "Sejarah 源自阿拉伯语 syajaratun，意为树，强调时间上的生长与延续。写答案时若引不出出处，那段叙述就只能算传说，不能当作考试依据。",
+            "source_ref": "1.1.2"
+          },
+          {
+            "node_id": "slide-6",
+            "layout": "quiz",
+            "title": "随堂测验：历史的特征",
+            "subtitle": "3 题，检查三特征与出处意识",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": [
+              {
+                "question": "Sejarah 一词源自哪个阿拉伯语词，意为“树”？",
+                "options": [
+                  "syajaratun",
+                  "tarikh",
+                  "riwayat"
+                ],
+                "answer_index": 0,
+                "explanation": "Sejarah 源自阿拉伯语 syajaratun，意为树，强调时间上的生长与延续。"
+              },
+              {
+                "question": "下列哪一项最符合历史的“事实性”要求？",
+                "options": [
+                  "说明事件之间的因果关系",
+                  "结论可被史料复核",
+                  "表达个人对事件的好恶"
+                ],
+                "answer_index": 1,
+                "explanation": "事实性要求结论可被史料复核；“说明因果关系”属于解释性，“表达好恶”属于价值判断。"
+              },
+              {
+                "question": "缺少出处的叙述在历史学习中应被如何看待？",
+                "options": [
+                  "可以直接当作考试依据",
+                  "只要说得通就算事实",
+                  "只能算传说，不能作为考试依据"
+                ],
+                "answer_index": 2,
+                "explanation": "缺少出处的叙述只能算传说，不能作为考试依据。"
+              }
+            ],
+            "speaker_notes": "做题时先判断题目问的是事实、因果还是价值判断，再回到三个特征去核对。凡是没有出处的说法，一律不能当成考试依据。",
+            "source_ref": "1.1.2"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "anim-1",
+      "artifact_type": "anim_2d",
+      "returned_type": "",
+      "query": "4.1.1 Malayan Union 的推进过程，做成动画演示",
+      "layout_focus": "",
+      "ok": false,
+      "error": "",
+      "llm_calls": 0,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": false,
+      "contract_error_counts": [],
+      "effective_models": [],
+      "grader_status": "NO_MATCH",
+      "section_scope": "4.1.1",
+      "allowed_pages": [],
+      "prompt_chars": 0,
+      "output_chars": 0,
+      "completion_tokens": [],
+      "total_ms": 7193.4,
+      "ttft_ms": 3999.2,
+      "artifact_ms": 0.0,
+      "quality": {},
+      "spec": {}
+    },
+    {
+      "case_id": "anim-2",
+      "artifact_type": "anim_2d",
+      "returned_type": "anim_2d",
+      "query": "4.1.3 反对运动的演变过程，做成动画演示",
+      "layout_focus": "",
+      "ok": true,
+      "error": "",
+      "llm_calls": 1,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": true,
+      "contract_error_counts": [],
+      "effective_models": [
+        "deepseek-flash"
+      ],
+      "grader_status": "SYLLABUS_MATCH",
+      "section_scope": "4.1.3",
+      "allowed_pages": [
+        72,
+        73,
+        76,
+        77,
+        78,
+        79,
+        80,
+        83,
+        84,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91
+      ],
+      "prompt_chars": 1570,
+      "output_chars": 2872,
+      "completion_tokens": [
+        2883
+      ],
+      "total_ms": 29035.7,
+      "ttft_ms": 9043.2,
+      "artifact_ms": 15203.1,
+      "quality": {
+        "checks": {
+          "关键帧 2~5 帧": true,
+          "step_index 从 0 起严格递增": true,
+          "每帧 2~5 个 entity": true,
+          "entity id 帧内唯一": true,
+          "坐标在 1000×600 内": true,
+          "narration 非空": true
+        },
+        "passed": true,
+        "failed": [],
+        "advisory": {
+          "同一主体跨帧位移": true
+        },
+        "detail": {
+          "step_count": 4,
+          "step_indices": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "entity_counts": [
+            4,
+            4,
+            4,
+            4
+          ],
+          "pages": {
+            "cited": [],
+            "ok": null,
+            "reason": "无页码可判"
+          }
+        }
+      },
+      "spec": {
+        "type": "anim_2d",
+        "title": "4.1.3 反对 Malayan Union 运动的演变",
+        "steps": [
+          {
+            "step_index": 0,
+            "narration": "1946 年英国推行 Malayan Union，马来社会强烈反对。他们认为这项安排削弱苏丹地位，并威胁马来人的政治地位。",
+            "source_ref": "4.1.3",
+            "entities": [
+              {
+                "id": "entity-0",
+                "shape": "zone",
+                "label": "Malayan Union",
+                "x": 260.0,
+                "y": 300.0,
+                "color": "#2563EB",
+                "details": "英国推行的新政治安排，成为马来社会反对的起点。",
+                "source_page": null
+              },
+              {
+                "id": "entity-1",
+                "shape": "label_box",
+                "label": "削弱苏丹地位",
+                "x": 620.0,
+                "y": 210.0,
+                "color": "#EF4444",
+                "details": "马来社会认为苏丹的统治地位被削弱的忧虑。",
+                "source_page": null
+              },
+              {
+                "id": "entity-2",
+                "shape": "label_box",
+                "label": "威胁马来人政治地位",
+                "x": 620.0,
+                "y": 390.0,
+                "color": "#F59E0B",
+                "details": "马来社会担心马来人在政治上被边缘化。",
+                "source_page": null
+              },
+              {
+                "id": "entity-3",
+                "shape": "arrow",
+                "label": "强烈反对",
+                "x": 440.0,
+                "y": 300.0,
+                "color": "#64748B",
+                "details": "反对情绪由 Malayan Union 指向马来社会两项核心忧虑。",
+                "source_page": null
+              }
+            ]
+          },
+          {
+            "step_index": 1,
+            "narration": "反对情绪扩散到统治者层面：各地苏丹拒绝出席移交仪式，显示抗议已进入正式渠道。",
+            "source_ref": "4.1.3",
+            "entities": [
+              {
+                "id": "entity-0",
+                "shape": "zone",
+                "label": "Malayan Union",
+                "x": 170.0,
+                "y": 300.0,
+                "color": "#2563EB",
+                "details": "同一主体位置左移，表示反对力量由它向外扩展。",
+                "source_page": null
+              },
+              {
+                "id": "entity-1",
+                "shape": "circle",
+                "label": "各地苏丹",
+                "x": 500.0,
+                "y": 180.0,
+                "color": "#6366F1",
+                "details": "各地苏丹以拒绝出席移交仪式的方式表达不接受 Malayan Union。",
+                "source_page": null
+              },
+              {
+                "id": "entity-2",
+                "shape": "label_box",
+                "label": "拒绝出席移交仪式",
+                "x": 760.0,
+                "y": 180.0,
+                "color": "#EF4444",
+                "details": "抗议的具体行动，属于制度层面的抵制。",
+                "source_page": null
+              },
+              {
+                "id": "entity-3",
+                "shape": "arrow",
+                "label": "抵制",
+                "x": 620.0,
+                "y": 180.0,
+                "color": "#64748B",
+                "details": "由各地苏丹指向其抵制行动。",
+                "source_page": null
+              }
+            ]
+          },
+          {
+            "step_index": 2,
+            "narration": "1946 年 3 月，全马马来人代表大会在吉隆坡召开，各地代表汇集，形成统一的反对阵线。",
+            "source_ref": "4.1.3",
+            "entities": [
+              {
+                "id": "entity-0",
+                "shape": "zone",
+                "label": "1946 年 3 月 吉隆坡",
+                "x": 500.0,
+                "y": 330.0,
+                "color": "#0EA5E9",
+                "details": "反对运动的组织化地点与时间节点。",
+                "source_page": null
+              },
+              {
+                "id": "entity-1",
+                "shape": "circle",
+                "label": "全马马来人代表大会",
+                "x": 500.0,
+                "y": 300.0,
+                "color": "#10B981",
+                "details": "各地马来人代表集中商讨反对 Malayan Union 的共同立场。",
+                "source_page": null
+              },
+              {
+                "id": "entity-2",
+                "shape": "label_box",
+                "label": "各地代表汇集",
+                "x": 200.0,
+                "y": 300.0,
+                "color": "#F59E0B",
+                "details": "分散的地方反对力量向全国性会议集中。",
+                "source_page": null
+              },
+              {
+                "id": "entity-3",
+                "shape": "arrow",
+                "label": "统一阵线",
+                "x": 790.0,
+                "y": 300.0,
+                "color": "#64748B",
+                "details": "会议把反对力量整合为统一阵线，为组织化抗争铺路。",
+                "source_page": null
+              }
+            ]
+          },
+          {
+            "step_index": 3,
+            "narration": "反对运动促成巫统成立，并以持续施压的方式，最终迫使英国以马来亚联合邦取代 Malayan Union。",
+            "source_ref": "4.1.3",
+            "entities": [
+              {
+                "id": "entity-1",
+                "shape": "rect",
+                "label": "巫统成立",
+                "x": 300.0,
+                "y": 300.0,
+                "color": "#10B981",
+                "details": "由全马马来人代表大会的反对力量发展而成的统一组织。",
+                "source_page": null
+              },
+              {
+                "id": "entity-2",
+                "shape": "arrow",
+                "label": "持续施压",
+                "x": 540.0,
+                "y": 300.0,
+                "color": "#EF4444",
+                "details": "反对运动以组织化方式向英国施加压力。",
+                "source_page": null
+              },
+              {
+                "id": "entity-3",
+                "shape": "rect",
+                "label": "马来亚联合邦",
+                "x": 800.0,
+                "y": 300.0,
+                "color": "#2563EB",
+                "details": "英国最终用以取代 Malayan Union 的新安排。",
+                "source_page": null
+              },
+              {
+                "id": "entity-4",
+                "shape": "label_box",
+                "label": "取代 Malayan Union",
+                "x": 800.0,
+                "y": 420.0,
+                "color": "#F59E0B",
+                "details": "反对运动的最终结果，体现各方力量对比的变化。",
+                "source_page": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "anim-3",
+      "artifact_type": "anim_2d",
+      "returned_type": "anim_2d",
+      "query": "5.1.2 马来西亚构想的谈判进程，推演动画",
+      "layout_focus": "",
+      "ok": true,
+      "error": "",
+      "llm_calls": 1,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": true,
+      "contract_error_counts": [],
+      "effective_models": [
+        "deepseek-flash"
+      ],
+      "grader_status": "PARTIAL_OR_BEYOND",
+      "section_scope": "5.1.2",
+      "allowed_pages": [
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        100,
+        103,
+        104,
+        105,
+        106,
+        108,
+        109
+      ],
+      "prompt_chars": 1454,
+      "output_chars": 3427,
+      "completion_tokens": [
+        2139
+      ],
+      "total_ms": 19982.3,
+      "ttft_ms": 4453.2,
+      "artifact_ms": 11616.3,
+      "quality": {
+        "checks": {
+          "关键帧 2~5 帧": true,
+          "step_index 从 0 起严格递增": true,
+          "每帧 2~5 个 entity": true,
+          "entity id 帧内唯一": true,
+          "坐标在 1000×600 内": true,
+          "narration 非空": true
+        },
+        "passed": true,
+        "failed": [],
+        "advisory": {
+          "同一主体跨帧位移": false
+        },
+        "detail": {
+          "step_count": 4,
+          "step_indices": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "entity_counts": [
+            4,
+            5,
+            5,
+            5
+          ],
+          "pages": {
+            "cited": [],
+            "ok": null,
+            "reason": "无页码可判"
+          }
+        }
+      },
+      "spec": {
+        "type": "anim_2d",
+        "title": "马来西亚构想的谈判进程推演",
+        "steps": [
+          {
+            "step_index": 0,
+            "narration": "合并构想最初的出发点是希望以更大的联邦体，平衡各地区之间的族群比例。与此同时，英国也希望借由这项安排，完成区域内的权力交接。",
+            "source_ref": "Extended Knowledge",
+            "entities": [
+              {
+                "id": "entity-0",
+                "shape": "label_box",
+                "label": "更大的联邦体",
+                "x": 320.0,
+                "y": 180.0,
+                "color": "#2563EB",
+                "details": "合并构想的核心：把多个地区纳入同一个联邦框架，以扩大联邦体量。",
+                "source_page": null
+              },
+              {
+                "id": "entity-1",
+                "shape": "label_box",
+                "label": "平衡族群比例",
+                "x": 320.0,
+                "y": 400.0,
+                "color": "#F59E0B",
+                "details": "以更大的联邦体量稀释并平衡各地区之间的族群比例，是构想的主要动机之一。",
+                "source_page": null
+              },
+              {
+                "id": "entity-2",
+                "shape": "label_box",
+                "label": "英国的权力交接",
+                "x": 720.0,
+                "y": 180.0,
+                "color": "#0EA5E9",
+                "details": "英国希望借合并安排完成区域内的权力交接，逐步退出直接管治。",
+                "source_page": null
+              },
+              {
+                "id": "entity-3",
+                "shape": "arrow",
+                "label": "推动",
+                "x": 520.0,
+                "y": 290.0,
+                "color": "#64748B",
+                "details": "英国的战略考量与本地政治力量对族群比例的顾虑，共同推动构想进入议程。",
+                "source_page": null
+              }
+            ]
+          },
+          {
+            "step_index": 1,
+            "narration": "构想进入谈判阶段后，新加坡的地位与自治安排成为最难处理的一环。各方围绕自治权限的界线反复磋商。",
+            "source_ref": "Extended Knowledge",
+            "entities": [
+              {
+                "id": "entity-0",
+                "shape": "label_box",
+                "label": "合并构想",
+                "x": 250.0,
+                "y": 140.0,
+                "color": "#2563EB",
+                "details": "构想从背景讨论转入具体谈判，位置移到画面左上方作为起点。",
+                "source_page": null
+              },
+              {
+                "id": "entity-1",
+                "shape": "arrow",
+                "label": "进入谈判",
+                "x": 420.0,
+                "y": 230.0,
+                "color": "#64748B",
+                "details": "由总体构想指向具体争议议题的推进箭头。",
+                "source_page": null
+              },
+              {
+                "id": "entity-2",
+                "shape": "label_box",
+                "label": "新加坡的地位",
+                "x": 620.0,
+                "y": 260.0,
+                "color": "#EF4444",
+                "details": "新加坡在联邦中的定位与代表性安排，是谈判中的核心争议。",
+                "source_page": null
+              },
+              {
+                "id": "entity-3",
+                "shape": "label_box",
+                "label": "自治安排",
+                "x": 620.0,
+                "y": 430.0,
+                "color": "#6366F1",
+                "details": "自治权限的范围与界限需要逐项谈定，成为谈判的难点所在。",
+                "source_page": null
+              },
+              {
+                "id": "entity-4",
+                "shape": "zone",
+                "label": "谈判难点区",
+                "x": 780.0,
+                "y": 350.0,
+                "color": "#E2E8F0",
+                "details": "新加坡地位与自治安排交汇形成的难点区域，协商耗时最长。",
+                "source_page": null
+              }
+            ]
+          },
+          {
+            "step_index": 2,
+            "narration": "比较不同地区加入联邦的条件，可以看出联邦制既有弹性，也要付出代价。各地区得到的安排并不一致。",
+            "source_ref": "Extended Knowledge",
+            "entities": [
+              {
+                "id": "entity-0",
+                "shape": "zone",
+                "label": "加入联邦条件比较",
+                "x": 500.0,
+                "y": 320.0,
+                "color": "#6366F1",
+                "details": "把各地区加入联邦的条件并列摆放，便于对照其差异。",
+                "source_page": null
+              },
+              {
+                "id": "entity-1",
+                "shape": "label_box",
+                "label": "马来亚",
+                "x": 230.0,
+                "y": 190.0,
+                "color": "#2563EB",
+                "details": "原有核心地区的地位与安排，构成比较的基准。",
+                "source_page": null
+              },
+              {
+                "id": "entity-2",
+                "shape": "label_box",
+                "label": "新加坡",
+                "x": 500.0,
+                "y": 190.0,
+                "color": "#EF4444",
+                "details": "自治安排特殊，加入条件与其他地区明显不同。",
+                "source_page": null
+              },
+              {
+                "id": "entity-3",
+                "shape": "label_box",
+                "label": "北婆罗洲与砂拉越",
+                "x": 780.0,
+                "y": 190.0,
+                "color": "#0EA5E9",
+                "details": "另一些地区的加入条件自成一套，体现安排上的差别对待。",
+                "source_page": null
+              },
+              {
+                "id": "entity-4",
+                "shape": "label_box",
+                "label": "弹性与代价",
+                "x": 500.0,
+                "y": 500.0,
+                "color": "#F59E0B",
+                "details": "条件可以因地调整，说明联邦制具有弹性；但差别安排本身也带来整合成本与代价。",
+                "source_page": null
+              }
+            ]
+          },
+          {
+            "step_index": 3,
+            "narration": "合并并非单一因素所致，而是区域安全、外部格局与本地政治协商共同作用的结果。相关时间节点虽已确定，制度磨合却一直延续到六十年代末。",
+            "source_ref": "Extended Knowledge",
+            "entities": [
+              {
+                "id": "entity-0",
+                "shape": "zone",
+                "label": "制度磨合延续至六十年代末",
+                "x": 500.0,
+                "y": 200.0,
+                "color": "#E2E8F0",
+                "details": "时间节点确定之后，制度层面的调适与磨合仍持续很长一段时间。",
+                "source_page": null
+              },
+              {
+                "id": "entity-1",
+                "shape": "circle",
+                "label": "区域安全",
+                "x": 250.0,
+                "y": 430.0,
+                "color": "#10B981",
+                "details": "区域安全考量是推动合并的重要外部条件之一。",
+                "source_page": null
+              },
+              {
+                "id": "entity-2",
+                "shape": "circle",
+                "label": "外部格局",
+                "x": 500.0,
+                "y": 430.0,
+                "color": "#0EA5E9",
+                "details": "更大的战略格局变化，为合并提供了背景压力与契机。",
+                "source_page": null
+              },
+              {
+                "id": "entity-3",
+                "shape": "circle",
+                "label": "本地政治协商",
+                "x": 750.0,
+                "y": 430.0,
+                "color": "#F59E0B",
+                "details": "各地政治力量之间的协商与妥协，决定构想能否落地。",
+                "source_page": null
+              },
+              {
+                "id": "entity-4",
+                "shape": "arrow",
+                "label": "共同作用",
+                "x": 500.0,
+                "y": 320.0,
+                "color": "#64748B",
+                "details": "三股力量汇合指向最终结果，说明合并是多重因素共同作用的产物。",
+                "source_page": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "scene-1",
+      "artifact_type": "scene_3d",
+      "returned_type": "scene_3d",
+      "query": "2.3.2 传统马来屋的结构与部件，做成 3D 场景",
+      "layout_focus": "",
+      "ok": true,
+      "error": "",
+      "llm_calls": 1,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": true,
+      "contract_error_counts": [],
+      "effective_models": [
+        "deepseek-flash"
+      ],
+      "grader_status": "SYLLABUS_MATCH",
+      "section_scope": "2.3.2",
+      "allowed_pages": [
+        30,
+        31,
+        32,
+        33,
+        35,
+        36,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47
+      ],
+      "prompt_chars": 1629,
+      "output_chars": 1846,
+      "completion_tokens": [
+        814
+      ],
+      "total_ms": 12647.0,
+      "ttft_ms": 3855.9,
+      "artifact_ms": 4925.9,
+      "quality": {
+        "checks": {
+          "node 数 3~8": true,
+          "机位数 2~4": true,
+          "node id 唯一": true,
+          "parent_id 均指向存在节点或 null": true,
+          "parent 链无环": true,
+          "至少 1 个主体（parent_id=null）": true,
+          "机位名非空且互不重复": true,
+          "annotation_markdown 非空": true
+        },
+        "passed": true,
+        "failed": [],
+        "detail": {
+          "node_count": 6,
+          "camera_count": 3,
+          "camera_names": [
+            "全景",
+            "构造细部",
+            "入口视角"
+          ],
+          "roots": 1,
+          "pages": {
+            "cited": [],
+            "ok": null,
+            "reason": "无页码可判"
+          }
+        }
+      },
+      "spec": {
+        "type": "scene_3d",
+        "title": "传统马来屋（Rumah Melayu）的结构与部件",
+        "nodes": [
+          {
+            "id": "node-0",
+            "primitive": "box",
+            "label": "高脚屋主体（Rumah Panggung）",
+            "position": [
+              0.0,
+              2.2,
+              0.0
+            ],
+            "scale": [
+              4.0,
+              2.0,
+              3.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#F59E0B",
+            "annotation_markdown": "马来屋为木构高脚屋，主体架空于地面，木构传统与当地丰富的木材资源相适应，与宗教建筑的石构工艺形成对照。",
+            "source_page": null,
+            "parent_id": null
+          },
+          {
+            "id": "node-1",
+            "primitive": "cylinder",
+            "label": "支柱（Tiang）",
+            "position": [
+              1.6,
+              1.1,
+              1.2
+            ],
+            "scale": [
+              0.25,
+              2.2,
+              0.25
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#64748B",
+            "annotation_markdown": "木柱将屋身抬离地面，防潮、防洪并通风；柱的数量与排列体现建造者的工艺传承。",
+            "source_page": null,
+            "parent_id": "node-0"
+          },
+          {
+            "id": "node-2",
+            "primitive": "box",
+            "label": "屋顶（Bumbung）",
+            "position": [
+              0.0,
+              3.9,
+              0.0
+            ],
+            "scale": [
+              4.6,
+              0.9,
+              3.4
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#EF4444",
+            "annotation_markdown": "坡屋顶出檐深远，利于遮阳避雨；屋顶形式是识别马来屋类型的重要标志。",
+            "source_page": null,
+            "parent_id": "node-0"
+          },
+          {
+            "id": "node-3",
+            "primitive": "box",
+            "label": "山墙与通风口（Tebar Layar）",
+            "position": [
+              0.0,
+              4.4,
+              1.55
+            ],
+            "scale": [
+              2.4,
+              0.7,
+              0.15
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#0EA5E9",
+            "annotation_markdown": "山墙上的雕花通风口兼具通风功能与装饰作用；建筑装饰中的纹样常具有象征意义。",
+            "source_page": null,
+            "parent_id": "node-0"
+          },
+          {
+            "id": "node-4",
+            "primitive": "box",
+            "label": "前廊（Serambi）",
+            "position": [
+              0.0,
+              2.2,
+              2.0
+            ],
+            "scale": [
+              3.2,
+              1.6,
+              1.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#10B981",
+            "annotation_markdown": "前廊是接待宾客与日常活动的半公共空间，体现马来屋由公共到私密的空间层次。",
+            "source_page": null,
+            "parent_id": "node-0"
+          },
+          {
+            "id": "node-5",
+            "primitive": "arrow_link",
+            "label": "楼梯（Tangga）",
+            "position": [
+              0.0,
+              1.0,
+              2.9
+            ],
+            "scale": [
+              0.8,
+              1.0,
+              0.9
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#6366F1",
+            "annotation_markdown": "楼梯连接地面与前廊，访客须脱鞋登屋，反映社会礼仪与空间秩序（2.1.2 Struktur Sosial）。",
+            "source_page": null,
+            "parent_id": "node-0"
+          }
+        ],
+        "camera_tour": [
+          {
+            "name": "全景",
+            "position": [
+              9.0,
+              7.0,
+              10.0
+            ],
+            "target": [
+              0.0,
+              2.2,
+              0.0
+            ],
+            "explanation": "先看整体：高脚、坡顶、前廊三段式构图。"
+          },
+          {
+            "name": "构造细部",
+            "position": [
+              5.0,
+              3.5,
+              6.0
+            ],
+            "target": [
+              0.0,
+              3.5,
+              1.2
+            ],
+            "explanation": "观察支柱、屋顶与山墙通风口的木构连接与装饰。"
+          },
+          {
+            "name": "入口视角",
+            "position": [
+              0.0,
+              2.0,
+              7.0
+            ],
+            "target": [
+              0.0,
+              1.6,
+              2.0
+            ],
+            "explanation": "从楼梯到前廊，看空间由公共向私密的过渡。"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "scene-2",
+      "artifact_type": "scene_3d",
+      "returned_type": "scene_3d",
+      "query": "2.2.2 古代港口的空间布局，3D 场景",
+      "layout_focus": "",
+      "ok": true,
+      "error": "",
+      "llm_calls": 1,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": true,
+      "contract_error_counts": [],
+      "effective_models": [
+        "deepseek-flash"
+      ],
+      "grader_status": "PARTIAL_OR_BEYOND",
+      "section_scope": "2.2.2",
+      "allowed_pages": [
+        27,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        44,
+        45
+      ],
+      "prompt_chars": 1605,
+      "output_chars": 1969,
+      "completion_tokens": [
+        1731
+      ],
+      "total_ms": 16436.6,
+      "ttft_ms": 3702.7,
+      "artifact_ms": 9657.3,
+      "quality": {
+        "checks": {
+          "node 数 3~8": true,
+          "机位数 2~4": true,
+          "node id 唯一": true,
+          "parent_id 均指向存在节点或 null": true,
+          "parent 链无环": true,
+          "至少 1 个主体（parent_id=null）": true,
+          "机位名非空且互不重复": true,
+          "annotation_markdown 非空": true
+        },
+        "passed": true,
+        "failed": [],
+        "detail": {
+          "node_count": 6,
+          "camera_count": 3,
+          "camera_names": [
+            "港口全景",
+            "神庙与王权",
+            "码头与航线"
+          ],
+          "roots": 1,
+          "pages": {
+            "cited": [],
+            "ok": null,
+            "reason": "无页码可判"
+          }
+        }
+      },
+      "spec": {
+        "type": "scene_3d",
+        "title": "古代港口的空间布局：信仰、王权与季风贸易",
+        "nodes": [
+          {
+            "id": "node-0",
+            "primitive": "terrain_plane",
+            "label": "港口地形主体",
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              12.0,
+              0.5,
+              12.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#64748B",
+            "annotation_markdown": "港口城市依海而建，是整个空间布局的基底。**风维持贸易网络，港口城市因此成为权力中心**，所以岸线、码头与内陆腹地被组织在同一个空间中。",
+            "source_page": null,
+            "parent_id": null
+          },
+          {
+            "id": "node-1",
+            "primitive": "box",
+            "label": "码头与栈桥",
+            "position": [
+              0.0,
+              0.4,
+              4.5
+            ],
+            "scale": [
+              7.0,
+              0.6,
+              1.2
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#F59E0B",
+            "annotation_markdown": "临水一线的装卸空间，是季风贸易网络与城市内部的接驳点。港口因风而兴，码头正是这一联系的物质落点。",
+            "source_page": null,
+            "parent_id": "node-0"
+          },
+          {
+            "id": "node-2",
+            "primitive": "box",
+            "label": "仓储区",
+            "position": [
+              -3.5,
+              0.9,
+              1.0
+            ],
+            "scale": [
+              2.2,
+              1.8,
+              2.2
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#E2E8F0",
+            "annotation_markdown": "紧邻码头布置的储藏与中转空间，服务于往来贸易物资，体现港口城市作为网络节点的功能。",
+            "source_page": null,
+            "parent_id": "node-0"
+          },
+          {
+            "id": "node-3",
+            "primitive": "cone",
+            "label": "宗教建筑（神庙）",
+            "position": [
+              3.2,
+              1.6,
+              -1.5
+            ],
+            "scale": [
+              2.4,
+              3.2,
+              2.4
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#2563EB",
+            "annotation_markdown": "**宗教建筑的空间布局体现宇宙观**；**王权常借助宗教符号强化合法性**。早期信仰融合了本地精灵崇拜与外来宗教体系，对立的两条线，同一个政权往往两者兼营。",
+            "source_page": null,
+            "parent_id": "node-0"
+          },
+          {
+            "id": "node-4",
+            "primitive": "cylinder",
+            "label": "碑铭与钱币出土点",
+            "position": [
+              0.5,
+              0.6,
+              -3.5
+            ],
+            "scale": [
+              1.2,
+              0.6,
+              1.2
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#10B981",
+            "annotation_markdown": "考古发现中的**陶片、碑铭与钱币**，是复原这些政权形态的主要依据；它们在港城空间中的位置，也提示了信仰与权力的分布。",
+            "source_page": null,
+            "parent_id": "node-0"
+          },
+          {
+            "id": "node-5",
+            "primitive": "arrow_link",
+            "label": "季风贸易航线",
+            "position": [
+              0.0,
+              0.5,
+              6.8
+            ],
+            "scale": [
+              4.0,
+              0.3,
+              0.8
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#0EA5E9",
+            "annotation_markdown": "指向海外的箭头表示季风驱动的航线。**风维持贸易网络，港口城市因此成为权力中心**，航线是这一布局的外向延伸。",
+            "source_page": null,
+            "parent_id": "node-0"
+          }
+        ],
+        "camera_tour": [
+          {
+            "name": "港口全景",
+            "position": [
+              14.0,
+              10.0,
+              14.0
+            ],
+            "target": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "explanation": "俯瞰整个港城：岸线在前，仓储居中，宗教建筑居于后方高地，先建立整体空间秩序。"
+          },
+          {
+            "name": "神庙与王权",
+            "position": [
+              8.0,
+              4.5,
+              -6.0
+            ],
+            "target": [
+              3.2,
+              1.6,
+              -1.5
+            ],
+            "explanation": "走近宗教建筑，观察其布局如何体现宇宙观，以及它如何借宗教符号强化王权合法性。"
+          },
+          {
+            "name": "码头与航线",
+            "position": [
+              -9.0,
+              5.0,
+              10.0
+            ],
+            "target": [
+              0.0,
+              0.5,
+              4.5
+            ],
+            "explanation": "从海面方向看码头与航线箭头，理解季风贸易网络怎样把港口城市推成权力中心。"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "scene-3",
+      "artifact_type": "scene_3d",
+      "returned_type": "scene_3d",
+      "query": "2.1.2 农耕社会的层级结构，立体模型",
+      "layout_focus": "",
+      "ok": true,
+      "error": "",
+      "llm_calls": 1,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": true,
+      "contract_error_counts": [],
+      "effective_models": [
+        "deepseek-flash"
+      ],
+      "grader_status": "SYLLABUS_MATCH",
+      "section_scope": "2.1.2",
+      "allowed_pages": [
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        39,
+        40,
+        44,
+        45,
+        46,
+        47
+      ],
+      "prompt_chars": 1649,
+      "output_chars": 2282,
+      "completion_tokens": [
+        1061
+      ],
+      "total_ms": 10827.1,
+      "ttft_ms": 2530.6,
+      "artifact_ms": 5784.7,
+      "quality": {
+        "checks": {
+          "node 数 3~8": true,
+          "机位数 2~4": true,
+          "node id 唯一": true,
+          "parent_id 均指向存在节点或 null": true,
+          "parent 链无环": true,
+          "至少 1 个主体（parent_id=null）": true,
+          "机位名非空且互不重复": true,
+          "annotation_markdown 非空": true
+        },
+        "passed": true,
+        "failed": [],
+        "detail": {
+          "node_count": 7,
+          "camera_count": 3,
+          "camera_names": [
+            "全景俯视",
+            "层级侧视",
+            "节点与证据"
+          ],
+          "roots": 1,
+          "pages": {
+            "cited": [],
+            "ok": null,
+            "reason": "无页码可判"
+          }
+        }
+      },
+      "spec": {
+        "type": "scene_3d",
+        "title": "农耕政权的社会层级结构（2.1.2 Struktur Sosial）",
+        "nodes": [
+          {
+            "id": "node-0",
+            "primitive": "terrain_plane",
+            "label": "土地与河流基底",
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "scale": [
+              10.0,
+              1.0,
+              10.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#64748B",
+            "annotation_markdown": "农业社会的等级结构通常由**土地与劳役关系**决定。土地是最根本的资源，谁掌握土地，谁就掌握人力与剩余的支配权。",
+            "source_page": null,
+            "parent_id": null
+          },
+          {
+            "id": "node-1",
+            "primitive": "box",
+            "label": "统治阶层（土地支配者）",
+            "position": [
+              0.0,
+              2.6,
+              0.0
+            ],
+            "scale": [
+              2.2,
+              1.0,
+              2.2
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#2563EB",
+            "annotation_markdown": "居于顶端者为土地与劳役关系的支配者。等级流动有限，但专业技能群体享有一定地位，说明层级并非完全封闭。",
+            "source_page": null,
+            "parent_id": "node-0"
+          },
+          {
+            "id": "node-2",
+            "primitive": "box",
+            "label": "劳役承担者（农耕社群）",
+            "position": [
+              0.0,
+              1.2,
+              0.0
+            ],
+            "scale": [
+              3.4,
+              1.4,
+              3.4
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#E2E8F0",
+            "annotation_markdown": "基层为以劳役换取的耕作群体，构成政权的人力与粮食基础。其位置处于土地之上、统治层之下。",
+            "source_page": null,
+            "parent_id": "node-0"
+          },
+          {
+            "id": "node-3",
+            "primitive": "cylinder",
+            "label": "寺庙：宗教中心兼仓储与行政节点",
+            "position": [
+              3.2,
+              1.6,
+              2.4
+            ],
+            "scale": [
+              0.9,
+              3.2,
+              0.9
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#F59E0B",
+            "annotation_markdown": "寺庙既是宗教中心，也是**仓储与行政节点**，把信仰、物资与治理集中在一处，是层级结构中的关键枢纽。",
+            "source_page": null,
+            "parent_id": "node-0"
+          },
+          {
+            "id": "node-4",
+            "primitive": "arrow_link",
+            "label": "劳役与剩余物流向",
+            "position": [
+              0.0,
+              1.9,
+              0.0
+            ],
+            "scale": [
+              1.0,
+              2.4,
+              1.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#EF4444",
+            "annotation_markdown": "自下而上的劳役与剩余产品流动，构成等级之间的实际联结。连接方向即权力方向。",
+            "source_page": null,
+            "parent_id": "node-1"
+          },
+          {
+            "id": "node-5",
+            "primitive": "cylinder",
+            "label": "港口城市（权力中心）",
+            "position": [
+              -3.4,
+              1.2,
+              -2.8
+            ],
+            "scale": [
+              0.7,
+              2.4,
+              0.7
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#0EA5E9",
+            "annotation_markdown": "政权依靠河流与季风维持贸易网络，港口城市因此成为权力中心。贸易并非与农业对立的两条线，同一政权往往两者兼营。",
+            "source_page": null,
+            "parent_id": "node-0"
+          },
+          {
+            "id": "node-6",
+            "primitive": "sphere",
+            "label": "陶片、碑铭与钱币（复原依据）",
+            "position": [
+              -1.6,
+              0.5,
+              3.4
+            ],
+            "scale": [
+              0.35,
+              0.35,
+              0.35
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "color": "#6366F1",
+            "annotation_markdown": "陶片、碑铭与钱币，是复原这些政权形态的主要依据。模型中的层级关系，正是由这类实物证据推回而来。",
+            "source_page": null,
+            "parent_id": "node-0"
+          }
+        ],
+        "camera_tour": [
+          {
+            "name": "全景俯视",
+            "position": [
+              11.0,
+              9.0,
+              11.0
+            ],
+            "target": [
+              0.0,
+              1.5,
+              0.0
+            ],
+            "explanation": "先看整体：土地基底、居中的层级堆叠，以及环绕的寺庙与港口节点。"
+          },
+          {
+            "name": "层级侧视",
+            "position": [
+              7.0,
+              3.0,
+              0.0
+            ],
+            "target": [
+              0.0,
+              1.8,
+              0.0
+            ],
+            "explanation": "从侧面观察上中下三层的堆叠顺序，理解土地与劳役关系决定的等级序列。"
+          },
+          {
+            "name": "节点与证据",
+            "position": [
+              5.5,
+              4.5,
+              -5.0
+            ],
+            "target": [
+              -1.0,
+              1.0,
+              0.5
+            ],
+            "explanation": "拉近看寺庙、港口与陶片碑铭钱币，说明权力节点与复原依据之间的关系。"
+          }
+        ]
+      }
+    }
+  ]
+}

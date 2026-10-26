@@ -172,7 +172,13 @@ python scripts/make_sample_pdf.py
 | `LLM_BASE_URL` | `https://api.openai.com/v1` | OpenAI 兼容端点（DeepSeek / 通义 / 本地 vLLM 都行） |
 | `LLM_API_KEY` | 空 | **留空则进入演示模式**（内置确定性生成器），全链路仍可跑通 |
 | `LLM_MODEL_ROUTER` | `gpt-4o-mini` | 轻量任务（路由/评估/答疑） |
-| `LLM_MODEL_GENERATOR` | `gpt-4o` | 复杂 JSON AST 生成 |
+| `LLM_MODEL_ARTIFACT` | `deepseek-flash` | 产物（结构化 AST）生成档位。**留空 = 跟随 `LLM_MODEL_GENERATOR`**（换档前行为）。实测契约通过率与重档相同、耗时 55.5s→10.1s |
+| `LLM_MODEL_ARTIFACT_BY_TYPE` | 空 | 分形态覆盖，如 `anim_2d=deepseek-v4-pro,scene_3d=deepseek-v4-pro`；键只能是 `ppt`/`anim_2d`/`scene_3d`，拼错启动即报错 |
+| `LLM_MODEL_GENERATOR` | `gpt-4o` | 重档：`LLM_MODEL_ARTIFACT` 的回退目标，也是将来更复杂任务的落点 |
+| `ARTIFACT_PARALLEL_ENABLED` | `true` | 关闭后回到串行路径（正文流完再生成产物） |
+| `ARTIFACT_FORK_MODE` | `after_first_token` | 产物请求的 fork 时刻；`immediate` 需 A/B 通过才可启用 |
+| `ARTIFACT_MAX_CONCURRENCY` | `8` | 进程内产物 LLM 并发安全阀（`0` = 不限） |
+| `ARTIFACT_RATE_LIMIT_RETRY` | `1` | 产物侧遇 429 时，**正文结束之后**的串行重试次数（`0` = 直接降级演示生成器） |
 | `GRADER_CONTENT_HIT_MIN_RATIO` | `0.45` | 实词命中率门槛，低于它判「课本未覆盖」。**换教材要重标** |
 | `MAX_UPLOAD_MB` | 50 | 上传体积上限 |
 | `MAX_PDF_PAGES` | 600 | 单份 PDF 页数上限 |

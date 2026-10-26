@@ -1,0 +1,131 @@
+{
+  "environment": {
+    "base_url": "https://api.deepseek.com/v1",
+    "router_model": "deepseek-flash",
+    "generator_model": "deepseek-v4-pro",
+    "timeout_seconds": 300.0,
+    "max_retries": 3,
+    "retrieval_top_k": 8,
+    "embedding_mode": "local"
+  },
+  "corpus": {
+    "pdf": "sample_textbook.pdf",
+    "pages": 113,
+    "chunks": 65,
+    "ingest_ms": 340.9
+  },
+  "query": "4.1 Malayan Union 对苏丹的影响，梳理成一份课件",
+  "runs": 0,
+  "stages": {
+    "1. 检索 + 相关性评估": {
+      "median": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "n": 0
+    },
+    "2. 形态路由": {
+      "median": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "n": 0
+    },
+    "3. 正文流式输出": {
+      "median": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "n": 0
+    },
+    "4. 产物生成（LLM complete_json）": {
+      "median": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "n": 0
+    },
+    "5. 引用汇总 + 后校验": {
+      "median": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "n": 0
+    },
+    "6. 落库 + 收尾": {
+      "median": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "n": 0
+    }
+  },
+  "total": {
+    "median": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "n": 0
+  },
+  "ttft": {
+    "median": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "n": 0
+  },
+  "reply_stream": {
+    "median": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "n": 0
+  },
+  "artifact_stream": {
+    "median": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "n": 0
+  },
+  "contract_chars": 1395,
+  "turns": [],
+  "probes": [
+    {
+      "label": "5 页 / 默认 effort",
+      "status_code": 200,
+      "error": "",
+      "model": "deepseek-v4-pro",
+      "effort": null,
+      "prompt_chars": 1999,
+      "headers_ms": 518.9,
+      "ttft_ms": 37168.8,
+      "decode_ms": 5334.3,
+      "total_ms": 42511.3,
+      "reasoning_ms": 35991.0,
+      "reasoning_chars": 6782,
+      "reasoning_chunks": 3172,
+      "output_chars": 1914,
+      "chunk_count": 789,
+      "prompt_tokens": 1005,
+      "completion_tokens": 3961,
+      "tokens_per_sec": 742.55,
+      "contract_ok": true,
+      "slide_count": 5,
+      "output_json_chars": 2059
+    },
+    {
+      "label": "5 页 / effort=low",
+      "status_code": 200,
+      "error": "",
+      "model": "deepseek-v4-pro",
+      "effort": "low",
+      "prompt_chars": 1999,
+      "headers_ms": 324.3,
+      "ttft_ms": 50081.4,
+      "decode_ms": 7688.4,
+      "total_ms": 57824.3,
+      "reasoning_ms": 49457.4,
+      "reasoning_chars": 10590,
+      "reasoning_chunks": 4728,
+      "output_chars": 3250,
+      "chunk_count": 1187,
+      "prompt_tokens": 1005,
+      "completion_tokens": 5915,
+      "tokens_per_sec": 769.34,
+      "contract_ok": true,
+      "slide_count": 6,
+      "output_json_chars": 2426
+    }
+  ]
+}

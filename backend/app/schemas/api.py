@@ -200,9 +200,18 @@ def artifact_out(artifact: Any, *, spec: dict[str, Any] | None = None, version: 
     """`spec`/`version` 可覆盖：查看历史版本时用版本行里的 spec，而元信息仍取 artifact 行。
 
     spec 一律经 `canonical_tree` 规范化（键排序 + 深拷贝），依据 IMPL-NOTES §E8：
-    1. 与 SSE 的 `artifact` 事件（`canonical_json`，sort_keys=True）字节一致 —— 同一份内容
-       在任何出口都是同一串字节，客户端做等值比较不会被键序坑；
+    1. 与 SSE 的 `artifact` 事件（`canonical_json`，sort_keys=True）**键序**一致 ——
+       客户端做等值比较不会被键序坑；
     2. 深拷贝让 DTO 与 ORM 对象解耦，读接口不可能反向污染 session 里的历史版本行。
+
+    **但「键序一致」不等于「逐字节一致」**（QA 2026-10-26 实测，IMPL-NOTES E12 ⑦ 第 4 条）：
+    SSE 的 `spec` 是 pydantic 联合模型，序列化会把 `position: [0, 1, 0]` 变成
+    `[0.0, 1.0, 0.0]`；而这里直接透传库里存的原始 dict（`canonical_tree` 只排键、不做类型
+    归一化）。所以 `position` / `scale` / `rotation` / `target` / 2D 的 `x` `y` 这类 float
+    字段，两个出口的**文本表示**可能不同（值相同）。前端是 JS，`JSON.stringify` 对二者
+    输出相同，**用户不可见**；`ArtifactEvent` 也不带 fingerprint，所以不影响 P0-10② 与
+    指纹自检。要真正逐字节一致，得让落库前先过 `model_dump()` —— 但那会按字段声明顺序
+    重排键，与「保持键序」的既有约定冲突，不值得为一条用户看不见的差异去动。
     """
     return ArtifactOut(
         id=artifact.id,

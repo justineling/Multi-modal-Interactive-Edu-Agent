@@ -1,0 +1,1342 @@
+{
+  "environment": {
+    "base_url": "https://api.deepseek.com/v1",
+    "router_model": "deepseek-flash",
+    "env_generator_model": "deepseek-v4-pro",
+    "effective_generator_model": "deepseek-flash",
+    "timeout_seconds": 300.0
+  },
+  "corpus": {
+    "pdf": "sample_textbook.pdf",
+    "pages": 113,
+    "chunks": 65
+  },
+  "executed_turns": 5,
+  "planned_turns": 5,
+  "aborted": "",
+  "summaries": {
+    "ppt": {
+      "artifact_type": "ppt",
+      "turns": 5,
+      "total_calls": 5,
+      "valid_calls": 5,
+      "failed_calls": 0,
+      "calls_consistent": true,
+      "call_valid_rate": 1.0,
+      "turn_pass_rate": 1.0,
+      "mock_fallback_rate": 0.0,
+      "quality_pass_rate": 1.0,
+      "retried_turns": 0,
+      "not_generated": 0,
+      "not_generated_cases": [],
+      "failed_check_items": {},
+      "artifact_ms": {
+        "median": 9555.7,
+        "min": 6511.3,
+        "max": 14387.1,
+        "n": 5
+      },
+      "total_ms": {
+        "median": 16118.3,
+        "min": 10055.0,
+        "max": 20885.0,
+        "n": 5
+      },
+      "effective_models": [
+        "deepseek-flash"
+      ]
+    },
+    "anim_2d": {},
+    "scene_3d": {}
+  },
+  "page_anchor_g3": {
+    "before": {
+      "total": 30,
+      "real": 30,
+      "fabricated": 0,
+      "missing": 0,
+      "real_rate": 1.0,
+      "fabricated_rate": 0.0,
+      "missing_rate": 0.0,
+      "distinct_pages_avg": 1.2,
+      "max_same_page_ratio_avg": 0.933,
+      "max_same_page_ratio_max": 1.0,
+      "decks": 5
+    },
+    "after": {
+      "total": 30,
+      "real": 30,
+      "fabricated": 0,
+      "missing": 0,
+      "real_rate": 1.0,
+      "fabricated_rate": 0.0,
+      "missing_rate": 0.0,
+      "distinct_pages_avg": 1.2,
+      "max_same_page_ratio_avg": 0.933,
+      "max_same_page_ratio_max": 1.0,
+      "decks": 5
+    },
+    "clamped_total": 0,
+    "clamped_turns": 0,
+    "turns": 5
+  },
+  "verdict": {
+    "verdict": "pass",
+    "headline": "结论：`deepseek-flash` 可以作为默认 generator（三形态全部达标）",
+    "reasons": [
+      "ppt：单次合法率 100%、回合通过率 100%、降级 mock 率 0%、质量通过率 100%（5 回合 / 5 次调用）"
+    ],
+    "conditions": []
+  },
+  "cases": [
+    {
+      "case_id": "ppt-1",
+      "artifact_type": "ppt",
+      "returned_type": "ppt",
+      "query": "4.1.2 苏丹的权力被削减，前后对比一下",
+      "layout_focus": "comparison",
+      "ok": true,
+      "error": "",
+      "llm_calls": 1,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": true,
+      "contract_error_counts": [],
+      "effective_models": [
+        "deepseek-flash"
+      ],
+      "grader_status": "SYLLABUS_MATCH",
+      "section_scope": "4.1.2",
+      "allowed_pages": [
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        88,
+        89
+      ],
+      "prompt_chars": 2444,
+      "output_chars": 2782,
+      "completion_tokens": [
+        1196
+      ],
+      "total_ms": 14275.8,
+      "ttft_ms": 4342.6,
+      "artifact_ms": 7072.9,
+      "page_clamped": 0,
+      "page_before": {
+        "total": 6,
+        "real": 6,
+        "fabricated": 0,
+        "missing": 0,
+        "real_rate": 1.0,
+        "fabricated_rate": 0.0,
+        "missing_rate": 0.0,
+        "distinct_pages": 1,
+        "max_same_page_ratio": 1.0
+      },
+      "page_after": {
+        "total": 6,
+        "real": 6,
+        "fabricated": 0,
+        "missing": 0,
+        "real_rate": 1.0,
+        "fabricated_rate": 0.0,
+        "missing_rate": 0.0,
+        "distinct_pages": 1,
+        "max_same_page_ratio": 1.0
+      },
+      "quality": {
+        "checks": {
+          "页数 5~8": true,
+          "首页 title_hero": true,
+          "末页 quiz": true,
+          "中间页 ≥3 种布局": true,
+          "bullet_points 页 3~5 条": true,
+          "timeline 页 ≥2 条": true,
+          "comparison 页左右各 2~4 条": true,
+          "quiz 页 ≥2 题": true,
+          "node_id 唯一且非空": true,
+          "speaker_notes 非空且非模板句": true,
+          "source_ref 页码可回溯且真实": true
+        },
+        "passed": true,
+        "failed": [],
+        "detail": {
+          "slide_count": 6,
+          "layouts": [
+            "title_hero",
+            "comparison",
+            "bullet_points",
+            "cause_effect",
+            "timeline",
+            "quiz"
+          ],
+          "middle_layouts": [
+            "bullet_points",
+            "cause_effect",
+            "comparison",
+            "timeline"
+          ],
+          "pages": {
+            "cited": [
+              74
+            ],
+            "bad": [],
+            "ok": true,
+            "allowed_min": 72,
+            "allowed_max": 89
+          }
+        }
+      },
+      "spec": {
+        "type": "ppt",
+        "topic": "4.1.2 苏丹的权力被削减：Malayan Union 前后的对比",
+        "slides": [
+          {
+            "node_id": "slide-1",
+            "layout": "title_hero",
+            "title": "4.1.2 苏丹的权力被削减：Malayan Union 前后的对比",
+            "subtitle": "4.1.2 Kuasa Sultan",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "在 Malayan Union 宪制下，苏丹只保留了宗教与习俗事务的权限，政治权力被大幅削减。这一节的重点，就是看清苏丹在宪制安排中从统治者变成受制于英国总督的角色。",
+            "source_ref": "4.1.2, p.74"
+          },
+          {
+            "node_id": "slide-2",
+            "layout": "comparison",
+            "title": "苏丹权力：Malayan Union 之前 vs 之后",
+            "subtitle": "制度安排上的前后落差",
+            "bullets": [],
+            "comparison_left": [
+              "苏丹是州内实质的最高统治权威",
+              "对州务拥有实质否决权",
+              "各州主权由苏丹掌握"
+            ],
+            "comparison_right": [
+              "仅保留宗教与习俗事务的权限",
+              "不再拥有对州务的实质否决权",
+              "各州主权被移交给英国总督"
+            ],
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "对比要抓两点：一是权限范围缩小，只剩宗教与习俗事务；二是实质否决权消失。各州主权移交给英国总督，苏丹在政治上的地位因此被架空。",
+            "source_ref": "4.1.2, p.74"
+          },
+          {
+            "node_id": "slide-3",
+            "layout": "bullet_points",
+            "title": "削减体现在哪里",
+            "subtitle": "读宪制文本要盯住措辞",
+            "bullets": [
+              "苏丹仅保留宗教与习俗事务的权限",
+              "政治权力被大幅削减",
+              "苏丹不再拥有对州务的实质否决权",
+              "各州主权被移交给英国总督"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "这四点其实是一条链：权限被限定在宗教与习俗，政治权力随之削减，否决权被拿掉，主权转到英国总督手上。宪法文本里的每一处措辞变化，背后都有制度含义。",
+            "source_ref": "4.1.2, p.74"
+          },
+          {
+            "node_id": "slide-4",
+            "layout": "cause_effect",
+            "title": "权力削减带来的连锁反应",
+            "subtitle": "先制度安排，再看社会反应",
+            "bullets": [
+              "制度安排：苏丹权限限于宗教与习俗，各州主权归英国总督",
+              "社会反应：非马来人人口结构面临改变",
+              "公民权采属地原则，宽松的归化条件使非马来人人口结构面临改变"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "制度安排先讲清楚，再看社会层面：公民权采属地原则，宽松的归化条件使非马来人人口结构面临改变。考试作答时按制度安排、社会反应、影响三层来写，层次分明才拿高分。",
+            "source_ref": "4.1.2, p.74"
+          },
+          {
+            "node_id": "slide-5",
+            "layout": "timeline",
+            "title": "从苏丹主权到英国总督",
+            "subtitle": "权力转移的先后顺序",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": [
+              {
+                "year": "之前",
+                "label": "苏丹掌握州内主权",
+                "detail": "苏丹对州务拥有实质否决权，是州内的统治权威。",
+                "source_page": 74
+              },
+              {
+                "year": "之后",
+                "label": "权限缩至宗教与习俗",
+                "detail": "在 Malayan Union 宪制下，苏丹仅保留宗教与习俗事务的权限，政治权力被大幅削减。",
+                "source_page": 74
+              },
+              {
+                "year": "结果",
+                "label": "主权移交英国总督",
+                "detail": "苏丹不再拥有对州务的实质否决权，各州主权被移交给英国总督。",
+                "source_page": 74
+              }
+            ],
+            "quiz_questions": null,
+            "speaker_notes": "这三步是一条单向的权力转移线：主权在苏丹手上，被限缩到宗教与习俗，最后落到英国总督手里。学生要把先后顺序和每一步的具体内容对上。",
+            "source_ref": "4.1.2, p.74"
+          },
+          {
+            "node_id": "slide-6",
+            "layout": "quiz",
+            "title": "检查理解：苏丹权力前后对比",
+            "subtitle": "两题检验掌握程度",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": [
+              {
+                "question": "在 Malayan Union 宪制下，苏丹保留哪方面的权限？",
+                "options": [
+                  "宗教与习俗事务",
+                  "州务的实质否决权",
+                  "各州主权与外交"
+                ],
+                "answer_index": 0,
+                "explanation": "课本指出苏丹仅保留宗教与习俗事务的权限，政治权力被大幅削减。"
+              },
+              {
+                "question": "苏丹原本对州务拥有的实质否决权，在 Malayan Union 下如何变化？",
+                "options": [
+                  "扩大到所有州务",
+                  "不再拥有",
+                  "只限于财政事务"
+                ],
+                "answer_index": 1,
+                "explanation": "苏丹不再拥有对州务的实质否决权，各州主权被移交给英国总督。"
+              }
+            ],
+            "speaker_notes": "做题时先回忆制度安排的两个关键词：宗教与习俗事务、实质否决权。答完再追问一句主权去了哪里，学生应能答出移交给英国总督。",
+            "source_ref": "4.1.2, p.74"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "ppt-2",
+      "artifact_type": "ppt",
+      "returned_type": "ppt",
+      "query": "4.2.1 从联合邦成立到 1957 年独立的时间线",
+      "layout_focus": "timeline",
+      "ok": true,
+      "error": "",
+      "llm_calls": 1,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": true,
+      "contract_error_counts": [],
+      "effective_models": [
+        "deepseek-flash"
+      ],
+      "grader_status": "PARTIAL_OR_BEYOND",
+      "section_scope": "4.2.1",
+      "allowed_pages": [
+        70,
+        76,
+        77,
+        78,
+        79,
+        80,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91
+      ],
+      "prompt_chars": 2502,
+      "output_chars": 3395,
+      "completion_tokens": [
+        2054
+      ],
+      "total_ms": 16118.3,
+      "ttft_ms": 4076.9,
+      "artifact_ms": 10332.8,
+      "page_clamped": 0,
+      "page_before": {
+        "total": 6,
+        "real": 6,
+        "fabricated": 0,
+        "missing": 0,
+        "real_rate": 1.0,
+        "fabricated_rate": 0.0,
+        "missing_rate": 0.0,
+        "distinct_pages": 2,
+        "max_same_page_ratio": 0.667
+      },
+      "page_after": {
+        "total": 6,
+        "real": 6,
+        "fabricated": 0,
+        "missing": 0,
+        "real_rate": 1.0,
+        "fabricated_rate": 0.0,
+        "missing_rate": 0.0,
+        "distinct_pages": 2,
+        "max_same_page_ratio": 0.667
+      },
+      "quality": {
+        "checks": {
+          "页数 5~8": true,
+          "首页 title_hero": true,
+          "末页 quiz": true,
+          "中间页 ≥3 种布局": true,
+          "bullet_points 页 3~5 条": true,
+          "timeline 页 ≥2 条": true,
+          "comparison 页左右各 2~4 条": true,
+          "quiz 页 ≥2 题": true,
+          "node_id 唯一且非空": true,
+          "speaker_notes 非空且非模板句": true,
+          "source_ref 页码可回溯且真实": true
+        },
+        "passed": true,
+        "failed": [],
+        "detail": {
+          "slide_count": 6,
+          "layouts": [
+            "title_hero",
+            "bullet_points",
+            "comparison",
+            "cause_effect",
+            "timeline",
+            "quiz"
+          ],
+          "middle_layouts": [
+            "bullet_points",
+            "cause_effect",
+            "comparison",
+            "timeline"
+          ],
+          "pages": {
+            "cited": [
+              79,
+              85
+            ],
+            "bad": [],
+            "ok": true,
+            "allowed_min": 70,
+            "allowed_max": 91
+          }
+        }
+      },
+      "spec": {
+        "type": "ppt",
+        "topic": "从马来亚联合邦到1957年独立",
+        "slides": [
+          {
+            "node_id": "slide-1",
+            "layout": "title_hero",
+            "title": "从马来亚联合邦到1957年独立",
+            "subtitle": "4.2.1 Penubuhan Persekutuan 与走向独立的路上",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "本章是全书重点：从 Malayan Union 到马来亚联合邦，再到 1957 年独立。这一节先看 1948 年联合邦的成立，再看 1955 年选举和 1956 年伦敦谈判这两个通向独立的关键节点。",
+            "source_ref": "4.2.1, p.79"
+          },
+          {
+            "node_id": "slide-2",
+            "layout": "bullet_points",
+            "title": "1948 年 2 月 1 日：马来亚联合邦成立",
+            "subtitle": "Persekutuan Tanah Melayu",
+            "bullets": [
+              "马来亚联合邦于 1948 年 2 月 1 日正式成立",
+              "由英国驻最高专员与各州苏丹共同治理",
+              "恢复了苏丹在州务上的权力",
+              "Malayan Union 的中央集权被部分撤回"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "1948 年 2 月 1 日，马来亚联合邦成立，治理方式是由英国驻最高专员与各州苏丹共同治理。与 Malayan Union 不同，它恢复了苏丹在州务上的权力，把原来的中央集权部分撤回。",
+            "source_ref": "4.2.1, p.79"
+          },
+          {
+            "node_id": "slide-3",
+            "layout": "comparison",
+            "title": "Malayan Union 与马来亚联合邦的差别",
+            "subtitle": "制度安排上的收回与恢复",
+            "bullets": [],
+            "comparison_left": [
+              "中央集权色彩浓厚",
+              "苏丹在州务上的权力被削弱",
+              "权力集中于中央"
+            ],
+            "comparison_right": [
+              "英国驻最高专员与各州苏丹共同治理",
+              "苏丹在州务上的权力得到恢复",
+              "Malayan Union 的中央集权被部分撤回"
+            ],
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "把两边对照着看就清楚：Malayan Union 走的是中央集权、削弱苏丹州务权力的方向；联合邦则改由最高专员与苏丹共同治理，并把苏丹的权力恢复回来。这些措辞与制度的变化，背后都是各方力量对比的结果。",
+            "source_ref": "4.2.1, p.79"
+          },
+          {
+            "node_id": "slide-4",
+            "layout": "cause_effect",
+            "title": "措辞变化的背后：力量对比的结果",
+            "subtitle": "为什么从 Malayan Union 走向联合邦",
+            "bullets": [
+              "处措辞变化，背后都是各方力量对比的结果",
+              "苏丹在州务上的权力被恢复",
+              "Malayan Union 的中央集权被部分撤回",
+              "治理形式改为最高专员与苏丹共同治理"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "课本特别提醒：处措辞变化，背后都是各方力量对比的结果。所以联合邦不是单纯的名称更换，它恢复苏丹在州务上的权力、部分撤回 Malayan Union 的中央集权，都是力量博弈落到制度条文上的体现。",
+            "source_ref": "4.2.1, p.79"
+          },
+          {
+            "node_id": "slide-5",
+            "layout": "timeline",
+            "title": "从联合邦到独立的时间线",
+            "subtitle": "4.3 Jalan ke Arah Kemerdekaan",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": [
+              {
+                "year": "1948",
+                "label": "马来亚联合邦成立",
+                "detail": "1948 年 2 月 1 日成立，由英国驻最高专员与各州苏丹共同治理",
+                "source_page": 79
+              },
+              {
+                "year": "1955",
+                "label": "选举",
+                "detail": "从联合邦走向独立的关键节点之一",
+                "source_page": 85
+              },
+              {
+                "year": "1956",
+                "label": "伦敦谈判",
+                "detail": "与 1955 年选举并列为通往独立的关键节点",
+                "source_page": 85
+              },
+              {
+                "year": "1957",
+                "label": "独立",
+                "detail": "本章脉络的终点：从 Malayan Union 到联合邦，再到 1957 年独立",
+                "source_page": 85
+              }
+            ],
+            "quiz_questions": null,
+            "speaker_notes": "把时间线连起来看：1948 年 2 月 1 日联合邦成立，之后从联合邦到独立的关键节点是 1955 年选举与 1956 年伦敦谈判，终点是 1957 年独立。这条线索正是本章从 Malayan Union 到联合邦、再到独立的整体脉络。",
+            "source_ref": "4.3, p.85"
+          },
+          {
+            "node_id": "slide-6",
+            "layout": "quiz",
+            "title": "随堂检测：时间线与关键节点",
+            "subtitle": "检查对 1948、1955、1956、1957 的掌握",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": [
+              {
+                "question": "马来亚联合邦何时成立？",
+                "options": [
+                  "1946 年 2 月 1 日",
+                  "1948 年 2 月 1 日",
+                  "1955 年",
+                  "1957 年"
+                ],
+                "answer_index": 1,
+                "explanation": "马来亚联合邦于 1948 年 2 月 1 日成立，由英国驻最高专员与各州苏丹共同治理。"
+              },
+              {
+                "question": "从联合邦走向独立，课本指出的关键节点是？",
+                "options": [
+                  "1946 年 Malayan Union 的提出",
+                  "1948 年联合邦成立",
+                  "1955 年选举与 1956 年伦敦谈判",
+                  "1957 年独立本身"
+                ],
+                "answer_index": 2,
+                "explanation": "从联合邦到独立，关键节点是 1955 年选举与 1956 年伦敦谈判，最终走到 1957 年独立。"
+              },
+              {
+                "question": "联合邦与 Malayan Union 相比，在苏丹权力方面发生了什么变化？",
+                "options": [
+                  "苏丹在州务上的权力被完全取消",
+                  "苏丹在州务上的权力得到恢复",
+                  "苏丹权力转移到最高专员且不再恢复",
+                  "没有任何变化"
+                ],
+                "answer_index": 1,
+                "explanation": "联合邦恢复了苏丹在州务上的权力，Malayan Union 的中央集权被部分撤回。"
+              }
+            ],
+            "speaker_notes": "这三题分别考成立日期、走向独立的关键节点，以及苏丹权力的恢复。答题时提醒学生：1948 年是联合邦成立，1955 年选举与 1956 年伦敦谈判才是通向 1957 年独立的关键节点。",
+            "source_ref": "4.3, p.85"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "ppt-3",
+      "artifact_type": "ppt",
+      "returned_type": "ppt",
+      "query": "5.1.1 马来西亚构想的背景要点",
+      "layout_focus": "bullet_points",
+      "ok": true,
+      "error": "",
+      "llm_calls": 1,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": true,
+      "contract_error_counts": [],
+      "effective_models": [
+        "deepseek-flash"
+      ],
+      "grader_status": "SYLLABUS_MATCH",
+      "section_scope": "5.1.1",
+      "allowed_pages": [
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        101,
+        102,
+        105,
+        106,
+        108,
+        109
+      ],
+      "prompt_chars": 2392,
+      "output_chars": 2738,
+      "completion_tokens": [
+        1101
+      ],
+      "total_ms": 10055.0,
+      "ttft_ms": 2319.5,
+      "artifact_ms": 6511.3,
+      "page_clamped": 0,
+      "page_before": {
+        "total": 6,
+        "real": 6,
+        "fabricated": 0,
+        "missing": 0,
+        "real_rate": 1.0,
+        "fabricated_rate": 0.0,
+        "missing_rate": 0.0,
+        "distinct_pages": 1,
+        "max_same_page_ratio": 1.0
+      },
+      "page_after": {
+        "total": 6,
+        "real": 6,
+        "fabricated": 0,
+        "missing": 0,
+        "real_rate": 1.0,
+        "fabricated_rate": 0.0,
+        "missing_rate": 0.0,
+        "distinct_pages": 1,
+        "max_same_page_ratio": 1.0
+      },
+      "quality": {
+        "checks": {
+          "页数 5~8": true,
+          "首页 title_hero": true,
+          "末页 quiz": true,
+          "中间页 ≥3 种布局": true,
+          "bullet_points 页 3~5 条": true,
+          "timeline 页 ≥2 条": true,
+          "comparison 页左右各 2~4 条": true,
+          "quiz 页 ≥2 题": true,
+          "node_id 唯一且非空": true,
+          "speaker_notes 非空且非模板句": true,
+          "source_ref 页码可回溯且真实": true
+        },
+        "passed": true,
+        "failed": [],
+        "detail": {
+          "slide_count": 6,
+          "layouts": [
+            "title_hero",
+            "bullet_points",
+            "cause_effect",
+            "comparison",
+            "bullet_points",
+            "quiz"
+          ],
+          "middle_layouts": [
+            "bullet_points",
+            "cause_effect",
+            "comparison"
+          ],
+          "pages": {
+            "cited": [
+              94
+            ],
+            "bad": [],
+            "ok": true,
+            "allowed_min": 92,
+            "allowed_max": 109
+          }
+        }
+      },
+      "spec": {
+        "type": "ppt",
+        "topic": "5.1.1 Latar Belakang Idea：马来西亚构想的背景",
+        "slides": [
+          {
+            "node_id": "slide-1",
+            "layout": "title_hero",
+            "title": "5.1.1 Latar Belakang Idea：马来西亚构想的背景",
+            "subtitle": "5.1.1",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "本节讨论马来西亚构想提出的背景：合并希望以一个更大的联邦体来平衡族群比例，同时英国也希望借此完成区域内的权力交接。构想并非单一因素促成，而是战后格局、区域安全与本地政治协商共同作用的结果。",
+            "source_ref": "5.1.1, p.94"
+          },
+          {
+            "node_id": "slide-2",
+            "layout": "bullet_points",
+            "title": "构想的两大推动力",
+            "subtitle": "平衡族群比例与权力交接",
+            "bullets": [
+              "合并构想希望以更大的联邦体平衡族群比例",
+              "英国希望借此完成区域内的权力交接",
+              "构想是战后格局、区域安全与本地政治协商共同作用的结果",
+              "制度磨合并未随构想提出而结束，一直延续到六十年代末"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "推动合并的直接考虑有两条：一是通过更大的联邦体来平衡族群比例，二是英国希望借此完成区域内的权力交接。要强调构想是战后格局、区域安全与本地政治协商共同作用的结果，不是单一原因造成。",
+            "source_ref": "5.1.1, p.94"
+          },
+          {
+            "node_id": "slide-3",
+            "layout": "cause_effect",
+            "title": "多重成因与后续影响",
+            "subtitle": "战后格局、区域安全与本地政治协商",
+            "bullets": [
+              "成因：战后格局与区域安全的考量",
+              "成因：本地政治协商与族群比例的平衡",
+              "影响：英国借合并完成区域内权力交接",
+              "影响：制度磨合延续到六十年代末"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "把背景拆成成因与影响两层：成因包括战后格局、区域安全与本地政治协商；影响方面，英国借此完成权力交接，而制度磨合一直延续到六十年代末。这样学生能看清构想与现实落地之间的落差。",
+            "source_ref": "5.1.1, p.94"
+          },
+          {
+            "node_id": "slide-4",
+            "layout": "comparison",
+            "title": "联邦制的弹性与代价",
+            "subtitle": "比较不同地区加入联邦的条件",
+            "bullets": [],
+            "comparison_left": [
+              "比较不同地区加入联邦的条件",
+              "能看清联邦制的弹性"
+            ],
+            "comparison_right": [
+              "新加坡的地位与自治安排是谈判难点",
+              "弹性之外也要付出代价"
+            ],
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "课本建议比较不同地区加入联邦的条件，这样才能看清联邦制的弹性与代价。新加坡的地位与自治安排正是谈判中的难点，说明各地区的加入条件并不一致。",
+            "source_ref": "5.1.1, p.94"
+          },
+          {
+            "node_id": "slide-5",
+            "layout": "bullet_points",
+            "title": "谈判难点与时间跨度",
+            "subtitle": "从提出到制度磨合",
+            "bullets": [
+              "新加坡的地位与自治安排是谈判难点",
+              "构想有其时间节点，但制度磨合一直延续到六十年代末",
+              "比较不同地区加入联邦的条件，能看清联邦制的弹性与代价"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "谈判的难点集中在新加坡的地位与自治安排上。构想有明确的时间节点，但制度磨合并未随之结束，而是一直延续到六十年代末，这一点常被学生忽略。",
+            "source_ref": "5.1.1, p.94"
+          },
+          {
+            "node_id": "slide-6",
+            "layout": "quiz",
+            "title": "检查理解：马来西亚构想的背景",
+            "subtitle": null,
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": [
+              {
+                "question": "合并构想希望以更大的联邦体达到什么目的？",
+                "options": [
+                  "平衡族群比例",
+                  "取消本地政治协商",
+                  "立即结束制度磨合"
+                ],
+                "answer_index": 0,
+                "explanation": "课本指出合并构想希望以更大的联邦体平衡族群比例。"
+              },
+              {
+                "question": "英国推动合并的主要考虑是什么？",
+                "options": [
+                  "完成区域内的权力交接",
+                  "放弃区域安全考量",
+                  "取消新加坡的自治安排"
+                ],
+                "answer_index": 0,
+                "explanation": "课本指出英国希望借此完成区域内的权力交接。"
+              },
+              {
+                "question": "下列哪一项是谈判中的难点？",
+                "options": [
+                  "新加坡的地位与自治安排",
+                  "不同地区加入联邦的条件完全一致",
+                  "制度磨合在构想提出时即结束"
+                ],
+                "answer_index": 0,
+                "explanation": "课本明确指出新加坡的地位与自治安排是谈判难点，且制度磨合延续到六十年代末。"
+              }
+            ],
+            "speaker_notes": "用这三道题回收本节要点：平衡族群比例、英国完成权力交接，以及新加坡地位与自治安排这一谈判难点。提醒学生构想是战后格局、区域安全与本地政治协商共同作用的结果。",
+            "source_ref": "5.1.1, p.94"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "ppt-4",
+      "artifact_type": "ppt",
+      "returned_type": "ppt",
+      "query": "4.3.1 1955 年选举为什么重要，讲清因果",
+      "layout_focus": "cause_effect",
+      "ok": true,
+      "error": "",
+      "llm_calls": 1,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": true,
+      "contract_error_counts": [],
+      "effective_models": [
+        "deepseek-flash"
+      ],
+      "grader_status": "SYLLABUS_MATCH",
+      "section_scope": "4.3.1",
+      "allowed_pages": [
+        71,
+        72,
+        73,
+        79,
+        80,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91
+      ],
+      "prompt_chars": 2453,
+      "output_chars": 2951,
+      "completion_tokens": [
+        2391
+      ],
+      "total_ms": 20885.0,
+      "ttft_ms": 3862.4,
+      "artifact_ms": 14387.1,
+      "page_clamped": 0,
+      "page_before": {
+        "total": 6,
+        "real": 6,
+        "fabricated": 0,
+        "missing": 0,
+        "real_rate": 1.0,
+        "fabricated_rate": 0.0,
+        "missing_rate": 0.0,
+        "distinct_pages": 1,
+        "max_same_page_ratio": 1.0
+      },
+      "page_after": {
+        "total": 6,
+        "real": 6,
+        "fabricated": 0,
+        "missing": 0,
+        "real_rate": 1.0,
+        "fabricated_rate": 0.0,
+        "missing_rate": 0.0,
+        "distinct_pages": 1,
+        "max_same_page_ratio": 1.0
+      },
+      "quality": {
+        "checks": {
+          "页数 5~8": true,
+          "首页 title_hero": true,
+          "末页 quiz": true,
+          "中间页 ≥3 种布局": true,
+          "bullet_points 页 3~5 条": true,
+          "timeline 页 ≥2 条": true,
+          "comparison 页左右各 2~4 条": true,
+          "quiz 页 ≥2 题": true,
+          "node_id 唯一且非空": true,
+          "speaker_notes 非空且非模板句": true,
+          "source_ref 页码可回溯且真实": true
+        },
+        "passed": true,
+        "failed": [],
+        "detail": {
+          "slide_count": 6,
+          "layouts": [
+            "title_hero",
+            "bullet_points",
+            "cause_effect",
+            "comparison",
+            "bullet_points",
+            "quiz"
+          ],
+          "middle_layouts": [
+            "bullet_points",
+            "cause_effect",
+            "comparison"
+          ],
+          "pages": {
+            "cited": [
+              86
+            ],
+            "bad": [],
+            "ok": true,
+            "allowed_min": 71,
+            "allowed_max": 91
+          }
+        }
+      },
+      "spec": {
+        "type": "ppt",
+        "topic": "4.3.1 Pilihan Raya 1955：1955 年选举为何是独立进程的关键转折",
+        "slides": [
+          {
+            "node_id": "slide-1",
+            "layout": "title_hero",
+            "title": "4.3.1 Pilihan Raya 1955：1955 年选举为何是独立进程的关键转折",
+            "subtitle": "4.3.1",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "1955 年举行的是首次联邦立法议会选举，联盟党在选举中赢得绝大多数席位。这场选举之所以重要，不在于它完成了独立，而在于它让本地政党拿到了与英国谈判的正当性。",
+            "source_ref": "4.3.1, p.86"
+          },
+          {
+            "node_id": "slide-2",
+            "layout": "bullet_points",
+            "title": "1955 年选举发生了什么",
+            "subtitle": "先看基本事实",
+            "bullets": [
+              "1955 年举行首次联邦立法议会选举",
+              "联盟党在选举中赢得绝大多数席位",
+              "竞选纲领把独立时间表列为首要议题",
+              "选举结果使本地政党获得与英国谈判的正当性"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "课本把 1955 年选举定为首次联邦立法议会选举，联盟党的胜利幅度是「绝大多数席位」。要特别注意竞选纲领的内容：独立时间表被列为首要议题，这说明选举从一开始就是围绕独立节奏展开的。",
+            "source_ref": "4.3.1, p.86"
+          },
+          {
+            "node_id": "slide-3",
+            "layout": "cause_effect",
+            "title": "因果链：从竞选纲领到谈判桌",
+            "subtitle": "为什么一场选举能改变谈判格局",
+            "bullets": [
+              "因：竞选纲领把独立时间表列为首要议题，把独立变成选战核心",
+              "果：联盟党赢得绝大多数席位，其代表性在选举中得到确认",
+              "再果：选举结果使本地政党获得与英国谈判的正当性",
+              "结论：1955 年选举是独立谈判的起点，而不是终点"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "这条因果链的中间环节是席位，也就是代表性：联盟党赢得绝大多数席位后，本地政党才拥有与英国谈判的正当性。换句话说，选举把「要求独立」转化为「有资格谈独立」。",
+            "source_ref": "4.3.1, p.86"
+          },
+          {
+            "node_id": "slide-4",
+            "layout": "comparison",
+            "title": "分析独立进程的两条线",
+            "subtitle": "区分政策意图与社会反应，再谈 1955 年选举",
+            "bullets": [],
+            "comparison_left": [
+              "英国一方的政策意图：通过宪政安排与谈判推进权力移交",
+              "政策意图具体落在宪法文本的措辞上",
+              "措辞的每一次变化都反映各方力量对比"
+            ],
+            "comparison_right": [
+              "当地社会的反应：政党以选举动员表达独立诉求",
+              "竞选纲领把独立时间表列为首要议题",
+              "1955 年选举把社会反应转化为席位与代表性"
+            ],
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "讨论 Malayan Union 时必须区分「英国的政策意图」与「当地社会的反应」两条线，这个框架同样适用于 1955 年选举。宪法文本里的每一处措辞变化，背后都是各方力量对比的结果，所以不能用一方的意图去解释全部结果。",
+            "source_ref": "4.3.1, p.86"
+          },
+          {
+            "node_id": "slide-5",
+            "layout": "bullet_points",
+            "title": "答题怎么写才有层次",
+            "subtitle": "把因果讲清楚，而不是只罗列事件",
+            "bullets": [
+              "先给制度安排：1955 年首次联邦立法议会选举如何举行、谁胜出",
+              "再给社会反应：竞选纲领把独立时间表列为首要议题，选民如何回应",
+              "最后给影响：本地政党获得与英国谈判的正当性",
+              "解释措辞变化时，要回到各方力量对比，而不是只描述条文"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "课本明确提示：先给制度安排，再给社会反应，最后给影响，层次分明才拿高分。写 1955 年选举时，把「联盟党赢得绝大多数席位」放在制度安排里，把「与英国谈判的正当性」放在影响里，因果就不会混在一起。",
+            "source_ref": "4.3.1, p.86"
+          },
+          {
+            "node_id": "slide-6",
+            "layout": "quiz",
+            "title": "检查理解：1955 年选举的意义",
+            "subtitle": "用两道题回顾因果链",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": [
+              {
+                "question": "1955 年选举为什么被视为独立进程的重要转折？",
+                "options": [
+                  "因为它是首次联邦立法议会选举，联盟党赢得绝大多数席位，使本地政党获得与英国谈判的正当性",
+                  "因为它当场宣布马来亚立即独立",
+                  "因为它废除了 Malayan Union"
+                ],
+                "answer_index": 0,
+                "explanation": "课本强调的是：首次联邦立法议会选举加上联盟党的绝大多数席位，转化为与英国谈判的正当性，而不是直接完成独立。"
+              },
+              {
+                "question": "按课本提示，论述 1955 年选举比较妥当的顺序是？",
+                "options": [
+                  "先社会反应，再制度安排，最后影响",
+                  "先制度安排，再社会反应，最后影响",
+                  "只列出年份和事件，不必解释因果"
+                ],
+                "answer_index": 1,
+                "explanation": "课本要求先给制度安排，再给社会反应，最后给影响，这样层次分明；只罗列事件无法说明选举为何重要。"
+              }
+            ],
+            "speaker_notes": "第一题的关键是把「绝大多数席位」和「谈判正当性」连起来，而不是把选举等同于独立。第二题考的是论述结构：制度安排在前，社会反应居中，影响在后。",
+            "source_ref": "4.3.1, p.86"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "ppt-5",
+      "artifact_type": "ppt",
+      "returned_type": "ppt",
+      "query": "1.1.2 历史的特征，出 3 道随堂测验",
+      "layout_focus": "quiz",
+      "ok": true,
+      "error": "",
+      "llm_calls": 1,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": true,
+      "contract_error_counts": [],
+      "effective_models": [
+        "deepseek-flash"
+      ],
+      "grader_status": "SYLLABUS_MATCH",
+      "section_scope": "1.1.2",
+      "allowed_pages": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        24,
+        25
+      ],
+      "prompt_chars": 2449,
+      "output_chars": 2784,
+      "completion_tokens": [
+        1658
+      ],
+      "total_ms": 16185.5,
+      "ttft_ms": 3510.0,
+      "artifact_ms": 9555.7,
+      "page_clamped": 0,
+      "page_before": {
+        "total": 6,
+        "real": 6,
+        "fabricated": 0,
+        "missing": 0,
+        "real_rate": 1.0,
+        "fabricated_rate": 0.0,
+        "missing_rate": 0.0,
+        "distinct_pages": 1,
+        "max_same_page_ratio": 1.0
+      },
+      "page_after": {
+        "total": 6,
+        "real": 6,
+        "fabricated": 0,
+        "missing": 0,
+        "real_rate": 1.0,
+        "fabricated_rate": 0.0,
+        "missing_rate": 0.0,
+        "distinct_pages": 1,
+        "max_same_page_ratio": 1.0
+      },
+      "quality": {
+        "checks": {
+          "页数 5~8": true,
+          "首页 title_hero": true,
+          "末页 quiz": true,
+          "中间页 ≥3 种布局": true,
+          "bullet_points 页 3~5 条": true,
+          "timeline 页 ≥2 条": true,
+          "comparison 页左右各 2~4 条": true,
+          "quiz 页 ≥2 题": true,
+          "node_id 唯一且非空": true,
+          "speaker_notes 非空且非模板句": true,
+          "source_ref 页码可回溯且真实": true
+        },
+        "passed": true,
+        "failed": [],
+        "detail": {
+          "slide_count": 6,
+          "layouts": [
+            "title_hero",
+            "bullet_points",
+            "comparison",
+            "cause_effect",
+            "bullet_points",
+            "quiz"
+          ],
+          "middle_layouts": [
+            "bullet_points",
+            "cause_effect",
+            "comparison"
+          ],
+          "pages": {
+            "cited": [
+              8
+            ],
+            "bad": [],
+            "ok": true,
+            "allowed_min": 1,
+            "allowed_max": 25
+          }
+        }
+      },
+      "spec": {
+        "type": "ppt",
+        "topic": "1.1.2 历史的特征（Ciri-ciri Sejarah）",
+        "slides": [
+          {
+            "node_id": "slide-1",
+            "layout": "title_hero",
+            "title": "历史的特征：时间性、事实性与解释性",
+            "subtitle": "1.1.2 Ciri-ciri Sejarah",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "历史具备三个基本特征：时间性、事实性与解释性。缺少任何一项，叙述就不再是严格意义上的历史，而可能只是传说。",
+            "source_ref": "1.1.2, p.8"
+          },
+          {
+            "node_id": "slide-2",
+            "layout": "bullet_points",
+            "title": "历史的三个基本特征",
+            "subtitle": "三者缺一不可",
+            "bullets": [
+              "时间性：事件发生在特定的时间脉络中，有先后与延续",
+              "事实性：结论必须能被史料复核，不能凭空断言",
+              "解释性：不仅要说明「发生了什么」，还要说明因果关系",
+              "三者结合，历史才既有依据又能被理解"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "课本把历史的特征归为时间性、事实性与解释性三项。事实性要求结论可被史料复核，解释性要求说明因果关系。只有三者同时具备，历史叙述才站得住脚。",
+            "source_ref": "1.1.2, p.8"
+          },
+          {
+            "node_id": "slide-3",
+            "layout": "comparison",
+            "title": "事实性 vs 解释性",
+            "subtitle": "两种要求，各司其职",
+            "bullets": [],
+            "comparison_left": [
+              "结论必须可被史料复核",
+              "叙述要有出处",
+              "缺少出处的叙述只能算传说"
+            ],
+            "comparison_right": [
+              "要说明事件之间的因果关系",
+              "解释要建立在已核实的事实之上",
+              "不能以价值判断代替因果分析"
+            ],
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "事实性管的是「有没有依据」，解释性管的是「为什么如此」。课本特别提醒，缺少出处的叙述只能算传说，不能作为考试依据。解释必须建立在可复核的事实之上。",
+            "source_ref": "1.1.2, p.8"
+          },
+          {
+            "node_id": "slide-4",
+            "layout": "cause_effect",
+            "title": "答题思路：先分事实，再谈因果",
+            "subtitle": "课堂讨论的顺序",
+            "bullets": [
+              "第一步：分清哪一句是事实陈述，哪一句是价值判断",
+              "第二步：检查事实陈述是否有史料出处支撑",
+              "第三步：在已核实的事实之间说明因果关系",
+              "顺序颠倒或跳过第一步，答题就容易偏题"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "课堂讨论时先分清事实陈述与价值判断，再谈因果，答题才不会偏题。若把价值判断当成事实来推因果，整段论证就失去依据。这个顺序也是考试的得分顺序。",
+            "source_ref": "1.1.2, p.8"
+          },
+          {
+            "node_id": "slide-5",
+            "layout": "bullet_points",
+            "title": "Sejarah 一词：树与时间的延续",
+            "subtitle": "从词源理解「时间性」",
+            "bullets": [
+              "Sejarah 源自阿拉伯语 syajaratun，意为「树」",
+              "树的意象强调时间上的生长与延续",
+              "历史同样在时间中层层累积，而非孤立事件的堆叠",
+              "因此叙述历史必须交代时间脉络",
+              "没有出处的叙述只能算传说，不能作为考试依据"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "Sejarah 一词源自阿拉伯语 syajaratun，意为树，强调时间上的生长与延续。这个意象提醒我们，历史事件不是孤立的，而是在时间中层层生长出来的。所以叙述历史必须交代清楚时间脉络。",
+            "source_ref": "1.1.2, p.8"
+          },
+          {
+            "node_id": "slide-6",
+            "layout": "quiz",
+            "title": "随堂测验：检查你对历史特征的理解",
+            "subtitle": "3 题",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": [
+              {
+                "question": "历史具备哪三个基本特征？",
+                "options": [
+                  "时间性、事实性、解释性",
+                  "时间性、艺术性、主观性",
+                  "政治性、经济性、社会性"
+                ],
+                "answer_index": 0,
+                "explanation": "课本明确指出历史具备时间性、事实性与解释性三个基本特征。"
+              },
+              {
+                "question": "「事实性」对历史结论提出了什么要求？",
+                "options": [
+                  "结论必须可被史料复核",
+                  "结论必须符合个人情感",
+                  "结论只需重复权威的说法"
+                ],
+                "answer_index": 0,
+                "explanation": "事实性要求结论可被史料复核，缺少出处的叙述只能算传说，不能作为考试依据。"
+              },
+              {
+                "question": "在课堂上讨论历史问题时，正确的顺序是什么？",
+                "options": [
+                  "先分清事实陈述与价值判断，再谈因果",
+                  "先谈因果，再判断事实真假",
+                  "先表达价值立场，再找材料配合"
+                ],
+                "answer_index": 0,
+                "explanation": "课本提醒先分清事实陈述与价值判断，再谈因果，答题才不会偏题。"
+              }
+            ],
+            "speaker_notes": "这三题分别对应三个基本特征、事实性的要求，以及课堂讨论的正确顺序。答题时记住：没有出处的叙述只能算传说，不能作为考试依据。",
+            "source_ref": "1.1.2, p.8"
+          }
+        ]
+      }
+    }
+  ]
+}

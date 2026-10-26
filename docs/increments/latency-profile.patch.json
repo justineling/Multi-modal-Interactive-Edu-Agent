@@ -1,0 +1,118 @@
+{
+  "environment": {
+    "base_url": "https://api.deepseek.com/v1",
+    "router_model": "deepseek-flash",
+    "generator_model": "deepseek-v4-pro",
+    "timeout_seconds": 300.0,
+    "max_retries": 3,
+    "retrieval_top_k": 8,
+    "embedding_mode": "local"
+  },
+  "corpus": {
+    "pdf": "sample_textbook.pdf",
+    "pages": 113,
+    "chunks": 65,
+    "ingest_ms": 0.0
+  },
+  "query": "4.1 Malayan Union 对苏丹的影响，梳理成一份课件",
+  "runs": 0,
+  "stages": {
+    "1. 检索 + 相关性评估": {
+      "median": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "n": 0
+    },
+    "2. 形态路由": {
+      "median": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "n": 0
+    },
+    "3. 正文流式输出": {
+      "median": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "n": 0
+    },
+    "4. 产物生成（LLM complete_json）": {
+      "median": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "n": 0
+    },
+    "5. 引用汇总 + 后校验": {
+      "median": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "n": 0
+    },
+    "6. 落库 + 收尾": {
+      "median": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "n": 0
+    }
+  },
+  "total": {
+    "median": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "n": 0
+  },
+  "ttft": {
+    "median": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "n": 0
+  },
+  "reply_stream": {
+    "median": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "n": 0
+  },
+  "artifact_stream": {
+    "median": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "n": 0
+  },
+  "contract_chars": 1395,
+  "turns": [],
+  "probes": [],
+  "patch_runs": [
+    {
+      "total_ms": 26825.4,
+      "ttft_ms": 3256.3,
+      "stages": {
+        "1. 检索 + 相关性评估": 97.3,
+        "2. 形态路由": 0.1,
+        "3. 正文流式输出": 5180.8,
+        "4. 产物生成（LLM complete_json）": 21534.2,
+        "5. 引用汇总 + 后校验": 0.2,
+        "6. 落库 + 收尾": 12.8
+      },
+      "artifact_action": "patch",
+      "validate_errors": 0,
+      "llm_calls": [
+        {
+          "model": "deepseek-v4-pro",
+          "prompt_chars": 2592,
+          "system_chars": 242,
+          "user_chars": 2350,
+          "temperature": 0.2,
+          "max_tokens": null,
+          "response_format": "json_object",
+          "elapsed_ms": 21516.0,
+          "status": "ok",
+          "prompt_tokens": 1208,
+          "completion_tokens": 1466,
+          "output_chars": 499,
+          "finish_reason": "stop",
+          "error": ""
+        }
+      ]
+    }
+  ]
+}

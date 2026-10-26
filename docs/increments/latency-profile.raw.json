@@ -1,0 +1,470 @@
+{
+  "environment": {
+    "base_url": "https://api.deepseek.com/v1",
+    "router_model": "deepseek-flash",
+    "generator_model": "deepseek-v4-pro",
+    "timeout_seconds": 300.0,
+    "max_retries": 3,
+    "retrieval_top_k": 8,
+    "embedding_mode": "local"
+  },
+  "corpus": {
+    "pdf": "sample_textbook.pdf",
+    "pages": 113,
+    "chunks": 65,
+    "ingest_ms": 277.1
+  },
+  "query": "4.1 Malayan Union 对苏丹的影响，梳理成一份课件",
+  "runs": 3,
+  "stages": {
+    "1. 检索 + 相关性评估": {
+      "median": 5.8,
+      "min": 5.3,
+      "max": 7.9,
+      "n": 3
+    },
+    "2. 形态路由": {
+      "median": 0.0,
+      "min": 0.0,
+      "max": 0.1,
+      "n": 3
+    },
+    "3. 正文流式输出": {
+      "median": 10781.3,
+      "min": 9391.9,
+      "max": 13332.4,
+      "n": 3
+    },
+    "4. 产物生成（LLM complete_json）": {
+      "median": 55490.8,
+      "min": 44109.7,
+      "max": 64293.4,
+      "n": 3
+    },
+    "5. 引用汇总 + 后校验": {
+      "median": 0.2,
+      "min": 0.1,
+      "max": 0.3,
+      "n": 3
+    },
+    "6. 落库 + 收尾": {
+      "median": 6.8,
+      "min": 6.3,
+      "max": 7.9,
+      "n": 3
+    }
+  },
+  "total": {
+    "median": 66284.6,
+    "min": 53514.0,
+    "max": 77642.0,
+    "n": 3
+  },
+  "ttft": {
+    "median": 4615.6,
+    "min": 3749.9,
+    "max": 5202.0,
+    "n": 3
+  },
+  "reply_stream": {
+    "median": 10788.4,
+    "min": 9398.6,
+    "max": 13340.8,
+    "n": 3
+  },
+  "artifact_stream": {
+    "median": 55483.6,
+    "min": 44102.9,
+    "max": 64284.8,
+    "n": 3
+  },
+  "contract_chars": 1395,
+  "turns": [
+    {
+      "total_ms": 77642.0,
+      "ttft_ms": 5202.0,
+      "stages": {
+        "1. 检索 + 相关性评估": 7.9,
+        "2. 形态路由": 0.1,
+        "3. 正文流式输出": 13332.4,
+        "4. 产物生成（LLM complete_json）": 64293.4,
+        "5. 引用汇总 + 后校验": 0.2,
+        "6. 落库 + 收尾": 7.9
+      },
+      "validate_errors": 0,
+      "slide_count": 0,
+      "spec_chars": 0,
+      "pages_are_real": null,
+      "artifact_type": "ppt",
+      "grader_status": "SYLLABUS_MATCH",
+      "route_action": "create_artifact",
+      "llm_calls": [
+        {
+          "model": "deepseek-v4-pro",
+          "prompt_chars": 1999,
+          "system_chars": 242,
+          "user_chars": 1757,
+          "temperature": 0.2,
+          "max_tokens": null,
+          "response_format": "json_object",
+          "elapsed_ms": 64275.6,
+          "status": "ok",
+          "prompt_tokens": 1005,
+          "completion_tokens": 5736,
+          "error": ""
+        }
+      ],
+      "llm_streams": [
+        {
+          "model": "(client default)",
+          "system_chars": 89,
+          "user_chars": 1730,
+          "ttft_ms": 5193.7,
+          "total_ms": 13340.8,
+          "output_chars": 2795,
+          "chunk_count": 1659
+        }
+      ],
+      "spans": [
+        {
+          "label": "stage.retrieve",
+          "start": 0.2,
+          "end": 7.9,
+          "duration": 7.8
+        },
+        {
+          "label": "stage.route",
+          "start": 8.1,
+          "end": 8.1,
+          "duration": 0.0
+        },
+        {
+          "label": "stage.build_context",
+          "start": 8.1,
+          "end": 8.3,
+          "duration": 0.1
+        },
+        {
+          "label": "stage.reply_stream",
+          "start": 8.3,
+          "end": 13349.1,
+          "duration": 13340.8
+        },
+        {
+          "label": "llm.complete_json",
+          "start": 13349.2,
+          "end": 77625.1,
+          "duration": 64275.9
+        },
+        {
+          "label": "stage.generate_spec",
+          "start": 13349.2,
+          "end": 77625.7,
+          "duration": 64276.5
+        },
+        {
+          "label": "stage.artifact_stream",
+          "start": 13349.2,
+          "end": 77633.9,
+          "duration": 64284.8
+        },
+        {
+          "label": "stage.citations",
+          "start": 77634.0,
+          "end": 77634.0,
+          "duration": 0.1
+        },
+        {
+          "label": "stage.citation_filter",
+          "start": 77634.0,
+          "end": 77634.1,
+          "duration": 0.0
+        },
+        {
+          "label": "stage.persist",
+          "start": 77634.1,
+          "end": 77641.9,
+          "duration": 7.9
+        }
+      ]
+    },
+    {
+      "total_ms": 66284.6,
+      "ttft_ms": 3749.9,
+      "stages": {
+        "1. 检索 + 相关性评估": 5.3,
+        "2. 形态路由": 0.0,
+        "3. 正文流式输出": 10781.3,
+        "4. 产物生成（LLM complete_json）": 55490.8,
+        "5. 引用汇总 + 后校验": 0.3,
+        "6. 落库 + 收尾": 6.8
+      },
+      "validate_errors": 0,
+      "slide_count": 0,
+      "spec_chars": 0,
+      "pages_are_real": null,
+      "artifact_type": "ppt",
+      "grader_status": "SYLLABUS_MATCH",
+      "route_action": "create_artifact",
+      "llm_calls": [
+        {
+          "model": "deepseek-v4-pro",
+          "prompt_chars": 1999,
+          "system_chars": 242,
+          "user_chars": 1757,
+          "temperature": 0.2,
+          "max_tokens": null,
+          "response_format": "json_object",
+          "elapsed_ms": 55478.0,
+          "status": "ok",
+          "prompt_tokens": 1005,
+          "completion_tokens": 4979,
+          "error": ""
+        }
+      ],
+      "llm_streams": [
+        {
+          "model": "(client default)",
+          "system_chars": 89,
+          "user_chars": 1730,
+          "ttft_ms": 3744.3,
+          "total_ms": 10788.4,
+          "output_chars": 2442,
+          "chunk_count": 1476
+        }
+      ],
+      "spans": [
+        {
+          "label": "stage.retrieve",
+          "start": 0.1,
+          "end": 5.3,
+          "duration": 5.2
+        },
+        {
+          "label": "stage.route",
+          "start": 5.4,
+          "end": 5.4,
+          "duration": 0.0
+        },
+        {
+          "label": "stage.build_context",
+          "start": 5.4,
+          "end": 5.5,
+          "duration": 0.1
+        },
+        {
+          "label": "stage.reply_stream",
+          "start": 5.5,
+          "end": 10794.0,
+          "duration": 10788.4
+        },
+        {
+          "label": "llm.complete_json",
+          "start": 10794.1,
+          "end": 66272.3,
+          "duration": 55478.2
+        },
+        {
+          "label": "stage.generate_spec",
+          "start": 10794.0,
+          "end": 66272.7,
+          "duration": 55478.7
+        },
+        {
+          "label": "stage.artifact_stream",
+          "start": 10794.0,
+          "end": 66277.6,
+          "duration": 55483.6
+        },
+        {
+          "label": "stage.citations",
+          "start": 66277.6,
+          "end": 66277.7,
+          "duration": 0.1
+        },
+        {
+          "label": "stage.citation_filter",
+          "start": 66277.7,
+          "end": 66277.8,
+          "duration": 0.1
+        },
+        {
+          "label": "stage.persist",
+          "start": 66277.9,
+          "end": 66284.5,
+          "duration": 6.6
+        }
+      ]
+    },
+    {
+      "total_ms": 53514.0,
+      "ttft_ms": 4615.6,
+      "stages": {
+        "1. 检索 + 相关性评估": 5.8,
+        "2. 形态路由": 0.0,
+        "3. 正文流式输出": 9391.9,
+        "4. 产物生成（LLM complete_json）": 44109.7,
+        "5. 引用汇总 + 后校验": 0.1,
+        "6. 落库 + 收尾": 6.3
+      },
+      "validate_errors": 0,
+      "slide_count": 0,
+      "spec_chars": 0,
+      "pages_are_real": null,
+      "artifact_type": "ppt",
+      "grader_status": "SYLLABUS_MATCH",
+      "route_action": "create_artifact",
+      "llm_calls": [
+        {
+          "model": "deepseek-v4-pro",
+          "prompt_chars": 1999,
+          "system_chars": 242,
+          "user_chars": 1757,
+          "temperature": 0.2,
+          "max_tokens": null,
+          "response_format": "json_object",
+          "elapsed_ms": 44098.0,
+          "status": "ok",
+          "prompt_tokens": 1005,
+          "completion_tokens": 3676,
+          "error": ""
+        }
+      ],
+      "llm_streams": [
+        {
+          "model": "(client default)",
+          "system_chars": 89,
+          "user_chars": 1730,
+          "ttft_ms": 4609.5,
+          "total_ms": 9398.5,
+          "output_chars": 1570,
+          "chunk_count": 901
+        }
+      ],
+      "spans": [
+        {
+          "label": "stage.retrieve",
+          "start": 0.1,
+          "end": 5.8,
+          "duration": 5.7
+        },
+        {
+          "label": "stage.route",
+          "start": 5.9,
+          "end": 5.9,
+          "duration": 0.0
+        },
+        {
+          "label": "stage.build_context",
+          "start": 5.9,
+          "end": 6.1,
+          "duration": 0.1
+        },
+        {
+          "label": "stage.reply_stream",
+          "start": 6.1,
+          "end": 9404.7,
+          "duration": 9398.6
+        },
+        {
+          "label": "llm.complete_json",
+          "start": 9404.7,
+          "end": 53502.9,
+          "duration": 44098.2
+        },
+        {
+          "label": "stage.generate_spec",
+          "start": 9404.7,
+          "end": 53503.2,
+          "duration": 44098.5
+        },
+        {
+          "label": "stage.artifact_stream",
+          "start": 9404.7,
+          "end": 53507.6,
+          "duration": 44102.9
+        },
+        {
+          "label": "stage.citations",
+          "start": 53507.6,
+          "end": 53507.7,
+          "duration": 0.1
+        },
+        {
+          "label": "stage.citation_filter",
+          "start": 53507.7,
+          "end": 53507.7,
+          "duration": 0.0
+        },
+        {
+          "label": "stage.persist",
+          "start": 53507.7,
+          "end": 53514.0,
+          "duration": 6.3
+        }
+      ]
+    }
+  ],
+  "probes": [
+    {
+      "label": "5 页 / 默认 effort",
+      "status_code": 200,
+      "error": "",
+      "model": "deepseek-v4-pro",
+      "effort": null,
+      "prompt_chars": 1999,
+      "headers_ms": 243.3,
+      "ttft_ms": 45830.0,
+      "decode_ms": 11594.2,
+      "total_ms": 57435.3,
+      "output_chars": 3381,
+      "chunk_count": 1307,
+      "prompt_tokens": 1005,
+      "completion_tokens": 4851,
+      "tokens_per_sec": 418.4,
+      "contract_ok": true,
+      "slide_count": 5,
+      "output_json_chars": 2647
+    },
+    {
+      "label": "2 页 / 默认 effort",
+      "status_code": 200,
+      "error": "",
+      "model": "deepseek-v4-pro",
+      "effort": null,
+      "prompt_chars": 1950,
+      "headers_ms": 265.1,
+      "ttft_ms": 33355.5,
+      "decode_ms": 3119.0,
+      "total_ms": 36488.1,
+      "output_chars": 1279,
+      "chunk_count": 483,
+      "prompt_tokens": 995,
+      "completion_tokens": 3292,
+      "tokens_per_sec": 1055.47,
+      "contract_ok": true,
+      "slide_count": 2,
+      "output_json_chars": 991
+    },
+    {
+      "label": "5 页 / effort=low",
+      "status_code": 200,
+      "error": "",
+      "model": "deepseek-v4-pro",
+      "effort": "low",
+      "prompt_chars": 1999,
+      "headers_ms": 317.8,
+      "ttft_ms": 67618.6,
+      "decode_ms": 8528.7,
+      "total_ms": 76166.4,
+      "output_chars": 3493,
+      "chunk_count": 1307,
+      "prompt_tokens": 1005,
+      "completion_tokens": 6758,
+      "tokens_per_sec": 792.39,
+      "contract_ok": true,
+      "slide_count": 5,
+      "output_json_chars": 2587
+    }
+  ]
+}

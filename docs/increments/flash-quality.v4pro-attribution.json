@@ -1,0 +1,259 @@
+{
+  "environment": {
+    "base_url": "https://api.deepseek.com/v1",
+    "router_model": "deepseek-flash",
+    "env_generator_model": "deepseek-v4-pro",
+    "effective_generator_model": "deepseek-v4-pro",
+    "timeout_seconds": 300.0
+  },
+  "corpus": {
+    "pdf": "sample_textbook.pdf",
+    "pages": 113,
+    "chunks": 65
+  },
+  "executed_turns": 1,
+  "planned_turns": 1,
+  "aborted": "",
+  "summaries": {
+    "ppt": {
+      "artifact_type": "ppt",
+      "turns": 1,
+      "total_calls": 1,
+      "valid_calls": 1,
+      "failed_calls": 0,
+      "calls_consistent": true,
+      "call_valid_rate": 1.0,
+      "turn_pass_rate": 1.0,
+      "mock_fallback_rate": 0.0,
+      "quality_pass_rate": 1.0,
+      "retried_turns": 0,
+      "not_generated": 0,
+      "not_generated_cases": [],
+      "failed_check_items": {},
+      "artifact_ms": {
+        "median": 83770.4,
+        "min": 83770.4,
+        "max": 83770.4,
+        "n": 1
+      },
+      "total_ms": {
+        "median": 89920.1,
+        "min": 89920.1,
+        "max": 89920.1,
+        "n": 1
+      },
+      "effective_models": [
+        "deepseek-v4-pro"
+      ]
+    },
+    "anim_2d": {},
+    "scene_3d": {}
+  },
+  "verdict": {
+    "verdict": "pass",
+    "headline": "结论：`deepseek-v4-pro` 可以作为默认 generator（三形态全部达标）",
+    "reasons": [
+      "ppt：单次合法率 100%、回合通过率 100%、降级 mock 率 0%、质量通过率 100%（1 回合 / 1 次调用）"
+    ],
+    "conditions": []
+  },
+  "cases": [
+    {
+      "case_id": "ppt-4",
+      "artifact_type": "ppt",
+      "returned_type": "ppt",
+      "query": "4.3.1 1955 年选举为什么重要，讲清因果",
+      "layout_focus": "cause_effect",
+      "ok": true,
+      "error": "",
+      "llm_calls": 1,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": true,
+      "contract_error_counts": [],
+      "effective_models": [
+        "deepseek-v4-pro"
+      ],
+      "grader_status": "SYLLABUS_MATCH",
+      "section_scope": "4.3.1",
+      "allowed_pages": [
+        71,
+        72,
+        73,
+        79,
+        80,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91
+      ],
+      "prompt_chars": 1997,
+      "output_chars": 3122,
+      "completion_tokens": [
+        6755
+      ],
+      "total_ms": 89920.1,
+      "ttft_ms": 3126.9,
+      "artifact_ms": 83770.4,
+      "quality": {
+        "checks": {
+          "页数 5~8": true,
+          "首页 title_hero": true,
+          "末页 quiz": true,
+          "中间页 ≥3 种布局": true,
+          "bullet_points 页 3~5 条": true,
+          "timeline 页 ≥2 条": true,
+          "comparison 页左右各 2~4 条": true,
+          "quiz 页 ≥2 题": true,
+          "node_id 唯一且非空": true,
+          "speaker_notes 非空且非模板句": true
+        },
+        "passed": true,
+        "failed": [],
+        "detail": {
+          "slide_count": 5,
+          "layouts": [
+            "title_hero",
+            "bullet_points",
+            "cause_effect",
+            "comparison",
+            "quiz"
+          ],
+          "middle_layouts": [
+            "bullet_points",
+            "cause_effect",
+            "comparison"
+          ],
+          "pages": {
+            "cited": [],
+            "ok": null,
+            "reason": "无页码可判"
+          }
+        }
+      },
+      "spec": {
+        "type": "ppt",
+        "topic": "Pilihan Raya 1955：独立进程的关键一步",
+        "slides": [
+          {
+            "node_id": "slide-1",
+            "layout": "title_hero",
+            "title": "Pilihan Raya 1955：独立进程的关键一步",
+            "subtitle": "4.3.1 · 1955 年首次联邦立法议会选举",
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "1955 年举行了马来亚首次联邦立法议会选举，联盟党赢得绝大多数席位。这次选举为何重要？它赋予本地政党与英国谈判的正当性，并推动独立时间表成为首要议题。",
+            "source_ref": "4.3.1, p.?"
+          },
+          {
+            "node_id": "slide-2",
+            "layout": "bullet_points",
+            "title": "为什么 1955 年选举重要？",
+            "subtitle": null,
+            "bullets": [
+              "它是马来亚首次联邦立法议会选举，开启本地政治新阶段",
+              "联盟党赢得绝大多数席位，成为民意主导力量",
+              "选举结果赋予本地政党与英国谈判的正当性",
+              "竞选纲领将独立时间表列为首要议题，推动非殖民化进程"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "这次选举的重要性在于：第一，它是首次联邦层级选举，让本地政党获得民意授权；第二，联盟党大胜，使其有足够底气与英国谈独立；第三，选举结果成为谈判的正当性来源。",
+            "source_ref": "4.3.1, p.?"
+          },
+          {
+            "node_id": "slide-3",
+            "layout": "cause_effect",
+            "title": "选举与独立谈判的因果链",
+            "subtitle": null,
+            "bullets": [
+              "因：1955 年举行首次联邦立法议会选举",
+              "果：联盟党赢得绝大多数席位，反映民意支持独立",
+              "因：选举结果赋予本地政党谈判正当性",
+              "果：独立时间表成为首要议题，推动英国展开谈判"
+            ],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "这里要讲清因果：选举胜利让联盟党获得民意授权，于是他们有了与英国谈判的正当性。竞选纲领把独立时间表放在首位，所以谈判围绕独立展开，宪法措辞的变化背后是力量对比的结果。",
+            "source_ref": "4.3.1, p.?"
+          },
+          {
+            "node_id": "slide-4",
+            "layout": "comparison",
+            "title": "选举前后的对比",
+            "subtitle": "本地政党的政治地位变化",
+            "bullets": [],
+            "comparison_left": [
+              "选举前：本地政党缺乏与英国直接谈判的正式授权",
+              "独立时间表尚未成为英国必须回应的议程"
+            ],
+            "comparison_right": [
+              "选举后：联盟党以绝大多数席位获得民意授权",
+              "获得与英国谈判的正当性，独立时间表成为首要议题"
+            ],
+            "timeline_items": null,
+            "quiz_questions": null,
+            "speaker_notes": "对比选举前后，可以看到关键变化：选举前本地政党没有足够的授权去推动独立；选举后联盟党以民意胜利获得谈判正当性，独立时间表成为不可回避的议题。",
+            "source_ref": "4.3.1, p.?"
+          },
+          {
+            "node_id": "slide-5",
+            "layout": "quiz",
+            "title": "小测：1955 年选举",
+            "subtitle": null,
+            "bullets": [],
+            "comparison_left": null,
+            "comparison_right": null,
+            "timeline_items": null,
+            "quiz_questions": [
+              {
+                "question": "1955 年选举是马来亚第几次联邦立法议会选举？",
+                "options": [
+                  "第一次",
+                  "第二次",
+                  "第三次"
+                ],
+                "answer_index": 0,
+                "explanation": "1955 年举行的是首次联邦立法议会选举。"
+              },
+              {
+                "question": "联盟党在 1955 年选举中的表现如何？",
+                "options": [
+                  "赢得少数席位",
+                  "赢得绝大多数席位",
+                  "未能获得席位"
+                ],
+                "answer_index": 1,
+                "explanation": "联盟党赢得绝大多数席位，成为主导力量。"
+              },
+              {
+                "question": "选举结果给本地政党带来了什么？",
+                "options": [
+                  "与英国谈判的正当性",
+                  "立即独立",
+                  "更多的殖民地控制"
+                ],
+                "answer_index": 0,
+                "explanation": "选举结果使本地政党获得与英国谈判的正当性。"
+              }
+            ],
+            "speaker_notes": "通过三道小题检测理解：首次选举、联盟党大胜、以及选举结果带来的谈判正当性。",
+            "source_ref": "4.3.1, p.?"
+          }
+        ]
+      }
+    }
+  ]
+}

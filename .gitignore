@@ -45,6 +45,11 @@ backend/data/profile/
 uploads/
 logs/
 *.log
+# 例外：剖析脚本的控制台留档是**报告引用的原始数据**，不是运行日志。
+# 必须放在 `*.log` 之后 —— gitignore 是「后面的规则覆盖前面的」，放前面不生效。
+# 不加这条的后果：`git add docs/increments/` 会静默漏掉它们（不报错、git status 也不显示），
+# 而报告里有行指着它们让人去核对 —— 等于报告里的一句空话。
+!docs/increments/*.console.log
 
 # ---- 联调截图（e2e / 真机验证的现场产物，仅供本地排查）----
 frontend/.e2e-shots/

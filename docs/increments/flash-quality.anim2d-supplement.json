@@ -1,0 +1,363 @@
+{
+  "environment": {
+    "base_url": "https://api.deepseek.com/v1",
+    "router_model": "deepseek-flash",
+    "env_generator_model": "deepseek-v4-pro",
+    "effective_generator_model": "deepseek-flash",
+    "timeout_seconds": 300.0
+  },
+  "corpus": {
+    "pdf": "sample_textbook.pdf",
+    "pages": 113,
+    "chunks": 65
+  },
+  "executed_turns": 2,
+  "planned_turns": 2,
+  "aborted": "",
+  "summaries": {
+    "ppt": {},
+    "anim_2d": {
+      "artifact_type": "anim_2d",
+      "turns": 1,
+      "total_calls": 1,
+      "valid_calls": 1,
+      "failed_calls": 0,
+      "calls_consistent": true,
+      "call_valid_rate": 1.0,
+      "turn_pass_rate": 1.0,
+      "mock_fallback_rate": 0.0,
+      "quality_pass_rate": 1.0,
+      "retried_turns": 0,
+      "not_generated": 1,
+      "not_generated_cases": [
+        "anim-1"
+      ],
+      "failed_check_items": {},
+      "artifact_ms": {
+        "median": 6344.5,
+        "min": 6344.5,
+        "max": 6344.5,
+        "n": 1
+      },
+      "total_ms": {
+        "median": 18585.1,
+        "min": 18585.1,
+        "max": 18585.1,
+        "n": 1
+      },
+      "effective_models": [
+        "deepseek-flash"
+      ]
+    },
+    "scene_3d": {}
+  },
+  "verdict": {
+    "verdict": "pass",
+    "headline": "结论：`deepseek-flash` 可以作为默认 generator（三形态全部达标）",
+    "reasons": [
+      "anim_2d：单次合法率 100%、回合通过率 100%、降级 mock 率 0%、质量通过率 100%（1 回合 / 1 次调用）"
+    ],
+    "conditions": []
+  },
+  "cases": [
+    {
+      "case_id": "anim-1",
+      "artifact_type": "anim_2d",
+      "returned_type": "",
+      "query": "4.1.1 Malayan Union 的推进过程，做成动画演示",
+      "layout_focus": "",
+      "ok": false,
+      "error": "",
+      "llm_calls": 0,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": false,
+      "contract_error_counts": [],
+      "effective_models": [],
+      "grader_status": "NO_MATCH",
+      "section_scope": "4.1.1",
+      "allowed_pages": [],
+      "prompt_chars": 0,
+      "output_chars": 0,
+      "completion_tokens": [],
+      "total_ms": 6589.4,
+      "ttft_ms": 5135.0,
+      "artifact_ms": 0.0,
+      "quality": {},
+      "spec": {}
+    },
+    {
+      "case_id": "anim-1b",
+      "artifact_type": "anim_2d",
+      "returned_type": "anim_2d",
+      "query": "4.1.2 苏丹权力的变化过程，做成动画演示",
+      "layout_focus": "",
+      "ok": true,
+      "error": "",
+      "llm_calls": 1,
+      "failed_calls": 0,
+      "mock_fallback": false,
+      "final_from_llm": true,
+      "contract_error_counts": [],
+      "effective_models": [
+        "deepseek-flash"
+      ],
+      "grader_status": "SYLLABUS_MATCH",
+      "section_scope": "4.1.2",
+      "allowed_pages": [
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        88,
+        89
+      ],
+      "prompt_chars": 1502,
+      "output_chars": 2885,
+      "completion_tokens": [
+        1162
+      ],
+      "total_ms": 18585.1,
+      "ttft_ms": 4921.4,
+      "artifact_ms": 6344.5,
+      "quality": {
+        "checks": {
+          "关键帧 2~5 帧": true,
+          "step_index 从 0 起严格递增": true,
+          "每帧 2~5 个 entity": true,
+          "entity id 帧内唯一": true,
+          "坐标在 1000×600 内": true,
+          "narration 非空": true
+        },
+        "passed": true,
+        "failed": [],
+        "advisory": {
+          "同一主体跨帧位移": false
+        },
+        "detail": {
+          "step_count": 4,
+          "step_indices": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "entity_counts": [
+            4,
+            4,
+            4,
+            4
+          ],
+          "pages": {
+            "cited": [],
+            "ok": null,
+            "reason": "无页码可判"
+          }
+        }
+      },
+      "spec": {
+        "type": "anim_2d",
+        "title": "Kuasa Sultan 的削减过程：从政治实权到宗教与习俗权限",
+        "steps": [
+          {
+            "step_index": 0,
+            "narration": "战前的州属体制下，苏丹掌握州务的实质权力，包括对政策的同意与否决。",
+            "source_ref": "Extended Knowledge",
+            "entities": [
+              {
+                "id": "entity-0",
+                "shape": "label_box",
+                "label": "苏丹（战前）",
+                "x": 300.0,
+                "y": 180.0,
+                "color": "#F59E0B",
+                "details": "苏丹作为州属最高权威，居于画面中央上方。",
+                "source_page": null
+              },
+              {
+                "id": "entity-1",
+                "shape": "rect",
+                "label": "州务与政策",
+                "x": 300.0,
+                "y": 360.0,
+                "color": "#2563EB",
+                "details": "州务行政、政策制定等实质政治权力。",
+                "source_page": null
+              },
+              {
+                "id": "entity-2",
+                "shape": "arrow",
+                "label": "同意 / 否决",
+                "x": 300.0,
+                "y": 270.0,
+                "color": "#10B981",
+                "details": "苏丹对州务拥有实质否决权，箭头自上而下表示权力贯通。",
+                "source_page": null
+              },
+              {
+                "id": "entity-3",
+                "shape": "label_box",
+                "label": "宗教与习俗",
+                "x": 620.0,
+                "y": 440.0,
+                "color": "#64748B",
+                "details": "宗教与习俗事务本来属于苏丹权限的一部分，此时并非唯一权限。",
+                "source_page": null
+              }
+            ]
+          },
+          {
+            "step_index": 1,
+            "narration": "1946 年 Malayan Union 宪制提出，苏丹的政治权力被大幅削减，各州主权移交给英国总督。",
+            "source_ref": "Extended Knowledge",
+            "entities": [
+              {
+                "id": "entity-0",
+                "shape": "label_box",
+                "label": "苏丹",
+                "x": 230.0,
+                "y": 160.0,
+                "color": "#F59E0B",
+                "details": "苏丹位置向右缩小移动，象征权力范围收窄。",
+                "source_page": null
+              },
+              {
+                "id": "entity-1",
+                "shape": "rect",
+                "label": "英国总督",
+                "x": 720.0,
+                "y": 200.0,
+                "color": "#EF4444",
+                "details": "各州主权移交的对象，位于画面上方右侧。",
+                "source_page": null
+              },
+              {
+                "id": "entity-2",
+                "shape": "arrow",
+                "label": "主权移交",
+                "x": 470.0,
+                "y": 180.0,
+                "color": "#EF4444",
+                "details": "箭头由苏丹指向英国总督，表示主权转移方向。",
+                "source_page": null
+              },
+              {
+                "id": "entity-3",
+                "shape": "rect",
+                "label": "州务行政",
+                "x": 720.0,
+                "y": 380.0,
+                "color": "#2563EB",
+                "details": "州务行政权随主权一并转由英国总督掌控。",
+                "source_page": null
+              }
+            ]
+          },
+          {
+            "step_index": 2,
+            "narration": "在 Malayan Union 之下，苏丹仅保留宗教与习俗事务的权限，不再拥有对州务的实质否决权。",
+            "source_ref": "Extended Knowledge",
+            "entities": [
+              {
+                "id": "entity-0",
+                "shape": "label_box",
+                "label": "苏丹",
+                "x": 230.0,
+                "y": 160.0,
+                "color": "#F59E0B",
+                "details": "苏丹仍存在于宪制结构中，但角色已改变。",
+                "source_page": null
+              },
+              {
+                "id": "entity-1",
+                "shape": "zone",
+                "label": "宗教与习俗权限",
+                "x": 230.0,
+                "y": 430.0,
+                "color": "#10B981",
+                "details": "苏丹保有的唯一实质权限范围，以区域框表示。",
+                "source_page": null
+              },
+              {
+                "id": "entity-2",
+                "shape": "arrow",
+                "label": "唯一保留",
+                "x": 230.0,
+                "y": 300.0,
+                "color": "#10B981",
+                "details": "箭头仅指向宗教与习俗区域，表示权限只剩这一块。",
+                "source_page": null
+              },
+              {
+                "id": "entity-3",
+                "shape": "label_box",
+                "label": "无实质否决权",
+                "x": 700.0,
+                "y": 430.0,
+                "color": "#EF4444",
+                "details": "对州务的实质否决权已被取消，以红色标签强调。",
+                "source_page": null
+              }
+            ]
+          },
+          {
+            "step_index": 3,
+            "narration": "作答时先写制度安排：主权归总督、苏丹只余宗教与习俗；再写社会反应；最后写影响，层次分明才拿高分。",
+            "source_ref": "Extended Knowledge",
+            "entities": [
+              {
+                "id": "entity-0",
+                "shape": "label_box",
+                "label": "① 制度安排",
+                "x": 200.0,
+                "y": 150.0,
+                "color": "#2563EB",
+                "details": "第一层：Malayan Union 下苏丹权限与主权归属的制度设计。",
+                "source_page": null
+              },
+              {
+                "id": "entity-1",
+                "shape": "label_box",
+                "label": "② 社会反应",
+                "x": 500.0,
+                "y": 150.0,
+                "color": "#F59E0B",
+                "details": "第二层：马来社会对苏丹权力被削与主权移交的反应。",
+                "source_page": null
+              },
+              {
+                "id": "entity-2",
+                "shape": "label_box",
+                "label": "③ 影响",
+                "x": 800.0,
+                "y": 150.0,
+                "color": "#6366F1",
+                "details": "第三层：宪制变化带来的后续影响，包括公民权属地原则使非马来人人口结构面临改变。",
+                "source_page": null
+              },
+              {
+                "id": "entity-3",
+                "shape": "arrow",
+                "label": "作答顺序",
+                "x": 500.0,
+                "y": 300.0,
+                "color": "#64748B",
+                "details": "箭头贯穿三层结构，提示书写顺序不可颠倒。",
+                "source_page": null
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
