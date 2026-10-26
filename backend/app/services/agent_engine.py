@@ -67,7 +67,11 @@ from app.services.router import NONE, RouteDecision, route
 Event = tuple[str, Any]
 
 _SENTENCE_SPLIT_RE = re.compile(r"[。！？；\n]|(?<=[.!?])\s+")
-_PAGE_CITATION_RE = re.compile(r"\[p\.(\d+)\]")
+# 正文页码标记：**单页与范围两种写法都要认**。
+# 早期只写了 `\[p\.(\d+)\]`，而真实模型（DeepSeek）习惯输出 `[p.74-75]` 这种范围写法，
+# 于是整条匹配不上 —— 「正文引用了检索集外页码」这道后校验被静默跳过，
+# P0-05④「禁止编造页码」的最后一道闸门形同虚设（模型写 `[p.999-1000]` 也拦不住）。
+_PAGE_CITATION_RE = re.compile(r"\[p\.(\d+)(?:-(\d+))?\]")
 # 正文分片长度：约等于一行中文的视觉长度，流式渲染更顺滑
 TOKEN_CHUNK_SIZE = 26
 MAX_REPLY_FACTS = 4
@@ -601,6 +605,7 @@ class AgentEngine:
         self, req: TurnRequest, decision: RouteDecision, context: MockContext
     ) -> AsyncIterator[Event]:
         """产出 ("error"|"spec", payload)。LLM 路径带校验重试，全部失败降级 mock。"""
+        # 实测 generator 出 5 页 PPT 约 70s，若需压总耗时，方向是分批下发或换更快档位
         if not self._llm.enabled:
             spec = generate_spec(decision.artifact_type, context)
             try:
@@ -833,10 +838,20 @@ class AgentEngine:
     ) -> list[Citation]:
         """§7.3 引用合法性后校验：正文里出现但检索集里没有的页码 → 记 WARN 并剔除引用。
 
+        范围引用（`[p.74-75]`）**两个端点都必须落在检索切片的页码区间内**才算合法；
+        只要有一个端点越界（如 `[p.76-1000]`），整条引用即视为编造，不做「部分合法」的宽容 ——
+        模型编页码时最常见的形态恰恰是「真页码 + 一个凑数的尾巴」，放行半个就等于放行编造。
+        合法性按 chunk 的 `page_start..page_end` 整段展开后判定（`RetrievalResult.pages`），
+        所以 `[p.77]` 落在 `p.76-77` 切片内是合法的，不会被误判。
+
         不篡改正文：流式内容用户已经看到了，事后改写会造成「界面闪变」。
         """
         allowed_pages = result.pages
-        cited_pages = {int(match) for match in _PAGE_CITATION_RE.findall(reply)}
+        cited_pages: set[int] = set()
+        for start, end in _PAGE_CITATION_RE.findall(reply):
+            cited_pages.add(int(start))
+            if end:
+                cited_pages.add(int(end))
         invalid = {page for page in cited_pages if page not in allowed_pages}
         if invalid:
             log_event(
