@@ -1,0 +1,286 @@
+%% 多模态沉浸式智能助教 — 类图（数据模型 + 服务契约）
+%% 与 docs/ARCHITECTURE.md §4 / §5 一致；仅描述结构与关系，不描述实现细节。
+
+classDiagram
+    direction LR
+
+    %% ================= 数据模型（SQLAlchemy 2.0） =================
+    class Workspace {
+        +str id
+        +str title
+        +datetime created_at
+        +datetime last_active_at
+    }
+
+    class Document {
+        +str id
+        +str workspace_id
+        +str filename
+        +str stored_path
+        +int page_count
+        +str status
+        +int progress
+        +str error_code
+        +str error_message
+        +dict toc_tree
+        +str parser_mode
+        +datetime created_at
+    }
+
+    class DocumentChunk {
+        +str id
+        +str document_id
+        +str workspace_id
+        +str section_code
+        +str section_title
+        +int level
+        +int chunk_index
+        +int page_start
+        +int page_end
+        +str content
+        +int char_len
+    }
+
+    class ChunkVector {
+        +str id
+        +str chunk_id
+        +str workspace_id
+        +str document_id
+        +int dim
+        +str vector
+        +str model
+    }
+
+    class Artifact {
+        +str id
+        +str workspace_id
+        +str title
+        +str artifact_type
+        +int version
+        +dict spec_json
+        +str anchor_section
+        +datetime created_at
+        +datetime updated_at
+    }
+
+    class ArtifactVersion {
+        +str id
+        +str artifact_id
+        +int version
+        +dict spec_json
+        +list patch_ops
+        +str origin_turn_id
+        +datetime created_at
+    }
+
+    class Message {
+        +str id
+        +str workspace_id
+        +str role
+        +str content_markdown
+        +str knowledge_scope
+        +list citations
+        +dict anchor
+        +str artifact_id
+        +int artifact_version
+        +bool demo_mode
+        +datetime created_at
+    }
+
+    Workspace "1" --> "0..*" Document : owns
+    Workspace "1" --> "0..*" Artifact : owns
+    Workspace "1" --> "0..*" Message : owns
+    Document "1" --> "0..*" DocumentChunk : splits_into
+    DocumentChunk "1" --> "1" ChunkVector : embedded_as
+    Artifact "1" --> "1..*" ArtifactVersion : versioned_by
+    Message "0..*" --> "0..1" Artifact : refers_to
+
+    %% ================= 契约层（Pydantic v2 AST） =================
+    class SlideDeckSpec {
+        +Literal type = "ppt"
+        +str topic
+        +list~SlideNode~ slides
+    }
+    class SlideNode {
+        +str node_id
+        +Literal layout
+        +str title
+        +str|null subtitle
+        +list~str~ bullets
+        +list~str~|null comparison_left
+        +list~str~|null comparison_right
+        +list~TimelineItem~|null timeline_items
+        +list~QuizQuestion~|null quiz_questions
+        +str speaker_notes
+        +str source_ref
+    }
+    class TimelineItem {
+        +str year
+        +str label
+        +str detail
+        +int|null source_page
+    }
+    class QuizQuestion {
+        +str question
+        +list~str~ options
+        +int answer_index
+        +str explanation
+    }
+
+    class Keyframe2DSpec {
+        +Literal type = "anim_2d"
+        +str title
+        +list~KeyframeStep~ steps
+    }
+    class KeyframeStep {
+        +int step_index
+        +str narration
+        +str source_ref
+        +list~Entity2D~ entities
+    }
+    class Entity2D {
+        +str id
+        +Literal shape
+        +str label
+        +float x
+        +float y
+        +str color
+        +str details
+        +int|null source_page
+    }
+
+    class SceneGraph3DSpec {
+        +Literal type = "scene_3d"
+        +str title
+        +list~Node3D~ nodes
+        +list~CameraPreset~ camera_tour
+    }
+    class Node3D {
+        +str id
+        +Literal primitive
+        +str label
+        +tuple position
+        +tuple scale
+        +tuple rotation
+        +str color
+        +str annotation_markdown
+        +int|null source_page
+        +str|null parent_id
+    }
+    class CameraPreset {
+        +str name
+        +tuple position
+        +tuple target
+        +str explanation
+    }
+
+    SlideDeckSpec "1" *-- "1..*" SlideNode
+    SlideNode "1" o-- "0..*" TimelineItem
+    SlideNode "1" o-- "0..*" QuizQuestion
+    Keyframe2DSpec "1" *-- "1..*" KeyframeStep
+    KeyframeStep "1" *-- "1..*" Entity2D
+    SceneGraph3DSpec "1" *-- "1..*" Node3D
+    SceneGraph3DSpec "1" *-- "0..*" CameraPreset
+    Node3D "0..*" --> "0..1" Node3D : parent_id
+
+    Artifact ..> SlideDeckSpec : spec_json 反序列化为
+    Artifact ..> Keyframe2DSpec : 或
+    Artifact ..> SceneGraph3DSpec : 或
+
+    %% ================= Patch 协议 =================
+    class PatchOp {
+        +Literal op
+        +str node_path
+        +dict|null payload
+        +str reason
+        +validate_payload()
+    }
+    class PatchRequest {
+        +str artifact_id
+        +int base_version
+        +list~PatchOp~ ops
+    }
+    PatchRequest "1" *-- "1..20" PatchOp
+    ArtifactVersion "1" o-- "0..*" PatchOp : applied_ops
+
+    %% ================= 服务层 =================
+    class EmbeddingStore {
+        <<protocol>>
+        +upsert_vectors(items) None
+        +search_similar(workspace_id, query_vec, top_k, section_prefix) list~VectorHit~
+        +delete_by_document(document_id) None
+    }
+    class MemoryVectorStore {
+        -dict _cache
+        +upsert_vectors(items) None
+        +search_similar(workspace_id, query_vec, top_k, section_prefix) list~VectorHit~
+        +delete_by_document(document_id) None
+    }
+    class PgVectorStore {
+        +upsert_vectors(items) None
+        +search_similar(workspace_id, query_vec, top_k, section_prefix) list~VectorHit~
+        +delete_by_document(document_id) None
+    }
+    EmbeddingStore <|.. MemoryVectorStore
+    EmbeddingStore <|.. PgVectorStore
+
+    class PdfParser {
+        +parse(path) ParsedDocument
+        +detect_sections(pages) list~Section~
+        +build_toc_tree(sections) list~TocNode~
+        -_match_heading(line) Heading|null
+    }
+    class Chunker {
+        +chunk(parsed, max_chars) list~Chunk~
+    }
+    class EmbeddingProvider {
+        +embed_batch(texts) list_of_vectors
+        -_deterministic_hash(token) int
+    }
+    class Retriever {
+        +retrieve(workspace_id, query, anchor, top_k) RetrievalResult
+        +grade(result, query) GraderStatus
+        -_bm25(candidates, terms) list~float~
+    }
+    class RetrievalGrader {
+        +grade(top_score, support_count, keyword_hit) GraderStatus
+    }
+    class ModalityRouter {
+        +route(query, anchor, user_override) RouteDecision
+    }
+    class LlmClient {
+        +chat_json(model, system, user) dict
+        +is_available() bool
+    }
+    class MockGenerator {
+        +generate(artifact_type, context) BaseModel
+        +generate_patch(spec, anchor, context) list~PatchOp~
+    }
+    class PatchEngine {
+        +apply(spec_dict, ops, base_version) PatchResult
+        +resolve(doc, node_path) Any
+        +fingerprint_map(doc) dict_of_fingerprints
+    }
+    class AgentEngine {
+        +run_turn(request) AsyncIterator~SseEvent~
+    }
+    class ParseTaskRegistry {
+        +spawn(document_id) None
+        +progress(document_id) TaskState
+        +cancel(document_id) None
+    }
+
+    Retriever --> EmbeddingStore
+    Retriever --> RetrievalGrader
+    AgentEngine --> Retriever
+    AgentEngine --> ModalityRouter
+    AgentEngine --> PatchEngine
+    AgentEngine --> LlmClient
+    AgentEngine --> MockGenerator
+    PdfParser --> Chunker
+    Chunker --> EmbeddingProvider
+    EmbeddingProvider --> EmbeddingStore
+    ParseTaskRegistry --> PdfParser
+    ParseTaskRegistry --> Chunker
+    LlmClient ..|> MockGenerator : 无 Key 时降级
+    PatchEngine ..> ArtifactVersion : 追加版本

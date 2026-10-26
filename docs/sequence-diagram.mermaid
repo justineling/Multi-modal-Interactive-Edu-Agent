@@ -1,0 +1,126 @@
+%% 多模态沉浸式智能助教 — 核心调用时序
+%% 与 docs/ARCHITECTURE.md §6 一致。
+
+%% ================= 链路 A：上传 PDF → 解析 → 切片入库 =================
+sequenceDiagram
+    autonumber
+    participant U as 学生
+    participant FD as FileDrawer
+    participant WS as api/workspaces.py
+    participant TK as services/tasks.py
+    participant PP as services/pdf_parser.py
+    participant CK as services/chunker.py
+    participant EM as services/embedding.py
+    participant VS as EmbeddingStore
+    participant RP as db/repository.py
+
+    U->>FD: 选择 PDF
+    FD->>WS: POST /api/workspaces/{id}/documents (multipart)
+    WS->>WS: 校验扩展名 / 大小 / 页数 / 加密 / 文本层
+    alt 校验失败
+        WS-->>FD: 400 {code: UNSUPPORTED_FILE_TYPE | PDF_ENCRYPTED | PDF_EMPTY | PDF_NO_TEXT_LAYER}
+    else 校验通过
+        WS->>RP: create_document(status=pending, progress=0)
+        WS->>TK: spawn(parse_document(doc_id))
+        WS-->>FD: 202 {document_id, status:"pending"}
+        loop 前端每 1.5s 轮询
+            FD->>WS: GET /api/documents/{id}/status
+            WS-->>FD: {status, progress, error_code}
+        end
+        TK->>RP: update(status=parsing, progress=10)
+        TK->>PP: parse(stored_path)
+        PP->>PP: pymupdf4llm → markdown + 页码映射
+        PP->>PP: 章节正则 + 前向填充 → sections / toc_tree
+        alt 章节识别失败
+            PP->>PP: parser_mode = "page_fallback"（每 5 页一组，code=P0001）
+            PP->>RP: WARN toc_fallback
+        end
+        TK->>CK: chunk(sections)
+        CK-->>TK: chunks[] (section_code, page_start, page_end, content)
+        TK->>EM: embed_batch(contents)
+        EM-->>TK: vectors[] (dim=1536)
+        TK->>VS: upsert_vectors(items)
+        VS->>RP: insert chunk_vectors
+        TK->>RP: bulk_insert_chunks + save_toc + status=ready(100%)
+        FD->>WS: GET /api/documents/{id}/toc
+        WS-->>FD: toc_tree
+        FD->>FD: 渲染可折叠目录树
+    end
+
+%% ================= 链路 B：带锚点追问 → 局部 patch =================
+sequenceDiagram
+    autonumber
+    participant U as 学生
+    participant SC as SlideRenderer
+    participant ST as useWorkspaceStore
+    participant CP as ChatPanel
+    participant SSE as api/chat_stream.py
+    participant RT as services/retriever.py
+    participant ROU as services/router.py
+    participant GEN as llm_client / mock_generator
+    participant PE as services/patch_engine.py
+    participant RP as db/repository.py
+
+    U->>SC: 点击第 3 页「左右对比」
+    SC->>ST: setAnchor({artifact_id, node_path:"/slides/2", node_label:"左右对比", page:114})
+    ST->>CP: 显示锚点 chip
+    U->>CP: 输入「这里再细一点」
+    CP->>SSE: POST /api/chat/stream {query, anchor}
+    SSE-->>CP: event: turn_start {turn_id, mode, demo_mode, has_anchor}
+
+    SSE->>RT: retrieve(query, 优先按 anchor.section_code 过滤)
+    RT->>RT: BM25 + 余弦 + 元数据加成 → Top-K
+    RT->>RT: RetrievalGrader 判定
+    RT-->>SSE: RetrievalResult {grader_status, chunks}
+    SSE-->>CP: event: retrieval {grader_status, section_scope, top_score, chunks}
+
+    SSE->>ROU: route(query, anchor, user_override)
+    ROU-->>SSE: RouteDecision {patch_artifact, artifact_type:"ppt", reason}
+    SSE-->>CP: event: modality_decision {artifact_type, action, reason, user_override}
+
+    SSE->>GEN: 提示词 = 锚点子树 + 上下文切片 + 只改此子树
+    GEN-->>SSE: reply tokens（流式）
+    loop 每个增量
+        SSE-->>CP: event: token {delta}
+    end
+    GEN-->>SSE: ops: PatchOp[]
+
+    SSE->>PE: apply(current_spec, ops, base_version)
+    PE->>PE: deepcopy → JSON Pointer 定点写入
+    PE->>PE: Pydantic 强校验
+    PE->>PE: 全路径指纹表比对（非锚定子树必须字节级不变）
+    alt 校验失败
+        PE-->>SSE: CONTRACT_VALIDATION_FAILED
+        SSE-->>CP: event: error {code, stage:"validate", retryable:true, attempt}
+        SSE->>GEN: 带错误信息重试（≤3 次）
+    else 通过
+        PE-->>SSE: PatchResult {spec, changed_paths}
+        SSE->>RP: append artifact_versions(version=base+1, patch_ops)
+        SSE->>RP: update artifacts.version / spec_json
+        SSE-->>CP: event: artifact {action:"patch", artifact_id, version, ops}
+        CP->>ST: applyPatch(ops) 乐观更新 + 本地指纹自检
+        ST->>SC: 仅重渲染被锚定子树 + 高亮「已局部更新」
+        SSE-->>CP: event: citations {citations}
+        SSE-->>CP: event: turn_end {duration_ms, ttft_ms, version, demo_mode}
+    end
+
+%% ================= 链路 C：无 LLM_API_KEY 的降级路径 =================
+sequenceDiagram
+    autonumber
+    participant SSE as api/chat_stream.py
+    participant CFG as config.py
+    participant AE as services/agent_engine.py
+    participant MOCK as services/mock_generator.py
+    participant CP as ChatPanel
+
+    SSE->>CFG: LLM_API_KEY 是否为空？
+    alt 为空
+        CFG-->>AE: demo_mode = true
+        AE->>MOCK: generate(artifact_type, context)  ← 纯函数，禁止 random/uuid4/hash()
+        MOCK-->>AE: 确定性 AST（node_id 由序号推导）
+        SSE-->>CP: turn_start {demo_mode:true} + turn_end {demo_mode:true}
+        CP->>CP: 顶栏常驻「演示模式（未接入模型）」黄标
+    else 非空
+        CFG-->>AE: demo_mode = false
+        AE->>AE: 走 llm_client 真实调用（失败仍可回落到 MOCK）
+    end
