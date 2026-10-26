@@ -39,6 +39,15 @@ class MockContext:
     section_title: str
     pages: tuple[int, ...]
     facts: tuple[str, ...]
+    # 与 `facts` 逐条平行的来源页。`None` 表示这条事实没有可回溯的页码。
+    # 为什么平行成一个新元组而不是把 `facts` 改成 (fact, page) 二元组：
+    # `facts` 被 mock 生成的三个形态和确定性测试直接消费，改类型会波及一大片；
+    # 追加一个带默认值的字段是 HANDOVER 第七节第 3 条「契约演进只能加」的正确姿势。
+    fact_pages: tuple[int | None, ...] = ()
+    # 本次检索命中的全部页码（升序去重）。用途只有两个：把模型编造的页码钳制掉，
+    # 以及让 `_drop_invalid_citations` 与钳制共用同一个「哪页合法」的判定集合。
+    # 注意它**不**参与契约渲染：契约示例刻意不写任何页码（示例写什么模型就抄什么）。
+    allowed_pages: tuple[int, ...] = ()
 
     @property
     def topic(self) -> str:
@@ -74,11 +83,30 @@ def _sanitize(text: str) -> str:
     return cleaned
 
 
-def extract_facts(texts: Sequence[str], *, limit: int = _MAX_FACTS) -> tuple[str, ...]:
-    """从切片正文抽句子作为「事实」。保持原文顺序、去重、限长，完全确定性。"""
-    facts: list[str] = []
+def extract_facts_with_pages(
+    texts: Sequence[str],
+    pages: Sequence[int] = (),
+    *,
+    limit: int = _MAX_FACTS,
+) -> tuple[tuple[str, int | None], ...]:
+    """从切片正文抽句子作为「事实」，并记录每条事实的来源页。
+
+    抽取规则与 `extract_facts` **完全一致**（同样的顺序、去重、长度门槛、限长），
+    只是额外把「这句话来自第几页」带出来。`pages[i]` 是 `texts[i]` 的页码，
+    越界或缺失时记 `None`（宁可没有页码，也不能瞎填一个）。
+
+    为什么页码要跟着事实走：模型原本拿到的只有纯文本事实，正文里一个页码都没有，
+    于是它只能省略页码或照抄契约示例里硬编码的那个数字 —— 两种都不满足 P0-05④。
+    """
+    facts: list[tuple[str, int | None]] = []
     seen: set[str] = set()
-    for text in texts:
+    for index, text in enumerate(texts):
+        page: int | None = None
+        if index < len(pages):
+            try:
+                page = int(pages[index])
+            except (TypeError, ValueError):
+                page = None
         for sentence in _SENTENCE_SPLIT_RE.split(text):
             cleaned = _sanitize(sentence)
             if len(cleaned) < 12:
@@ -86,10 +114,15 @@ def extract_facts(texts: Sequence[str], *, limit: int = _MAX_FACTS) -> tuple[str
             if cleaned in seen:
                 continue
             seen.add(cleaned)
-            facts.append(_clip(cleaned, _MAX_FACT_LEN))
+            facts.append((_clip(cleaned, _MAX_FACT_LEN), page))
             if len(facts) >= limit:
                 return tuple(facts)
     return tuple(facts)
+
+
+def extract_facts(texts: Sequence[str], *, limit: int = _MAX_FACTS) -> tuple[str, ...]:
+    """从切片正文抽句子作为「事实」。保持原文顺序、去重、限长，完全确定性。"""
+    return tuple(fact for fact, _ in extract_facts_with_pages(texts, (), limit=limit))
 
 
 def build_context(
@@ -99,18 +132,38 @@ def build_context(
     section_title: str,
     texts: Sequence[str],
     pages: Sequence[int],
+    allowed_pages: Sequence[int] = (),
 ) -> MockContext:
-    facts = extract_facts(texts)
-    if not facts:
-        # 检索为空也要能出东西（例如 NO_MATCH 时用户仍要求生成），但绝不编造页码
-        facts = (_clip(_sanitize(query) or "本节要点", _MAX_FACT_LEN),)
+    """把检索结果整理成生成所需的上下文。
+
+    `pages` 与 `allowed_pages` 是**两件不同的事**，不要混用：
+
+    - `pages`：每段正文的**起始页**，只用于逐条事实溯源（`fact_pages`）。
+    - `allowed_pages`：本次检索命中的**全部**页码（含切片区间），即「可引用的范围」，
+      由 `_clamp_spec_pages` 与 `_drop_invalid_citations` 共用。
+
+    `allowed_pages` 缺省为空元组时**保持为空，不退化用 `pages`**：`pages` 只有每段正文的
+    起始页，拿它冒充可引用范围，会把「p.77 落在 p.76-77 切片内」这种**合法**页码钳掉，
+    等于用一个不完整的集合制造新的错误。空集合的语义是「这次没有可信页码」，
+    下游据此跳过钳制（见 `_clamp_spec_pages` 的 `if not allowed` 分支）。
+    """
     ordered_pages = tuple(sorted({int(page) for page in pages if page})) or (1,)
+    facts_with_pages = extract_facts_with_pages(texts, pages)
+    if not facts_with_pages:
+        # 检索为空也要能出东西（例如 NO_MATCH 时用户仍要求生成），但绝不编造页码
+        facts_with_pages = ((_clip(_sanitize(query) or "本节要点", _MAX_FACT_LEN), None),)
+    # 不做「退化为 pages」的兜底：`pages` 是每段正文的起始页，不是「可引用范围」。
+    # 空就是空 —— 让下游（契约示例渲染 / 页码钳制）明确知道「这次没有可引用的页码」，
+    # 而不是拿一个并不完整的集合冒充完整范围，反而把合法页码钳掉。
+    allowed = tuple(sorted({int(page) for page in allowed_pages if page}))
     return MockContext(
         query=_sanitize(query) or "本节要点",
         section_code=section_code,
         section_title=_sanitize(section_title),
         pages=ordered_pages,
-        facts=facts,
+        facts=tuple(fact for fact, _ in facts_with_pages),
+        fact_pages=tuple(page for _, page in facts_with_pages),
+        allowed_pages=allowed,
     )
 
 

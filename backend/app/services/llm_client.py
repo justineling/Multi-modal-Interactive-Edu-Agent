@@ -30,6 +30,25 @@ _FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 RETRY_BACKOFF = (0.0, 0.4, 1.0)
 
 
+class RateLimitedError(AppError):
+    """上游返回 429。**必须单独成类**，不能混在通用 `AppError` 里。
+
+    原因：`agent_engine._generate_spec_stream` 把 `AppError` 一律当「契约校验失败」重试
+    （3 次），而 429 重试三次既不会好，还会把配额与延迟一起放大。单独成类之后，
+    产物分支可以 `except RateLimitedError: raise` 把它原样上抛，由主路径在**正文结束之后**
+    串行重试（那时系统里只剩这一个请求，成功率最高）。
+
+    另外它决定了错误归因：429 的 error 事件必须是 `stage="generate"`，不能是 `"validate"` ——
+    否则 `flash_quality_check` 的 `validate_errors` 会虚增，G1 retry 率算错（设计 §3.3.4 MC-4）。
+    """
+
+    def __init__(self, message: str | None = None, *, retry_after: float | None = None) -> None:
+        super().__init__(ErrorCode.LLM_UPSTREAM_ERROR, message or "模型服务限流（429）")
+        # 上游 `Retry-After` 头（秒）。留着供将来做「按服务端建议等待」，
+        # 当前串行重试不看它（设计 §4.5 E5：先静默重试一次，不引入新的等待策略）。
+        self.retry_after: float | None = retry_after
+
+
 def extract_json_object(raw: str) -> dict[str, Any]:
     """从模型输出里抠出第一个 JSON 对象。
 
@@ -50,6 +69,20 @@ def extract_json_object(raw: str) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         raise ValueError(f"期望 JSON 对象，实际是 {type(parsed).__name__}")
     return parsed
+
+
+def _parse_retry_after(raw: str | None) -> float | None:
+    """解析 `Retry-After`（秒数或 HTTP-date）。
+
+    解析失败一律返回 `None` 而不是抛异常：限流响应头格式不规范时，**不该让一个
+    诊断字段把整轮对话打断**。当前没有消费者按它等待（见 `RateLimitedError.retry_after`）。
+    """
+    if not raw:
+        return None
+    try:
+        return max(0.0, float(raw.strip()))
+    except (TypeError, ValueError):
+        return None
 
 
 class LLMClient:
@@ -73,7 +106,12 @@ class LLMClient:
         }
 
     async def _post_json(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """带传输层重试的 POST。只对「网络/5xx」重试，4xx 直接失败（重试也不会好）。"""
+        """带传输层重试的 POST。只对「网络/5xx」重试，4xx 直接失败（重试也不会好）。
+
+        429 是唯一需要**换一种重试策略**的 4xx：它不是「参数错了」，而是「此刻太挤」。
+        所以这里不重试、直接抛 `RateLimitedError`，交给产物分支在正文结束后串行重试 ——
+        重试的位置比重试的次数更重要。
+        """
         last_error: Exception | None = None
         for attempt, delay in enumerate(RETRY_BACKOFF[: self._settings.LLM_MAX_RETRIES]):
             if delay:
@@ -86,6 +124,18 @@ class LLMClient:
                         f"{self.base_url}/chat/completions",
                         json=payload,
                         headers=self._headers(),
+                    )
+                if response.status_code == 429:
+                    retry_after = _parse_retry_after(response.headers.get("Retry-After"))
+                    log_event(
+                        "llm_call",
+                        level=logging.WARNING,
+                        attempt=attempt,
+                        error="rate_limited",
+                        model=payload.get("model"),
+                    )
+                    raise RateLimitedError(
+                        f"模型服务限流（429）：{response.text[:200]}", retry_after=retry_after
                     )
                 if response.status_code >= 500:
                     last_error = AppError(
@@ -104,6 +154,8 @@ class LLMClient:
                 log_event("llm_call", level=logging.WARNING, attempt=attempt, error="timeout")
                 last_error.__cause__ = exc
             except AppError:
+                # RateLimitedError 也在这里被原样上抛（它是 AppError 的子类），
+                # 这正是我们要的：429 绝不进入「网络异常重试」分支。
                 raise
             except Exception as exc:  # 网络层异常
                 last_error = AppError(ErrorCode.LLM_UPSTREAM_ERROR, f"模型调用失败：{exc}")
@@ -122,12 +174,24 @@ class LLMClient:
     ) -> dict[str, Any]:
         """请求一个 JSON 对象。JSON 解析失败会内部重试（最多 LLM_MAX_RETRIES 次）。
 
-        默认模型是 `LLM_MODEL_GENERATOR`（重模型），与 `stream_text` 的默认值**故意不同**：
-        这里的产物是强结构 AST，字段名/枚举错一个就整份作废、要回灌错误重试（每次重试都是
-        一次完整请求，成本远高于单次慢一点）。准确率优先于延迟，所以用重模型。
+        默认模型是 `settings.artifact_model`（`LLM_MODEL_ARTIFACT`，空串则跟随
+        `LLM_MODEL_GENERATOR`），与 `stream_text` 的默认值**故意不同**：正文要的是首字延迟，
+        产物要的是「一次就过」。
+
+        **旧的取舍「结构化 AST 用重档，准确率优先于延迟」已被实测推翻**，不要再照它改回去：
+        同一批 11 个回合里，`deepseek-flash` 与 `deepseek-v4-pro` 的契约通过率相同
+        （11 次调用 0 次重试、0 次降级 mock），而产物阶段耗时从 55.5s 降到 10.1s
+        （`docs/increments/latency-profile.md` / `flash-quality.md`）。
+        新的取舍是「**延迟优先 + 用 retry 率做护栏**」：
+        - 重试一次就是一次完整调用（约 10s），所以 retry 率是唯一值得守的指标；
+        - 若 retry 率破 PRD G1 阈值（阶段一 ≥2 次即否决），用 `LLM_MODEL_ARTIFACT`
+          切回重档（或只对某个形态用 `LLM_MODEL_ARTIFACT_BY_TYPE` 切回），
+          **不要改代码默认值**。
+
+        显式传 `model=` 时以入参为准（`agent_engine` 用它做分形态覆盖）。
         """
         payload: dict[str, Any] = {
-            "model": model or self._settings.LLM_MODEL_GENERATOR,
+            "model": model or self._settings.artifact_model,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -177,8 +241,9 @@ class LLMClient:
         - 正文是自然语言讲解，用户盯空屏超过 3 秒就以为卡死（P0-05① 的 TTFT 验收）。
           实测同一段讲解，重模型首 token 要 55 秒，轻量模型 1~2 秒，而学生根本看不出
           措辞上的差异 —— 用重模型换来的那点文采，代价是 55 倍的首字延迟，不划算。
-        - 结构化 AST（`complete_json`）正相反：字段名错一个整份作废，必须用准确率更高的
-          GENERATOR，多等几秒值得。
+        - 结构化 AST（`complete_json`）的默认档位另有配置（`LLM_MODEL_ARTIFACT`），
+          与这里**故意不对称**：正文优化首字延迟，产物优化「一次就过」，
+          两者的实测取舍见 `complete_json` 的 docstring。
         两个默认值因此不对称，改动任一默认值前请先想清楚这条取舍。
         """
         payload = {

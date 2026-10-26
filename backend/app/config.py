@@ -11,13 +11,49 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # backend/ 目录的绝对路径。相对路径（DATA_DIR、sqlite 文件）一律以它为基准，
 # 否则 `uvicorn --app-dir backend`（CWD=项目根）与 `cd backend && uvicorn`（CWD=backend）
 # 会落到两个不同的 data/ 目录，出现「上传的 PDF 找不到」这类幽灵问题。
 BACKEND_ROOT: Path = Path(__file__).resolve().parents[1]
+
+# 允许在 `LLM_MODEL_ARTIFACT_BY_TYPE` 里出现的形态键。与 `schemas/artifacts.py` 的
+# 判别字段取值一致；不在这里的键一律拒绝，因为「配了却没生效」比「启动失败」难查得多。
+ARTIFACT_TYPES: frozenset[str] = frozenset({"ppt", "anim_2d", "scene_3d"})
+
+
+def _parse_model_overrides(raw: str) -> dict[str, str]:
+    """解析 `LLM_MODEL_ARTIFACT_BY_TYPE`（`k=v,k=v`）成分形态档位表。
+
+    规则：
+    - 逗号分隔，每项 `type=model`；
+    - 键必须在 `ARTIFACT_TYPES` 内，否则抛 `ValueError`（fail fast：拼错的键被静默
+      忽略，正是「配了却没生效」的经典形态，IMPL-NOTES E11 教训 1）；
+    - 值允许空串，语义是「该形态跟随全局档位」；
+    - 空串/纯空白输入返回空表（全部走全局档位）。
+
+    纯函数、无副作用：校验（`Settings` 构造时）与读取（`artifact_model_for`）各调一次，
+    这样「校验通过」与「实际使用」保证是同一套解析逻辑。
+    """
+    overrides: dict[str, str] = {}
+    for item in (raw or "").split(","):
+        piece = item.strip()
+        if not piece:
+            continue
+        key, sep, value = piece.partition("=")
+        key = key.strip()
+        if not sep or not key:
+            raise ValueError(
+                f"LLM_MODEL_ARTIFACT_BY_TYPE 的每一项应为 type=model，实际是 {piece!r}"
+            )
+        if key not in ARTIFACT_TYPES:
+            raise ValueError(
+                f"LLM_MODEL_ARTIFACT_BY_TYPE 的键只能是 {sorted(ARTIFACT_TYPES)}，收到 {key!r}"
+            )
+        overrides[key] = value.strip()
+    return overrides
 
 
 class Settings(BaseSettings):
@@ -38,11 +74,43 @@ class Settings(BaseSettings):
     LLM_BASE_URL: str = "https://api.openai.com/v1"
     # 空字符串 = 演示模式（MockGenerator 确定性生成），顶栏必须显示黄标（P0-12③）
     LLM_API_KEY: str = ""
-    # SPEC §6 成本模型：路由/评估用轻量模型，AST 生成用重模型，两个独立配置项
+    # 三个独立配置项，语义各不相同，**不要合并**：
+    # - ROUTER：轻量任务（正文流式 / 形态路由 / 相关性评估）。TTFT 靠这一档。
+    # - ARTIFACT：结构化 AST 生成（`complete_json`）。实测 flash 与 v4-pro 的契约
+    #   通过率相同而耗时 55.5s → 10.1s，所以默认走轻量档，见 IMPL-NOTES E12。
+    # - GENERATOR：重档。既是 ARTIFACT 的回退目标（ARTIFACT 置空即跟随它），
+    #   也是将来更复杂任务的落点。**默认值刻意不改**：README / .env.example /
+    #   两篇 HTML 文档都把它描述为「复杂 JSON AST 用大模型」，改默认值会让那几处
+    #   同时变成假话，且失去「留一个重档配置」的能力。
     LLM_MODEL_ROUTER: str = "gpt-4o-mini"
     LLM_MODEL_GENERATOR: str = "gpt-4o"
+    # 空串 = 跟随 LLM_MODEL_GENERATOR（即换档前的行为），这是全局回退开关
+    LLM_MODEL_ARTIFACT: str = "deepseek-flash"
+    # 分形态覆盖，形如 "anim_2d=deepseek-v4-pro,scene_3d=deepseek-v4-pro"。
+    # 默认留空（全局单档）：2D/3D 实测零契约失败，没有回退需求；预置分形态等于
+    # 「没测就假设」。拼错的键会在构造 Settings 时抛 ValueError，不许静默忽略 ——
+    # 「配了却没生效」正是 IMPL-NOTES E11 教训 1 的重演。
+    LLM_MODEL_ARTIFACT_BY_TYPE: str = ""
     LLM_TIMEOUT_SECONDS: float = Field(default=60.0, gt=0)
     LLM_MAX_RETRIES: int = Field(default=3, ge=1, le=5)
+
+    # ---------------- 产物生成执行策略 ----------------
+    # 这几个开关的存在理由都是「回退不依赖代码回滚」（PRD §5.3）：出问题时改一行
+    # 环境变量就能回到已知可用状态，不需要发版。
+    #
+    # 关闭并行 = 回到改动前的串行路径（正文流完再生成产物）。默认开启。
+    ARTIFACT_PARALLEL_ENABLED: bool = True
+    # fork 时刻。`after_first_token`（默认）在首个 token 产出后才发产物请求 ——
+    # TTFT 在产物请求发出之前就已测量完毕，所以「不影响 TTFT」是结构上可证的，
+    # 不是靠调度运气。`immediate` 能再省约 3.9s，但它把 TTFT 交给「provider 侧并发
+    # 是否排队」这个未验证假设，必须先做 A/B（TTFT P50/P90 + T4 P90 三条同时满足）
+    # 才允许写进 .env，不进代码默认值。
+    ARTIFACT_FORK_MODE: Literal["after_first_token", "immediate"] = "after_first_token"
+    # 进程内产物 LLM 并发安全阀（0 = 不限）。定位是「多标签页同时提问」的兜底，
+    # 不是调参旋钮：单回合最多 2 个并发请求，真正的限流应对是 429 → 串行降级。
+    ARTIFACT_MAX_CONCURRENCY: int = Field(default=8, ge=0)
+    # 产物侧遇 429 时，在正文结束后串行重试的次数（0 = 不重试，直接降级 mock）。
+    ARTIFACT_RATE_LIMIT_RETRY: int = Field(default=1, ge=0, le=3)
 
     # ---------------- 检索 / Grader（§7.2 §7.3）----------------
     GRADER_MATCH_THRESHOLD: float = 0.55
@@ -86,11 +154,34 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
     APP_VERSION: str = "0.1.0"
 
+    # ---------------- 校验器 ----------------
+    @field_validator("LLM_MODEL_ARTIFACT_BY_TYPE")
+    @classmethod
+    def _validate_model_overrides(cls, value: str) -> str:
+        """构造期就校验分形态档位表：宁可启动失败，也不要「以为回退了、其实没退」。"""
+        _parse_model_overrides(value)
+        return value
+
     # ---------------- 派生属性 ----------------
     @property
     def demo_mode(self) -> bool:
         """未配置 API Key 即为演示模式。空串与纯空白都算未配置。"""
         return not self.LLM_API_KEY.strip()
+
+    @property
+    def artifact_model(self) -> str:
+        """产物生成的全局档位。空串 = 跟随 `LLM_MODEL_GENERATOR`（换档前行为）。"""
+        return self.LLM_MODEL_ARTIFACT.strip() or self.LLM_MODEL_GENERATOR
+
+    def artifact_model_for(self, artifact_type: str | None) -> str:
+        """按形态取档位：分形态覆盖 > 全局档位 > `LLM_MODEL_GENERATOR`。
+
+        业务代码不得自己拼字符串或读 `LLM_MODEL_ARTIFACT`：回退链只有一处实现，
+        否则「改全局档位」和「改某个形态」会变成两套互相打架的逻辑。
+        """
+        overrides = _parse_model_overrides(self.LLM_MODEL_ARTIFACT_BY_TYPE)
+        override = overrides.get(str(artifact_type or "").strip(), "")
+        return override.strip() or self.artifact_model
 
     @property
     def cors_origins(self) -> list[str]:
