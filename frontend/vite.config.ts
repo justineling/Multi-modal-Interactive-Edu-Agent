@@ -1,16 +1,40 @@
 import { fileURLToPath, URL } from "node:url";
 
 import react from "@vitejs/plugin-react";
+import type { ProxyOptions } from "vite";
 import { defineConfig } from "vite";
+
+/**
+ * `/api` 代理到后端 8000。
+ *
+ * **SSE 也走这条代理**：vite 的 http-proxy 基于 stream 转发，不会缓冲
+ * `text/event-stream`，因此 `POST /api/chat/stream` 的逐事件推送能原样到达浏览器
+ * （前端仍必须用 fetch + ReadableStream 读取，见 api/sse.ts）。
+ *
+ * `server` 与 `preview` 必须共用同一份配置：PWA 的安装验证只能在 `vite preview`
+ * （生产构建 + localhost 安全上下文）下做，如果 preview 没有代理，
+ * 装成桌面应用后所有接口都会 404 —— 这正是「dev 能用、装完就废」的典型陷阱。
+ */
+const apiProxy: Record<string, ProxyOptions> = {
+  "/api": {
+    target: "http://127.0.0.1:8000",
+    changeOrigin: true,
+    ws: false,
+    // SSE 场景下不要改写响应，保留原始 text/event-stream 头
+    configure: (proxy) => {
+      proxy.on("proxyReq", (proxyReq) => {
+        proxyReq.setHeader("Accept-Encoding", "identity");
+      });
+    },
+  },
+};
 
 /**
  * Vite 配置。
  *
  * 两个关键点：
  * 1. `@` alias 必须与 tsconfig.json 的 `paths` 完全一致，否则 `tsc` 通过但运行时 404。
- * 2. `/api` 代理到后端 8000 端口。**SSE 也走这条代理**：vite 的 http-proxy 基于
- *    stream 转发，不会缓冲 `text/event-stream`，因此 `POST /api/chat/stream` 的
- *    逐事件推送能原样到达浏览器（前端仍必须用 fetch + ReadableStream 读取，见 api/sse.ts）。
+ * 2. 开发与预览两个服务器都要有 `/api` 代理（见上方 `apiProxy`）。
  */
 export default defineConfig({
   plugins: [react()],
@@ -22,19 +46,11 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: false,
-    proxy: {
-      "/api": {
-        target: "http://127.0.0.1:8000",
-        changeOrigin: true,
-        ws: false,
-        // SSE 场景下不要改写响应，保留原始 text/event-stream 头
-        configure: (proxy) => {
-          proxy.on("proxyReq", (proxyReq) => {
-            proxyReq.setHeader("Accept-Encoding", "identity");
-          });
-        },
-      },
-    },
+    proxy: apiProxy,
+  },
+  preview: {
+    port: 4173,
+    proxy: apiProxy,
   },
   build: {
     outDir: "dist",

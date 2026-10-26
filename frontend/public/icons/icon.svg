@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    PWA 图标源文件（几何与 icon-192.png / icon-512.png / icon-maskable-512.png 完全一致）。
+    改图标时：先改这里，再用 scripts 之外的生成脚本重出 PNG；直接改 PNG 会导致两者不一致。
+    语义：摊开的书 = 教材来源；对话气泡压在书上 = 对话驱动的生成。
+  -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0F1728" />
+      <stop offset="1" stop-color="#0B1220" />
+    </linearGradient>
+    <clipPath id="squircle">
+      <rect x="8" y="8" width="496" height="496" rx="112" ry="112" />
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#squircle)">
+    <rect width="512" height="512" fill="url(#bg)" />
+
+    <!-- 书：左右两页 -->
+    <rect x="104" y="150" width="144" height="180" rx="14" fill="#E8EEF9" />
+    <rect x="264" y="150" width="144" height="180" rx="14" fill="#E8EEF9" />
+    <!-- 中缝 -->
+    <rect x="250" y="142" width="12" height="196" rx="6" fill="#4F9CF9" />
+
+    <!-- 文字行 -->
+    <rect x="128" y="186" width="96" height="12" rx="6" fill="#94A3B8" />
+    <rect x="288" y="186" width="104" height="12" rx="6" fill="#94A3B8" />
+    <rect x="128" y="230" width="84" height="12" rx="6" fill="#94A3B8" />
+    <rect x="288" y="230" width="96" height="12" rx="6" fill="#94A3B8" />
+    <rect x="128" y="274" width="104" height="12" rx="6" fill="#94A3B8" />
+    <rect x="288" y="274" width="76" height="12" rx="6" fill="#94A3B8" />
+
+    <!-- 对话气泡 + 小尾巴 -->
+    <rect x="248" y="286" width="196" height="106" rx="30" fill="#4F9CF9" />
+    <path d="M280 388 L266 426 L318 390 Z" fill="#4F9CF9" />
+    <circle cx="300" cy="339" r="11" fill="#0B1220" />
+    <circle cx="344" cy="339" r="11" fill="#0B1220" />
+    <circle cx="388" cy="339" r="11" fill="#0B1220" />
+  </g>
+</svg>

@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import App from "@/App";
+import { registerServiceWorker } from "@/lib/pwa";
 import "allotment/dist/style.css";
 import "@/index.css";
 
@@ -17,3 +18,6 @@ createRoot(container).render(
     <App />
   </StrictMode>,
 );
+
+// 生产构建下注册 Service Worker（dev 下不注册，否则会破坏 HMR）
+registerServiceWorker();

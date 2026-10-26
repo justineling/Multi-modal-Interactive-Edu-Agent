@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0B1220" />
+    <title>离线 · 多模态沉浸式智能助教</title>
+    <style>
+      /* 全部内联：离线页不能再依赖任何外部资源，否则它自己就加载不出来 */
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0b1220;
+        color: #e8eef9;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Microsoft YaHei", "Noto Sans SC", sans-serif;
+        padding: 24px;
+      }
+      .card {
+        width: 100%;
+        max-width: 440px;
+        border: 1px solid #1f2b41;
+        border-radius: 14px;
+        background: #111a2b;
+        padding: 28px;
+        box-shadow: 0 16px 40px rgba(2, 6, 23, 0.44);
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        color: #f59e0b;
+        border: 1px solid rgba(245, 158, 11, 0.4);
+        background: rgba(245, 158, 11, 0.1);
+        border-radius: 999px;
+        padding: 3px 10px;
+        margin-bottom: 16px;
+      }
+      h1 {
+        margin: 0 0 10px;
+        font-size: 20px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+      }
+      p {
+        margin: 0 0 10px;
+        font-size: 13px;
+        line-height: 1.7;
+        color: #9db0cc;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+        color: #93c5fd;
+        background: #0b1220;
+        border: 1px solid #1f2b41;
+        border-radius: 5px;
+        padding: 1px 5px;
+      }
+      ol {
+        margin: 0 0 18px;
+        padding-left: 18px;
+        font-size: 13px;
+        line-height: 1.9;
+        color: #9db0cc;
+      }
+      button {
+        width: 100%;
+        padding: 10px 14px;
+        font-size: 13px;
+        font-weight: 500;
+        color: #f8fafc;
+        background: #2563eb;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: opacity 150ms;
+      }
+      button:hover {
+        opacity: 0.9;
+      }
+      .hint {
+        margin-top: 14px;
+        font-size: 11px;
+        color: #6b7f9e;
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <span class="badge">● 离线</span>
+      <h1>当前处于离线状态</h1>
+      <p>
+        应用界面已从本地缓存加载，但<strong>无法连接后端服务</strong>，因此不能上传教材或发起提问。
+      </p>
+      <p>请确认后端已启动：</p>
+      <ol>
+        <li>在项目根目录运行 <code>1. 启动网页端(Windows).bat</code>（或对应的 Mac/Linux 脚本）</li>
+        <li>或手动运行 <code>uvicorn app.main:app --port 8000</code></li>
+        <li>确认 <code>http://127.0.0.1:8000/api/health</code> 能打开</li>
+      </ol>
+      <button type="button" onclick="location.reload()">重新连接</button>
+      <p class="hint">
+        提示：对话与教材数据都保存在本机后端，离线期间不会丢失；重新连上后会自动恢复上一次的会话。
+      </p>
+    </main>
+  </body>
+</html>
