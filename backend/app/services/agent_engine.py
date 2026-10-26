@@ -170,11 +170,16 @@ class AgentEngine:
             result = RetrievalResult(
                 chunks=(), grader_status=NO_MATCH, section_scope=None, top_score=0.0, query_terms=()
             )
-        yield "retrieval", RetrievalEvent(
-            grader_status=result.grader_status,  # type: ignore[arg-type]
-            section_scope=result.section_scope,
-            top_score=round(result.top_score, 4),
-            chunks=[
+        # NO_MATCH 时**不下发候选片段**（P0-05④ 的延伸）：正文说「课本未覆盖」，若同时把
+        # 8 条带 page_start/page_end 的候选塞进 `retrieval.chunks`，任何「显示相关片段」的 UI
+        # 都会立刻把页码画在「课本未覆盖」旁边 —— 与 `_build_citations` 里同样的自相矛盾。
+        # 候选片段仍留在服务端供 grader 诊断，用户可见面一律清空。
+        # 注意：`grader_status` / `section_scope` / `top_score` 必须原样保留 ——
+        # QA 的判定矩阵与诊断都依赖它们，只清 chunks。
+        chunk_events: list[RetrievedChunkEvent] = (
+            []
+            if result.grader_status == NO_MATCH
+            else [
                 RetrievedChunkEvent(
                     chunk_id=chunk.chunk_id,
                     section_code=chunk.section_code,
@@ -185,7 +190,13 @@ class AgentEngine:
                     snippet=chunk.snippet,
                 )
                 for chunk in result.chunks
-            ],
+            ]
+        )
+        yield "retrieval", RetrievalEvent(
+            grader_status=result.grader_status,  # type: ignore[arg-type]
+            section_scope=result.section_scope,
+            top_score=round(result.top_score, 4),
+            chunks=chunk_events,
         )
 
         # ---- 2. 形态路由 ----
@@ -442,20 +453,34 @@ class AgentEngine:
             return
 
         title = _clip(context.topic, 60) or "未命名产物"
-        async with self._session_factory() as session:
-            artifact = await repository.create_artifact(
-                session,
-                workspace_id=req.workspace_id,
-                title=title,
-                artifact_type=str(spec.get("type")),
-                spec_json=spec,
-                anchor_section=context.section_code or None,
+        try:
+            async with self._session_factory() as session:
+                artifact = await repository.create_artifact(
+                    session,
+                    workspace_id=req.workspace_id,
+                    title=title,
+                    artifact_type=str(spec.get("type")),
+                    spec_json=spec,
+                    anchor_section=context.section_code or None,
+                )
+                await repository.append_artifact_version(
+                    session, artifact_id=artifact.id, spec_json=spec, origin_turn_id=req.turn_id
+                )
+                await session.commit()
+                artifact_id = artifact.id
+        except AppError as exc:
+            # 就地捕获，别让异常冒泡到 chat_stream 的兜底 `except AppError`：
+            # 那里既标不准 stage，又会连带丢掉后面的 citations（正文已经流给用户了，
+            # 出处清单不该因为产物落库失败而消失）。§5.4 规则② 要求 error 之后仍补发 turn_end，
+            # 这里 return 只是结束本阶段，外层会照常走 citations → turn_end。
+            yield "error", ErrorEvent(
+                code=exc.code.value,
+                message=exc.message,
+                stage="generate",
+                retryable=False,
+                attempt=1,
             )
-            await repository.append_artifact_version(
-                session, artifact_id=artifact.id, spec_json=spec, origin_turn_id=req.turn_id
-            )
-            await session.commit()
-            artifact_id = artifact.id
+            return
 
         yield "artifact", ArtifactEvent(
             action="create",
@@ -533,13 +558,27 @@ class AgentEngine:
         self, req: TurnRequest, decision: RouteDecision, context: MockContext
     ) -> AsyncIterator[Event]:
         assert req.anchor is not None  # 由 _decide_action 保证
-        async with self._session_factory() as session:
-            artifact = await repository.require_artifact(session, req.anchor.artifact_id)
-            # deepcopy：这里拿到的是基线快照，不能与 ORM 对象共享嵌套结构，
-            # 否则后续任何原地修改都可能顺着 identity map 影响历史版本行（P0-11③）
-            spec_dict = copy.deepcopy(artifact.spec_json or {})
-            base_version = artifact.version
-            artifact_type = artifact.artifact_type
+        artifact_id = req.anchor.artifact_id
+        try:
+            async with self._session_factory() as session:
+                artifact = await repository.require_artifact(session, artifact_id)
+                # deepcopy：这里拿到的是基线快照，不能与 ORM 对象共享嵌套结构，
+                # 否则后续任何原地修改都可能顺着 identity map 影响历史版本行（P0-11③）
+                spec_dict = copy.deepcopy(artifact.spec_json or {})
+                base_version = artifact.version
+                artifact_type = artifact.artifact_type
+        except AppError as exc:
+            # 读基线失败（产物已被另一个标签页删掉是真实竞态）。就地标 stage="patch"：
+            # 冒泡到 chat_stream 的兜底 except 只会硬编码成 "generate"，前端提示与日志
+            # 都会指向「正文生成」这个根本没出错的环节。
+            yield "error", ErrorEvent(
+                code=exc.code.value,
+                message=exc.message,
+                stage="patch",
+                retryable=False,
+                attempt=1,
+            )
+            return
 
         ops: list[PatchOp] | None = None
         if not self._llm.enabled:
@@ -571,16 +610,28 @@ class AgentEngine:
             )
             return
 
-        async with self._session_factory() as session:
-            artifact = await repository.require_artifact(session, req.anchor.artifact_id)
-            await repository.apply_artifact_patch(
-                session,
-                artifact=artifact,
-                spec_json=outcome.spec,  # 必须用保持键序的 spec，不能用 model 重新 dump
-                patch_ops=[op.model_dump(mode="json") for op in ops],
-                origin_turn_id=req.turn_id,
+        try:
+            async with self._session_factory() as session:
+                artifact = await repository.require_artifact(session, artifact_id)
+                await repository.apply_artifact_patch(
+                    session,
+                    artifact=artifact,
+                    spec_json=outcome.spec,  # 必须用保持键序的 spec，不能用 model 重新 dump
+                    patch_ops=[op.model_dump(mode="json") for op in ops],
+                    origin_turn_id=req.turn_id,
+                )
+                await session.commit()
+        except AppError as exc:
+            # 写入失败（并发 patch 撞版本号 → PATCH_BASE_VERSION_CONFLICT、或产物被删）。
+            # 同样必须就地标 stage="patch"：这是「补丁落库」环节，不是正文生成。
+            yield "error", ErrorEvent(
+                code=exc.code.value,
+                message=exc.message,
+                stage="patch",
+                retryable=False,
+                attempt=1,
             )
-            await session.commit()
+            return
 
         log_event(
             "patch_applied",

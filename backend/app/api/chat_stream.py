@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -64,11 +65,30 @@ def _turn_request(payload: ChatRequest, request: Request) -> TurnRequest:
     )
 
 
-def _fallback_end(turn_id: str) -> TurnEndEvent:
+def _fallback_end(
+    turn_id: str, started: float, first_token_at: float | None
+) -> TurnEndEvent:
+    """兜底 `turn_end`：填**真实**耗时，不能填 0。
+
+    为什么不能填 0：失败回合的 TTFT 与总耗时是「失败率 / 失败延迟」的唯一数据来源。
+    填 0 会让所有异常路径在监控上表现为「0ms 瞬间完成」，与成功回合混在一起后，
+    既看不出失败回合有多慢，也无法回答「超时是不是集中发生在某个阶段」。
+
+    - `duration_ms`：turn 开始 → 兜底 `turn_end` 的真实耗时；
+    - `ttft_ms`：turn 开始 → 第一个 `token`。**一个 token 都没发出时取与 `duration_ms`
+      相同的值** —— 语义是「这一轮到死都没等到首字」，填 0 会被误读成「首字瞬间到达」。
+
+    两者都 `max(1, ...)`：turn 只要真的跑过，耗时就不可能是 0ms。亚毫秒的回合被
+    向上取整到 1ms，只是抹掉计时器精度，不会把「很快」伪装成「没花时间」。
+    """
+    now = time.perf_counter()
+    duration_ms = max(1, int((now - started) * 1000))
+    ttft_base = first_token_at if first_token_at is not None else now
+    ttft_ms = max(1, int((ttft_base - started) * 1000))
     return TurnEndEvent(
         turn_id=turn_id,
-        duration_ms=0,
-        ttft_ms=0,
+        duration_ms=duration_ms,
+        ttft_ms=ttft_ms,
         version=None,
         demo_mode=get_settings().demo_mode,
     )
@@ -78,11 +98,16 @@ async def _event_stream(engine: Any, turn: TurnRequest) -> AsyncIterator[str]:
     queue: asyncio.Queue[tuple[str, Any] | None] = asyncio.Queue()
 
     async def produce() -> None:
+        # 计时起点放在生产者任务里：它就是「这一轮真正开始跑」的时刻。
+        started = time.perf_counter()
+        first_token_at: float | None = None
         saw_turn_end = False
         try:
             async for name, payload in engine.stream_turn(turn):
                 if name == "turn_end":
                     saw_turn_end = True
+                elif name == "token" and first_token_at is None:
+                    first_token_at = time.perf_counter()
                 await queue.put((name, payload))
         except AppError as exc:
             log_event(
@@ -121,7 +146,9 @@ async def _event_stream(engine: Any, turn: TurnRequest) -> AsyncIterator[str]:
             )
         finally:
             if not saw_turn_end:
-                await queue.put(("turn_end", _fallback_end(turn.turn_id)))
+                await queue.put(
+                    ("turn_end", _fallback_end(turn.turn_id, started, first_token_at))
+                )
             await queue.put(None)
 
     producer = asyncio.create_task(produce())
