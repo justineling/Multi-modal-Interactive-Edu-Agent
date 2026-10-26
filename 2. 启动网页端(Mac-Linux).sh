@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 多模态沉浸式智能助教 · 一键启动（macOS / Linux）
-# 用法：chmod +x start.sh && ./start.sh
+# 用法：chmod +x "2. 启动网页端(Mac-Linux).sh" && ./"2. 启动网页端(Mac-Linux).sh"
 set -euo pipefail
 
 cd "$(dirname "$0")"

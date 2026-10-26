@@ -3,6 +3,9 @@
 *.sh    text eol=lf
 *.bat   text eol=crlf
 *.cmd   text eol=crlf
+# PowerShell 在 Windows 上习惯 CRLF；文件本身以 UTF-8 with BOM 保存（BOM 属于内容，
+# 不受 eol 规则影响），这样 Windows PowerShell 5.1 才能正确读出中文
+*.ps1   text eol=crlf
 
 # 源码
 *.py    text eol=lf
@@ -10,6 +13,8 @@
 *.tsx   text eol=lf
 *.js    text eol=lf
 *.json  text eol=lf
+*.webmanifest text eol=lf
+*.svg   text eol=lf
 *.css   text eol=lf
 *.html  text eol=lf
 *.md    text eol=lf
