@@ -635,6 +635,13 @@ class AgentEngine:
     # 引用与持久化
     # ------------------------------------------------------------------ #
     def _build_citations(self, result: RetrievalResult) -> list[Citation]:
+        """引用列表按**页码升序**输出。
+
+        为什么不用检索得分序：`retrieval.chunks` 是「相关性排序」（该按分数），而
+        `citations` 是「出处清单」（该按书页顺序）。同一份回答的引用如果按分数排，
+        用户会看到 p.76 排在 p.71 前面，读起来像错乱；按页码排则天然可扫读、可打印。
+        前端即使再排一次也是幂等的（同一排序键），不会互相打架。
+        """
         citations: list[Citation] = []
         seen: set[tuple[str, int, int]] = set()
         for chunk in result.chunks:
@@ -650,6 +657,7 @@ class AgentEngine:
                     page_end=chunk.page_end,
                 )
             )
+        citations.sort(key=lambda citation: (citation.page_start, citation.page_end, citation.section_code))
         return citations
 
     def _drop_invalid_citations(

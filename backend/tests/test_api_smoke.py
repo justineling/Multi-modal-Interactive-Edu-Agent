@@ -171,11 +171,52 @@ async def test_chat_stream_event_order_and_artifact(
     for citation in citations:
         assert citation["page_start"] >= 1
         assert citation["page_end"] >= citation["page_start"]
+    # 引用是「出处清单」，必须按页码升序（retrieval.chunks 才是按相关性排的）
+    assert [c["page_start"] for c in citations] == sorted(c["page_start"] for c in citations)
 
     turn_end = dict(events)["turn_end"]
     assert turn_end["demo_mode"] is True
     assert turn_end["ttft_ms"] < 3000, f"TTFT 超时：{turn_end['ttft_ms']}ms"
     assert turn_end["version"] == 1
+
+
+async def test_anchor_turn_locks_to_subtree_and_sorts_citations(
+    client: Any, workspace_with_document: dict[str, Any]
+) -> None:
+    """带锚点追问：检索锁在被点中的小节子树（§6.2 前缀语义），引用按页码升序。"""
+    workspace_id = workspace_with_document["workspace"]["id"]
+    created = await _sse_events(client, {"workspace_id": workspace_id, "query": "学习 4.1"})
+    artifact_id = dict(created)["artifact"]["artifact_id"]
+
+    events = await _sse_events(
+        client,
+        {
+            "workspace_id": workspace_id,
+            "query": "这里再细一点",
+            "anchor": {
+                "artifact_id": artifact_id,
+                "node_path": "/slides/2",
+                "node_label": "时间脉络",
+                "page": 76,
+                "section_code": "4.1",
+            },
+        },
+    )
+    data = dict(events)
+    assert data["retrieval"]["section_scope"] == "4.1"
+    assert all(
+        chunk["section_code"].startswith("4.1") for chunk in data["retrieval"]["chunks"]
+    )
+    assert data["modality_decision"]["action"] == "patch_artifact"
+    assert data["artifact"]["action"] == "patch"
+    assert data["artifact"]["base_version"] == 1
+    assert data["artifact"]["version"] == 2
+
+    citations = data["citations"]["citations"]
+    assert citations
+    assert all(citation["section_code"].startswith("4.1") for citation in citations)
+    pages = [citation["page_start"] for citation in citations]
+    assert pages == sorted(pages), f"引用未按页码升序：{pages}"
 
 
 async def test_chat_reply_carries_page_citations(
