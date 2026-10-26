@@ -100,7 +100,51 @@
 
 ---
 
-## 五、验证基线（供 QA 与后续回归对照）
+## 五、前端契约实测发现（前后端联调确认，必须遵守）
+
+### F1. `update_node` 的 payload 是**局部字段 dict**，必须字段级 merge（**写错必崩**）
+
+后端 `update_node` 只携带被修改的字段，例如锚点追问 `/slides/1` 时 payload 仅有：
+
+```json
+{"bullets": [...], "speaker_notes": "..."}
+```
+
+**其余 9 个字段不带**。前端若用 `setAtPath(spec, "/slides/1", payload)` 整体替换，会把 `node_id` / `layout` / `title` 全部丢掉，渲染器立刻崩溃。
+
+正确语义：
+
+| op | 应用方式 |
+|---|---|
+| `update_node` | **字段级 merge**：`{...current, ...payload}` |
+| `insert_node` | 整体插入新节点 |
+| `replace_subtree` | 整体替换 |
+| `delete_node` | 整体移除 |
+| `focus_camera` | **不写入 spec**，走旁路设置相机预设 |
+
+### F2. 锚点追问的 `citations` 会包含该节**及其子节**
+
+锚点 `section_code=1.1` 时，`citations` 实测返回 `[{1.1.1, p.6-7}, {1.1, p.5-5}, {1.1.3, p.10-11}, {1.1.2, p.8-9}]`。
+
+这与 §6.2「章节号前缀匹配」语义一致（子节属于该节范围），**不是缺陷**。但由此产生两条要求：
+
+1. 测试断言不能写「带锚点追问只应出现一条引用」。
+2. UI 渲染前应按 `page_start` 升序排序，否则会出现「p.6-7 排在 p.5 前面」的观感问题。
+
+### F3. `source_ref` 是字符串，锚点构造需解析兜底
+
+`SlideNode` 只有 `source_ref` 字符串（如 `Form 4 Sejarah, Bab 4.1, p.94`），**没有** `source_page` 数值字段；`Entity2D` / `Node3D` 才有 `source_page`。
+
+从画布构造锚点时：
+
+- 优先用 `source_page`（2D / 3D 节点）
+- 退化用正则从 `source_ref` 提取 `p.(\d+)(?:-(\d+))?` 与 `\d+\.\d+(?:\.\d+)?`
+- **解析失败时的兜底**：`section_code` 取最近一次 `retrieval` 事件的 `section_scope`，`page` 取该事件首个 chunk 的 `page_start`；仍无则 `page=1`
+- **`section_code` 绝不可为 `null`** —— 后端 `strict_section` 检索依赖它锁定小节，缺了就会把同章其它小节拉进来（E3）
+
+---
+
+## 六、验证基线（供 QA 与后续回归对照）
 
 | 项 | 实测值 | 来源 |
 |---|---|---|
