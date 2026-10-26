@@ -52,3 +52,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# ---- WorkBuddy 项目数据（记忆与运行态）----
+.workbuddy-ai/
