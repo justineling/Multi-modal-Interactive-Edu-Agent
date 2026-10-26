@@ -58,6 +58,21 @@ def canonical_json(obj: Any) -> str:
     )
 
 
+def canonical_tree(obj: Any) -> Any:
+    """把任意 JSON 结构规范成「键有序的新对象」。
+
+    为什么 REST 出口也要规范化（不只是算指纹用）：SSE 帧走 `canonical_json`
+    （sort_keys=True），而 REST 原来直接返回库内 dict 的插入顺序 —— 同一份内容在两个
+    出口上字节不同。客户端做「创建时拿到的 spec」与「回读的 spec」比对（版本预览、
+    断线重连校验、缓存键）时，纯键序差异会被误判成「内容被改写」。
+    统一出口序列化等价于把「键序」从协议里彻底消掉：同一内容 ⟺ 同一字节串。
+    （IMPL-NOTES §E8：协议出口的序列化必须统一。）
+
+    同时它是**深拷贝**：DTO 与 ORM 对象不再共享嵌套结构，读路径不可能反向污染库内对象。
+    """
+    return json.loads(canonical_json(obj))
+
+
 class ApiResponse(BaseModel, Generic[T]):
     """§9.2 统一响应包装。SSE 不走这个包装，事件体直接是 §5.4 的 data。"""
 

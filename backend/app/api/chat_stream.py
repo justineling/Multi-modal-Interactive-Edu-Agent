@@ -23,7 +23,7 @@ from app.config import get_settings
 from app.errors import AppError, ErrorCode
 from app.logging_conf import log_event
 from app.schemas.artifacts import AgentTurnResponse, Citation, KnowledgeScope
-from app.schemas.common import ApiResponse
+from app.schemas.common import ApiResponse, canonical_tree
 from app.schemas.chat import (
     ChatRequest,
     ErrorEvent,
@@ -177,7 +177,13 @@ async def chat_once(
         elif name == "modality_decision":
             action = event.action
         elif name == "artifact" and event.action == "create":
-            spec = event.spec.model_dump(mode="json") if event.spec is not None else None
+            # 与 SSE 帧、与 GET /api/artifacts/{id} 共用同一套规范化（IMPL-NOTES §E8），
+            # 保证「同一份内容在任何出口都是同一串字节」。
+            spec = (
+                canonical_tree(event.spec.model_dump(mode="json"))
+                if event.spec is not None
+                else None
+            )
         elif name == "error":
             if event.retryable is False:
                 raise AppError(ErrorCode(event.code), event.message)

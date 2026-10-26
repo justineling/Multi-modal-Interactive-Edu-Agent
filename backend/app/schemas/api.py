@@ -11,13 +11,12 @@
 
 from __future__ import annotations
 
-import copy
 from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.common import as_utc
+from app.schemas.common import as_utc, canonical_tree
 
 
 class WorkspaceOut(BaseModel):
@@ -200,12 +199,10 @@ def message_out(message: Any) -> MessageOut:
 def artifact_out(artifact: Any, *, spec: dict[str, Any] | None = None, version: int | None = None) -> ArtifactOut:
     """`spec`/`version` 可覆盖：查看历史版本时用版本行里的 spec，而元信息仍取 artifact 行。
 
-    spec 做 **deepcopy 但不重排键序**，两个理由：
-    1. 键序是契约的一部分（IMPL-NOTES §六.7：SSE 帧走 `canonical_json` 键排序，REST 返回
-       库内插入序，两者「只应有键序差异、不应有内容差异」）。这里刻意不动键序，避免在
-       没有缺陷的情况下改变已文档化的协议行为；
-    2. 深拷贝让 DTO 与 ORM 对象彻底解耦：读接口拿到的 dict 与库内对象不共享嵌套结构，
-       调用方（或测试）原地改 DTO 也不可能反向污染 session 里的历史版本行。
+    spec 一律经 `canonical_tree` 规范化（键排序 + 深拷贝），依据 IMPL-NOTES §E8：
+    1. 与 SSE 的 `artifact` 事件（`canonical_json`，sort_keys=True）字节一致 —— 同一份内容
+       在任何出口都是同一串字节，客户端做等值比较不会被键序坑；
+    2. 深拷贝让 DTO 与 ORM 对象解耦，读接口不可能反向污染 session 里的历史版本行。
     """
     return ArtifactOut(
         id=artifact.id,
@@ -213,7 +210,7 @@ def artifact_out(artifact: Any, *, spec: dict[str, Any] | None = None, version: 
         title=artifact.title,
         artifact_type=artifact.artifact_type,
         version=version if version is not None else artifact.version,
-        spec=copy.deepcopy(spec if spec is not None else (artifact.spec_json or {})),
+        spec=canonical_tree(spec if spec is not None else (artifact.spec_json or {})),
         created_at=as_utc(artifact.created_at) or artifact.created_at,
         updated_at=as_utc(artifact.updated_at) or artifact.updated_at,
     )
@@ -224,7 +221,7 @@ def artifact_version_out(row: Any, *, current_version: int, keep: int) -> Artifa
         id=row.id,
         artifact_id=row.artifact_id,
         version=row.version,
-        spec=copy.deepcopy(row.spec_json or {}),
+        spec=canonical_tree(row.spec_json or {}),
         patch_ops=row.patch_ops,
         origin_turn_id=row.origin_turn_id,
         patchable=row.version > current_version - keep,

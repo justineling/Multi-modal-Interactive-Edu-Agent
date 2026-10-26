@@ -18,7 +18,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -111,17 +110,20 @@ async def test_version_snapshot_is_isolated_from_artifact_spec(
         )
 
 
-async def test_create_time_spec_matches_readback_content(
+async def test_create_time_spec_is_byte_identical_across_endpoints(
     client: Any, seeded: dict[str, Any]
 ) -> None:
-    """创建产物时 SSE 下发的 spec 与随后 `GET /api/artifacts/{id}` 回读的 spec **内容**必须一致。
+    """创建产物时 SSE 下发的 spec，与随后 `GET /api/artifacts/{id}` 回读的 spec 必须逐字节相同。
 
-    注意断言用的是 `sort_keys=True`（内容等价），**不是**保序字节比对：
-    SSE 帧走 `canonical_json`（键排序），REST 返回库内插入序，键序差异是设计内的协议行为
-    （IMPL-NOTES §六.7），不是缺陷。上一轮验收测试正是在这里用保序比对，把「纯键序差异」
-    误报成了「历史版本被改写」——本用例把这个坑钉死：**只比内容，不比键序**。
+    依据 IMPL-NOTES §E8「协议出口的序列化必须统一」：SSE 帧走 `canonical_json`（键排序），
+    REST 出口也走 `canonical_tree`，于是同一份内容在任何出口都是同一串字节。
+    这样客户端做「创建时 spec vs 回读 spec」比对（版本预览、断线重连校验、缓存键）时，
+    不会把纯键序差异误判成内容变化 —— 这个坑上一轮已经踩过一次（验收测试假阳性）。
+
+    注意：本条**不是**在断言「历史被改写」这个缺陷（该缺陷经 QA 用 worktree 复现确认不存在），
+    而是把「协议层只有一种字节表示」这一标准钉死，防止将来有人在某个出口上退回裸 dict。
     """
-    from acceptance_support import first_event, sse_events
+    from acceptance_support import first_event, ordered_json, sse_events
 
     events = await sse_events(
         client,
@@ -136,9 +138,10 @@ async def test_create_time_spec_matches_readback_content(
 
     detail = await client.get(f"/api/artifacts/{artifact['artifact_id']}")
     assert detail.status_code == 200
-    assert json.dumps(detail.json()["data"]["spec"], sort_keys=True, ensure_ascii=False) == (
-        json.dumps(artifact["spec"], sort_keys=True, ensure_ascii=False)
-    ), "SSE 下发的 spec 与 GET 回读的 spec 内容不一致（不只是键序问题）"
+    assert ordered_json(detail.json()["data"]["spec"]) == ordered_json(artifact["spec"]), (
+        "SSE 事件里的 spec 与 GET 回读的 spec 字节不一致（键序不同），"
+        "客户端会把纯键序差异误判成内容变化（IMPL-NOTES §E8）"
+    )
 
 
 async def test_history_version_is_byte_stable_after_patches(
