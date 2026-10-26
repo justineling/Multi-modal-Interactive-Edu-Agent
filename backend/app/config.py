@@ -48,6 +48,15 @@ class Settings(BaseSettings):
     GRADER_MATCH_THRESHOLD: float = 0.55
     GRADER_SUPPORT_THRESHOLD: float = 0.35
     GRADER_PARTIAL_THRESHOLD: float = 0.30
+    # P0-05④ 的真正判据：问句实词在 Top-N 切片里的命中率门槛。
+    # 为什么不能只调 GRADER_PARTIAL_THRESHOLD：融合分数是「相对归一化」，无关问题实测能拿到
+    # 0.30~0.40，而真正的中间态问题只有 0.36，靠分数分不开（见 retriever._grade 注释）。
+    # 0.45 的取值依据：实测 18 条无关问题最高 0.40（「矩阵特征值的几何意义」命中「特征」「意义」
+    # 两个词面巧合），16 条相关问题最低 0.50，门槛落在两者正中，两侧各留 0.05 余量。
+    GRADER_CONTENT_HIT_MIN_RATIO: float = Field(default=0.45, gt=0.0, le=1.0)
+    # 参与实词命中率计算的切片数（Top-N 并集）。只取 top1 会让「答案分散在两段」的
+    # 相关问题被误判为未覆盖；取太多又会把偶然字面重合算进来。
+    GRADER_CONTENT_HIT_WINDOW: int = Field(default=3, ge=1, le=8)
     RETRIEVAL_TOP_K: int = Field(default=8, ge=1, le=50)
     RETRIEVAL_CANDIDATE_LIMIT: int = Field(default=2000, ge=1)
     BM25_WEIGHT: float = 0.35

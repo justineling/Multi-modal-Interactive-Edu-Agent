@@ -61,6 +61,25 @@ def _request_id(request: Request) -> str:
     return getattr(request.state, "request_id", "") or ""
 
 
+def _remove_quietly(path: Path) -> None:
+    """尽力删除一个临时/落盘文件：失败只记日志，绝不向外抛异常。
+
+    为什么不能直接 `path.unlink(missing_ok=True)`：Windows 上 PyMuPDF 打开失败的文档
+    仍可能持有文件句柄，`unlink` 会抛 `PermissionError: [WinError 32]`。这个异常发生在
+    `except AppError` 分支内部，会**顶替**原本要返回的错误码，把「400 明确提示」变成
+    「未处理异常」。清理是次要目标，报出正确错误码才是主要目标（P0-02②）。
+    """
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as exc:  # PermissionError 是 OSError 子类
+        log_event(
+            "upload_cleanup_failed",
+            level=logging.WARNING,
+            path=str(path),
+            error=str(exc)[:200],
+        )
+
+
 # --------------------------------------------------------------------------- #
 # Workspaces
 # --------------------------------------------------------------------------- #
@@ -164,6 +183,16 @@ async def upload_document(
             ErrorCode.UNSUPPORTED_FILE_TYPE,
             f"文件 {actual_mb:.1f}MB，超过上限 {settings.MAX_UPLOAD_MB}MB",
         )
+    # 魔数前置校验：`%PDF-` 必须在文件头部 1KB 内出现（规范允许头部前有少量垃圾字节）。
+    # 放在落盘之前有三个好处：①「把 txt 改名成 .pdf」这类演示现场最常见的用户错误得到
+    # 400 + UNSUPPORTED_FILE_TYPE（客户端问题不该报 500）；② 不需要先写文件再删，
+    # 绕开 Windows 上 PyMuPDF 仍持有句柄导致 `unlink` 抛 PermissionError 的坑；
+    # ③ 失败尝试不再泄漏磁盘文件（P0-02②）。
+    if b"%PDF-" not in content[:1024]:
+        raise AppError(
+            ErrorCode.UNSUPPORTED_FILE_TYPE,
+            f"{filename!r} 的内容不是 PDF（可能是改了扩展名的其它文件）",
+        )
 
     document = await repository.create_document(
         session, workspace_id=workspace_id, filename=filename, page_count=0
@@ -177,8 +206,11 @@ async def upload_document(
     try:
         page_count = inspect_pdf(target, max_pages=settings.MAX_PDF_PAGES)
     except AppError as exc:
-        # 体检失败：把已落盘的文件删掉，别留垃圾；错误码原样抛给前端
-        target.unlink(missing_ok=True)
+        # 体检失败：把已落盘的文件删掉，别留垃圾；错误码原样抛给前端。
+        # 删除必须 best-effort：Windows 上 PyMuPDF 可能仍持有句柄（WinError 32），
+        # 若让 PermissionError 穿透，就会把「明确错误码」换成「未处理异常 500」，
+        # 比不删文件糟糕得多 —— 清理失败只记日志，原错误照常返回（P0-02②）。
+        _remove_quietly(target)
         document.status = "failed"
         document.error_code = exc.code.value
         document.error_message = exc.message

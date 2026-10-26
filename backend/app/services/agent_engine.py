@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import logging
 import re
 import time
@@ -534,7 +535,9 @@ class AgentEngine:
         assert req.anchor is not None  # 由 _decide_action 保证
         async with self._session_factory() as session:
             artifact = await repository.require_artifact(session, req.anchor.artifact_id)
-            spec_dict = dict(artifact.spec_json or {})
+            # deepcopy：这里拿到的是基线快照，不能与 ORM 对象共享嵌套结构，
+            # 否则后续任何原地修改都可能顺着 identity map 影响历史版本行（P0-11③）
+            spec_dict = copy.deepcopy(artifact.spec_json or {})
             base_version = artifact.version
             artifact_type = artifact.artifact_type
 
@@ -641,7 +644,15 @@ class AgentEngine:
         `citations` 是「出处清单」（该按书页顺序）。同一份回答的引用如果按分数排，
         用户会看到 p.76 排在 p.71 前面，读起来像错乱；按页码排则天然可扫读、可打印。
         前端即使再排一次也是幂等的（同一排序键），不会互相打架。
+
+        **NO_MATCH 时必须返回空列表**（P0-05④）：Grader 判「课本未覆盖」时，候选片段
+        只是低分兜底数据，一旦进了 `citations`，前端 `CitationList` 就会把「p.1-4」
+        画在用户脸上 —— 正文说「课本未覆盖」而右侧列着页码，这是最自相矛盾的一种展示，
+        也正是 PRD 明令禁止的「编造页码」观感。候选片段仍保留在 `retrieval` 事件里供
+        调试，但不进用户可见字段。
         """
+        if result.grader_status == NO_MATCH:
+            return []
         citations: list[Citation] = []
         seen: set[tuple[str, int, int]] = set()
         for chunk in result.chunks:

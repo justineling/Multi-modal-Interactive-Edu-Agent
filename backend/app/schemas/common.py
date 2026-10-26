@@ -58,6 +58,21 @@ def canonical_json(obj: Any) -> str:
     )
 
 
+def canonical_tree(obj: Any) -> Any:
+    """把任意 JSON 结构规范成「键有序的新对象」。
+
+    为什么 REST 出口也要规范化（不只是指纹用）：
+    SSE 帧走 `canonical_json`（sort_keys=True），而 `GET /api/artifacts/{id}` 原来直接返回
+    库内 dict 的插入顺序 —— 同一份内容在两个端点上字节不同。客户端一旦做「创建时拿到的
+    spec」与「回读的 spec」比对（版本预览、断线重连校验都会做），就会把纯键序差异误判成
+    「内容被改写」。让两个出口共用同一套规范化，等价于把「键序」从协议里彻底消掉：
+    同一内容 ⟺ 同一字节串。
+
+    同时它是**深拷贝**：DTO 与 ORM 对象不再共享嵌套结构，避免读路径反过来影响库内对象。
+    """
+    return json.loads(canonical_json(obj))
+
+
 class ApiResponse(BaseModel, Generic[T]):
     """§9.2 统一响应包装。SSE 不走这个包装，事件体直接是 §5.4 的 data。"""
 

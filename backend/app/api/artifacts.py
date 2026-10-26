@@ -1,15 +1,21 @@
 """画布产物接口：列表 / 详情 / 版本 / patch / 删除。
 
-patch 是这里唯一有写逻辑的端点，两条不可妥协的规则：
+patch 是这里唯一有写逻辑的端点，三条不可妥协的规则：
 1. **落库用 `PatchOutcome.spec`**（保持原键序的 dict），不能用 `.model` 重新 dump ——
    `model_dump` 会按字段声明顺序重排键，P0-10② 的「其余节点字节级不变」当场失效。
 2. **`base_version` 乐观锁**：不匹配返回 409 `PATCH_BASE_VERSION_CONFLICT`，
    防止两个标签页互相覆盖（PRD Q3 的「版本自增可回看」也依赖它）。
+3. **历史版本只读**：详情接口在 `?version=` 分支只从 `artifact_versions` 取快照，
+   patch 分支只往 versions 表 append，没有任何 UPDATE/DELETE 历史行的路径（P0-11③）。
 """
 
 from __future__ import annotations
 
+import copy
+import logging
+
 from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -72,7 +78,7 @@ async def get_artifact(
     if row is None:
         raise AppError(ErrorCode.ARTIFACT_NOT_FOUND, f"该产物没有 v{version} 版本")
     return ApiResponse[ArtifactOut].ok(
-        artifact_out(artifact, spec=dict(row.spec_json or {}), version=row.version),
+        artifact_out(artifact, spec=row.spec_json or {}, version=row.version),
         request_id=_request_id(request),
     )
 
@@ -118,16 +124,36 @@ async def patch_artifact(
         )
 
     artifact = await repository.require_artifact(session, artifact_id)
-    spec_dict = dict(artifact.spec_json or {})
+    # 必须 deepcopy：`dict()` 只复制最外层，嵌套的 slides/nodes 仍与 ORM 对象（以及
+    # 同一 session 里已加载的历史版本行）共享引用。虽然 patch_engine 内部还会再拷一次，
+    # 但入口处就把引用切断，能保证「读到的基线」与「库里/内存里的对象」永不互相牵连。
+    spec_dict = copy.deepcopy(artifact.spec_json or {})
 
     outcome = apply_patch_request(spec_dict, payload, current_version=artifact.version)
-    await repository.apply_artifact_patch(
-        session,
-        artifact=artifact,
-        spec_json=outcome.spec,
-        patch_ops=[op.model_dump(mode="json") for op in payload.ops],
-    )
-    await session.flush()
+    try:
+        await repository.apply_artifact_patch(
+            session,
+            artifact=artifact,
+            spec_json=outcome.spec,
+            patch_ops=[op.model_dump(mode="json") for op in payload.ops],
+        )
+        await session.flush()
+    except IntegrityError as exc:
+        # 「读版本 → 比版本 → 写版本」三步之间没有原子性：两个标签页同时基于 v1 提交时，
+        # 两个请求都能通过 base_version 比较，第二个写版本行会撞 (artifact_id, version)
+        # 唯一约束。数据没坏（约束兜住了），但用户会看到 500 —— 必须翻译成 409，前端才能
+        # 提示「画布已被更新，请刷新」（P0-10 / PRD Q3）。
+        await session.rollback()
+        log_event(
+            "patch_version_race",
+            level=logging.WARNING,
+            artifact_id=artifact_id,
+            base_version=payload.base_version,
+        )
+        raise AppError(
+            ErrorCode.PATCH_BASE_VERSION_CONFLICT,
+            "画布已被另一次修改更新，请刷新后重试",
+        ) from exc
 
     log_event(
         "patch_applied",

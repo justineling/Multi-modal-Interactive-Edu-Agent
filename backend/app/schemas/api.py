@@ -16,7 +16,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.common import as_utc
+from app.schemas.common import as_utc, canonical_tree
 
 
 class WorkspaceOut(BaseModel):
@@ -197,14 +197,22 @@ def message_out(message: Any) -> MessageOut:
 
 
 def artifact_out(artifact: Any, *, spec: dict[str, Any] | None = None, version: int | None = None) -> ArtifactOut:
-    """`spec`/`version` 可覆盖：查看历史版本时用版本行里的 spec，而元信息仍取 artifact 行。"""
+    """`spec`/`version` 可覆盖：查看历史版本时用版本行里的 spec，而元信息仍取 artifact 行。
+
+    spec 一律经 `canonical_tree` 规范化（键序固定 + 深拷贝）。三个理由：
+    1. 与 SSE 的 `artifact` 事件（`canonical_json`，sort_keys=True）字节一致 ——
+       否则「创建时拿到的 spec」与「GET 回读的 spec」仅因键序不同就无法等值比较，
+       版本预览会被误判成「历史被改写」；
+    2. 深拷贝让 DTO 与 ORM 对象彻底解耦，读接口不可能反向污染库内对象；
+    3. 键序固定后，前端做 diff/缓存键不再受序列化路径影响。
+    """
     return ArtifactOut(
         id=artifact.id,
         workspace_id=artifact.workspace_id,
         title=artifact.title,
         artifact_type=artifact.artifact_type,
         version=version if version is not None else artifact.version,
-        spec=spec if spec is not None else dict(artifact.spec_json or {}),
+        spec=canonical_tree(spec if spec is not None else (artifact.spec_json or {})),
         created_at=as_utc(artifact.created_at) or artifact.created_at,
         updated_at=as_utc(artifact.updated_at) or artifact.updated_at,
     )
@@ -215,7 +223,7 @@ def artifact_version_out(row: Any, *, current_version: int, keep: int) -> Artifa
         id=row.id,
         artifact_id=row.artifact_id,
         version=row.version,
-        spec=dict(row.spec_json or {}),
+        spec=canonical_tree(row.spec_json or {}),
         patch_ops=row.patch_ops,
         origin_turn_id=row.origin_turn_id,
         patchable=row.version > current_version - keep,

@@ -21,10 +21,17 @@ from app.db.vector_store import EmbeddingStore, VectorHit
 from app.db.session import get_session_factory
 from app.logging_conf import log_event
 from app.services.embedding import EmbeddingProvider, tokenize
+from app.services.text_signals import ContentCoverage, content_hit_ratio, content_words
 
 # 查询里的显式章节号，如 "4.1"、"4.1.2"；带点的一定比裸数字更像章节号
 _SECTION_DOTTED_RE = re.compile(r"\b(\d{1,2}(?:\.\d{1,2}){1,2})\b")
+# 「第五章 / 第 4 节 / 第三讲 / 第二课」——中文教材里最常见的点名方式，数字是汉字
+_SECTION_CHAPTER_RE = re.compile(r"第\s*([0-9]{1,2}|[一二三四五六七八九十]{1,3})\s*[章节讲课]")
 _SECTION_BARE_RE = re.compile(r"\b(\d{1,2})\b")
+_CN_DIGITS: dict[str, int] = {
+    "一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
+    "六": 6, "七": 7, "八": 8, "九": 9, "十": 10,
+}
 # 候选集最小样本数：不足 3 条时逐级放宽检索范围（§7.2 阶段 1）
 MIN_CANDIDATES = 3
 SNIPPET_LEN = 160
@@ -56,13 +63,19 @@ class RetrievedChunk:
 
 @dataclass(frozen=True)
 class RetrievalResult:
-    """检索结果 + 评估结论。`grader_status` 决定后续走严格/双层/未覆盖三条分支。"""
+    """检索结果 + 评估结论。`grader_status` 决定后续走严格/双层/未覆盖三条分支。
+
+    `content_hit_ratio` 是「问句实词在 Top-N 切片里的命中率」，即 Grader 判 NO_MATCH 时
+    真正依据的语义信号。放进结果体是为了让误判可被观测：线上出现「该覆盖却判未覆盖」时，
+    先看这个值，而不是去猜融合分数。
+    """
 
     chunks: tuple[RetrievedChunk, ...]
     grader_status: str
     section_scope: str | None
     top_score: float
     query_terms: tuple[str, ...]
+    content_hit_ratio: float = 0.0
 
     @property
     def is_empty(self) -> bool:
@@ -84,17 +97,54 @@ class RetrievalResult:
         return tuple(seen)
 
 
-def extract_section_code(text: str) -> str | None:
-    """从用户问句里抽显式章节号（"学习 4.1" / "4.1 讲了什么"）。
+def _cn_to_int(token: str) -> int | None:
+    """汉字数字 → 整数（只覆盖章/节号会用到的 1~99）。"""
+    if not token:
+        return None
+    if token in _CN_DIGITS:
+        return _CN_DIGITS[token]
+    if len(token) == 2 and token[0] == "十" and token[1] in _CN_DIGITS:
+        return 10 + _CN_DIGITS[token[1]]
+    if len(token) == 2 and token[1] == "十" and token[0] in _CN_DIGITS:
+        return _CN_DIGITS[token[0]] * 10
+    if len(token) == 3 and token[1] == "十":
+        tens = _CN_DIGITS.get(token[0])
+        ones = _CN_DIGITS.get(token[2])
+        if tens is not None and ones is not None:
+            return tens * 10 + ones
+    return None
 
-    优先带点的编号：`出 5 道关于 4.2 的随堂测验` 里 "5" 是题量、"4.2" 才是章节；
-    若只按「第一个数字」取，会把检索范围锁到第 5 章，答出来的内容完全跑偏。
+
+def extract_section_code(text: str) -> str | None:
+    """从用户问句里抽显式章节号（"学习 4.1" / "第五章讲了什么" / "4.1 讲了什么"）。
+
+    优先级：带点编号 > 「第X章/节/讲/课」 > 裸数字。
+    - 带点最像章节号：`出 5 道关于 4.2 的随堂测验` 里 "5" 是题量、"4.2" 才是章节；
+      若只按「第一个数字」取，会把检索范围锁到第 5 章，答出来的内容完全跑偏。
+    - 汉字章号（"第五章"）必须单独识别：中文教材的用户不会把章号写成阿拉伯数字，
+      漏了这条，`第五章讲了什么` 会退化成「课本未覆盖」——而第 5 章明明就在库里。
     """
     dotted = _SECTION_DOTTED_RE.search(text)
     if dotted:
         return dotted.group(1)
+    chapter = _SECTION_CHAPTER_RE.search(text)
+    if chapter:
+        raw = chapter.group(1)
+        number = int(raw) if raw.isdigit() else _cn_to_int(raw)
+        if number is not None:
+            return str(number)
     bare = _SECTION_BARE_RE.search(text)
     return bare.group(1) if bare else None
+
+
+def has_explicit_section_reference(text: str) -> bool:
+    """问句是否**点名**了课本的一章/一节（而不是碰巧带了个数字）。
+
+    这条区分是 P0-05④ 的关键：`帮我写 3 首关于春天的五言绝句` 里的 "3" 只是量词，
+    若把它当章节号，就会以「用户点名了第 3 章」为由判成 SYLLABUS_MATCH —— 正是
+    「无关问题被当成课本覆盖」这一类误判。只有带点编号与「第X章/节」才算点名。
+    """
+    return bool(_SECTION_DOTTED_RE.search(text) or _SECTION_CHAPTER_RE.search(text))
 
 
 def _snippet(content: str, limit: int = SNIPPET_LEN) -> str:
@@ -200,6 +250,12 @@ class Retriever:
         resolved_top_k = top_k or settings.RETRIEVAL_TOP_K
         scope = section_code or extract_section_code(query)
         query_tokens = tokenize(query)
+        # 实词（主题词）是判定「课本是否覆盖」的唯一语义信号，见 text_signals 模块头注释
+        query_words = content_words(query)
+        # 调用方显式给了 section_code（用户点了画布节点）与问句点名章节，都算强元数据证据；
+        # 裸数字不算，否则「帮我写 3 首…」会被当成「点名了第 3 章」。
+        explicit_section = bool(section_code) or has_explicit_section_reference(query)
+        short_terms = tuple(token for token in query_tokens if len(token) >= 2)
 
         hits = await self._search_with_widening(
             workspace_id, query, scope, strict_section=strict_section
@@ -211,7 +267,8 @@ class Retriever:
                 grader_status=NO_MATCH,
                 section_scope=scope,
                 top_score=0.0,
-                query_terms=tuple(token for token in query_tokens if len(token) >= 2),
+                query_terms=short_terms,
+                content_hit_ratio=0.0,
             )
 
         async with self._session_factory() as session:
@@ -227,7 +284,8 @@ class Retriever:
                 grader_status=NO_MATCH,
                 section_scope=scope,
                 top_score=0.0,
-                query_terms=tuple(token for token in query_tokens if len(token) >= 2),
+                query_terms=short_terms,
+                content_hit_ratio=0.0,
             )
 
         documents = [tokenize(chunk.content) for _, chunk in candidates]
@@ -264,7 +322,19 @@ class Retriever:
         scored.sort(key=lambda item: (-item.score, item.chunk_index))
         top = tuple(scored[: max(1, resolved_top_k)])
         top_score = top[0].score if top else 0.0
-        grader_status = self._grade(top, top_score, query_tokens, settings, scope)
+        coverage = content_hit_ratio(
+            query_words,
+            [chunk.content or chunk.snippet for chunk in top[: settings.GRADER_CONTENT_HIT_WINDOW]],
+        )
+        grader_status = self._grade(
+            top,
+            top_score,
+            query_tokens,
+            settings,
+            scope,
+            coverage=coverage,
+            explicit_section=explicit_section,
+        )
 
         log_event(
             "retrieval_done",
@@ -272,13 +342,16 @@ class Retriever:
             top_score=round(top_score, 4),
             candidates=len(candidates),
             section_scope=scope,
+            content_hit_ratio=round(coverage.ratio, 4),
+            content_hit_words=list(coverage.matched),
         )
         return RetrievalResult(
             chunks=top,
             grader_status=grader_status,
             section_scope=scope,
             top_score=top_score,
-            query_terms=tuple(token for token in query_tokens if len(token) >= 2),
+            query_terms=short_terms,
+            content_hit_ratio=coverage.ratio,
         )
 
     async def _search_with_widening(
@@ -319,14 +392,26 @@ class Retriever:
         query_tokens: Sequence[str],
         settings: Settings,
         scope: str | None = None,
+        *,
+        coverage: ContentCoverage | None = None,
+        explicit_section: bool = False,
     ) -> str:
-        """§7.3 三态判定 + 一条元数据锚定补充规则。
+        """§7.3 三态判定 + 两条补充规则（元数据锚定 / 实词覆盖门槛）。
 
-        补充规则的动机：学生说「学习 4.1」时，问句与课本正文几乎没有词面重叠，
-        但「他点名了课本里确实存在的一节」本身就是强证据（SPEC §1.2 的目录树精确锚定）。
-        若只按分数判，这条最重要的演示路径会被判成 NO_MATCH，然后答「课本未覆盖」——
-        与产品预期完全相反。因此：显式章节命中 + 该节至少 1 个切片 + top1 落在该节
-        → 直接 SYLLABUS_MATCH（切片本身就是课本原文，引用页码真实可回溯）。
+        **补充规则一：显式章节锚定（IMPL-NOTES §E2）**
+        学生说「学习 4.1」时，问句与课本正文几乎没有词面重叠，但「他点名了课本里确实
+        存在的一节」本身就是强证据（SPEC §1.2 的目录树精确锚定）。若只按分数判，这条最
+        重要的演示路径会被判成 NO_MATCH，然后答「课本未覆盖」—— 与产品预期完全相反。
+        因此：显式章节命中 + 该节至少 1 个切片 + top1 落在该节 → 直接 SYLLABUS_MATCH。
+
+        **补充规则二：实词覆盖门槛（P0-05④ 的真正判据）**
+        为什么不能只看 `top_score`：融合分数里 BM25 是「相对归一化」，向量是哈希基线，
+        两者都可能在「一个主题词都没命中」时给出 0.30~0.40 的高分（实测「怎么用 Rust
+        写一个 WebAssembly 模块」0.4016 > 「Malayan Union 对马来西亚宪制发展的长期
+        影响」0.3605）。用分数阈值去堵，必然同时误伤真正的中间态问题。
+        改用语义信号：问句实词在 Top-N 切片里的命中率低于 `GRADER_CONTENT_HIT_MIN_RATIO`
+        时，无论分数多高都判 NO_MATCH —— 因为「问句主题没在课本里出现过」这个事实，
+        比任何加权分数都更接近「课本是否覆盖」的定义。
         """
         if not chunks:
             return NO_MATCH
@@ -338,8 +423,10 @@ class Retriever:
                 for chunk in chunks
                 if chunk.section_code == scope or chunk.section_code.startswith(f"{scope}.")
             )
+        # 裸数字（量词）不算点名，必须由 extract_section_code 的强模式确认过
         anchored = (
-            scope is not None
+            explicit_section
+            and scope is not None
             and scope_support >= 1
             and (
                 chunks[0].section_code == scope
@@ -347,7 +434,21 @@ class Retriever:
             )
         )
 
-        if top_score < settings.GRADER_PARTIAL_THRESHOLD and not anchored:
+        if anchored:
+            return SYLLABUS_MATCH
+
+        hit_ratio = coverage.ratio if coverage is not None else 0.0
+        if hit_ratio < settings.GRADER_CONTENT_HIT_MIN_RATIO:
+            # 实词几乎没命中：课本没有覆盖这个问题。哪怕 top_score 很高也不能放行。
+            log_event(
+                "grader_no_content_coverage",
+                hit_ratio=round(hit_ratio, 4),
+                threshold=settings.GRADER_CONTENT_HIT_MIN_RATIO,
+                top_score=round(top_score, 4),
+            )
+            return NO_MATCH
+
+        if top_score < settings.GRADER_PARTIAL_THRESHOLD:
             return NO_MATCH
 
         support_count = sum(1 for chunk in chunks if chunk.score >= settings.GRADER_SUPPORT_THRESHOLD)
@@ -355,8 +456,6 @@ class Retriever:
         top_text = " ".join(chunk.snippet.lower() for chunk in chunks[:3])
         keyword_hit = any(keyword in top_text for keyword in keywords)
 
-        if anchored:
-            return SYLLABUS_MATCH
         if (
             top_score >= settings.GRADER_MATCH_THRESHOLD
             and support_count >= 2
@@ -396,5 +495,6 @@ __all__ = [
     "RetrievedChunk",
     "extract_section_code",
     "get_retriever",
+    "has_explicit_section_reference",
     "reset_retriever",
 ]

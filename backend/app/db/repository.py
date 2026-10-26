@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Iterable, Sequence
 from datetime import datetime, timezone
 from typing import Any
@@ -243,12 +244,18 @@ async def create_artifact(
     spec_json: dict[str, Any],
     anchor_section: str | None = None,
 ) -> Artifact:
+    """建产物。
+
+    `spec_json` 一律 deepcopy 后入库：调用方（agent_engine）手里那份 spec 还会被塞进
+    SSE 事件体继续流转，若库内对象与它共享同一份嵌套结构，后续任何一次原地修改都会
+    「隔着事务」改到已落库的内容（P0-11③ 历史不可变的前置条件）。
+    """
     artifact = Artifact(
         workspace_id=workspace_id,
         title=title,
         artifact_type=artifact_type,
         version=1,
-        spec_json=spec_json,
+        spec_json=copy.deepcopy(spec_json),
         anchor_section=anchor_section,
     )
     session.add(artifact)
@@ -291,17 +298,25 @@ async def apply_artifact_patch(
 
     两件事必须同事务：先追加版本再更新快照，任何一步失败都不能留下
     「version=4 但 versions 表里没有第 4 版」的破洞（P0-11①）。
+
+    **两条不可省略的 deepcopy（P0-11③ 历史不可覆盖的根因防线）**
+    1. `artifacts.spec_json` 与 `artifact_versions.spec_json` 必须各持一份独立副本。
+       若两行共享同一个 dict 对象，SQLAlchemy 的 `JSON` 类型**不追踪嵌套结构的原地
+       修改**，内存里任何一次 `spec["slides"][1]["title"] = ...` 都不会被标记为 dirty，
+       但对象已经被改脏了 —— 下一次该行因别的原因（例如 `patch_ops` 变更）被 flush 时，
+       改脏后的内容会一起写回，历史版本就被「悄悄」覆盖。
+    2. 传给 `patch_ops` 的 list 同理：调用方后续可能复用/追加该列表。
     """
     new_version = artifact.version + 1
     artifact.version = new_version
-    artifact.spec_json = spec_json
+    artifact.spec_json = copy.deepcopy(spec_json)
     artifact.updated_at = utcnow()
 
     version_row = ArtifactVersion(
         artifact_id=artifact.id,
         version=new_version,
-        spec_json=spec_json,
-        patch_ops=patch_ops,
+        spec_json=copy.deepcopy(spec_json),
+        patch_ops=copy.deepcopy(patch_ops),
         origin_turn_id=origin_turn_id,
     )
     session.add(version_row)
@@ -317,12 +332,16 @@ async def append_artifact_version(
     patch_ops: list[dict[str, Any]] | None = None,
     origin_turn_id: str | None = None,
 ) -> ArtifactVersion:
-    """仅追加版本行（创建 artifact 时写 version=1）。append-only：没有 UPDATE/DELETE 入口。"""
+    """仅追加版本行（创建 artifact 时写 version=1）。append-only：没有 UPDATE/DELETE 入口。
+
+    快照 deepcopy：v1 行一旦落库就必须与 `artifacts` 行、与调用方手里的 spec 三方互不
+    影响，否则「创建时顺手复用同一个 dict」会让 v1 随最新版本一起漂移。
+    """
     version_row = ArtifactVersion(
         artifact_id=artifact_id,
         version=1,
-        spec_json=spec_json,
-        patch_ops=patch_ops,
+        spec_json=copy.deepcopy(spec_json),
+        patch_ops=copy.deepcopy(patch_ops),
         origin_turn_id=origin_turn_id,
     )
     session.add(version_row)
