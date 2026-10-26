@@ -1,0 +1,49 @@
+{
+  "name": "edu-spatial-workspace-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "多模态沉浸式智能助教 · 自适应生成式学习工作区（React 19 + Vite + Tailwind v3）",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run typecheck && vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify:sse": "vitest run src/api/sse.test.ts"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
+    "allotment": "~1.20.6",
+    "framer-motion": "^12.43.0",
+    "gsap": "^3.15.0",
+    "katex": "~0.16.47",
+    "konva": "^10.9.0",
+    "react": "~19.3.1",
+    "react-dom": "~19.3.1",
+    "react-konva": "~19.3.2",
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "three": "~0.186.1",
+    "zustand": "^5.0.16"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "~0.186.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "~3.4.19",
+    "typescript": "~5.7.3",
+    "vite": "^7.3.7",
+    "vitest": "^3.2.7"
+  }
+}
