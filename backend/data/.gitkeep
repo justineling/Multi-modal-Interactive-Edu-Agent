@@ -1,0 +1,2 @@
+SQLite 数据库文件与上传落盘目录的占位文件。
+运行时内容不纳入版本控制（见 .gitignore 的 *.db / data/uploads/）。

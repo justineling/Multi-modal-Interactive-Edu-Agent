@@ -1,0 +1,40 @@
+# ---------------------------------------------------------------------------
+# 后端依赖（SQLite 开箱即跑模式）
+#
+# 设计原则：这里只放「零外部依赖就能跑通全链路」的包。
+# PostgreSQL + pgvector 相关驱动单独放在 requirements-postgres.txt，
+# 避免在 Windows 上因为 asyncpg / pgvector 需要本地编译而卡住安装流程。
+#
+# 安装：
+#   backend/.venv/Scripts/python.exe -m pip install -r backend/requirements.txt
+# ---------------------------------------------------------------------------
+
+# --- Web 框架与 ASGI ---
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+sse-starlette>=2.1.0
+python-multipart>=0.0.9
+
+# --- 契约 / 配置 ---
+pydantic>=2.9
+pydantic-settings>=2.4.0
+
+# --- ORM / 驱动（SQLite 异步）---
+# 必须带 [asyncio] extra：SQLAlchemy 2.1 起 greenlet 不再随主包自动安装，
+# 只写 "sqlalchemy" 会在 import sqlalchemy.ext.asyncio 时直接 ImportError。
+sqlalchemy[asyncio]>=2.0.30
+aiosqlite>=0.20.0
+
+# --- PDF 解析 ---
+pymupdf>=1.24.0
+pymupdf4llm>=0.0.17
+
+# --- 数值计算（内存向量检索）---
+numpy>=1.26.0
+
+# --- HTTP 客户端（直连 OpenAI 兼容 /chat/completions）---
+httpx>=0.27.0
+
+# --- 测试 ---
+pytest>=8.2.0
+pytest-asyncio>=0.23.0

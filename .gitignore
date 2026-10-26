@@ -30,6 +30,11 @@ yarn-error.log*
 *.db
 *.sqlite
 *.sqlite3
+# SQLite WAL 模式的伴生文件（-shm / -wal / -journal），必须一起忽略，
+# 否则每次本地跑一遍服务都会往仓库里塞二进制脏文件
+*.db-shm
+*.db-wal
+*.db-journal
 data/uploads/
 data/artifacts/
 uploads/

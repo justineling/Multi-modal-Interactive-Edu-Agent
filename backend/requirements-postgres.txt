@@ -1,0 +1,14 @@
+# ---------------------------------------------------------------------------
+# 可选依赖：PostgreSQL + pgvector 模式
+#
+# 只有把 DATABASE_URL 配成 postgresql+asyncpg://... 时才需要装这一组。
+# 刻意与 requirements.txt 分离：这两个包在 Windows 上可能需要本地编译工具链，
+# 混进主依赖会让「开箱即跑」的 SQLite 模式装不上。
+#
+# 安装：
+#   backend/.venv/Scripts/python.exe -m pip install -r backend/requirements-postgres.txt
+# ---------------------------------------------------------------------------
+-r requirements.txt
+
+asyncpg>=0.29.0
+pgvector>=0.2.5
