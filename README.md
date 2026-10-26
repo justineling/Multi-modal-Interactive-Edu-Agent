@@ -4,6 +4,26 @@
 
 ---
 
+## 接手开发？先读交接文档
+
+**→ [`HANDOVER.md`](./HANDOVER.md)**
+
+里面有：回家三步走（怎么把代码拿到另一台机器）、代码地图（改什么去哪）、待办清单（按优先级）、六个必踩的坑、关键决策记录、以及「下次开工第一件事」。
+
+### 当前状态
+
+| 指标 | 当前值 |
+|---|---|
+| P0 需求 | **12 / 12 交付** |
+| 后端测试 | **244 passed / 0 failed** |
+| 前端测试 | **153 passed / 7 文件** |
+| 端到端冒烟 | **38 项全通过** |
+| 真实 LLM（DeepSeek） | TTFT **2.9s** · 5~6 页 / 5~6 种布局 · 页码全部真实 |
+| 桌面安装 | 支持（PWA） |
+| 已知限制 | 真实模式总耗时约 70s、PG 模式未实测、扫描版 PDF 不支持、无登录体系 |
+
+---
+
 ## 文档
 
 **完整文档站入口：`docs/index.html`**（浏览器直接打开，无需启动服务）
@@ -165,7 +185,7 @@ python scripts/make_sample_pdf.py
 ## 五、测试
 
 ```bash
-# 后端：237 个用例
+# 后端：244 个用例
 cd backend && ./.venv/Scripts/python.exe -m pytest tests -q
 
 # 前端：153 个用例
@@ -185,10 +205,14 @@ python scripts/e2e_smoke.py
 
 ```
 .
+├── HANDOVER.md                     # ★ 交接文档：回家三步走、代码地图、待办、踩坑
+├── README.md                       # 你正在看的
+├── 1. 启动网页端(Windows).bat       # 双击启动（纯 ASCII，调 scripts/start-web.ps1）
+├── 2. 启动网页端(Mac-Linux).sh      # macOS/Linux 启动
 ├── backend/
 │   ├── app/
 │   │   ├── main.py                 # FastAPI 入口
-│   │   ├── config.py               # 配置（dual-mode DB、模型分层路由）
+│   │   ├── config.py               # 配置（dual-mode DB、模型分层路由、各种阈值）
 │   │   ├── errors.py               # 错误码枚举（前后端镜像）
 │   │   ├── db/
 │   │   │   ├── models.py           # 7 张表
@@ -208,12 +232,17 @@ python scripts/e2e_smoke.py
 │   │   │   ├── router.py           # 形态路由（可解释）
 │   │   │   ├── mock_generator.py   # 确定性 mock（纯函数）
 │   │   │   ├── llm_client.py       # OpenAI 兼容 + JSON 修复重试
-│   │   │   ├── agent_engine.py     # CRAG 主流程
+│   │   │   ├── agent_engine.py     # CRAG 主流程 + 三种 AST 提示词契约
 │   │   │   └── patch_engine.py     # deepcopy + 定点写入
 │   │   └── api/                    # workspaces / chat_stream / artifacts
-│   ├── tests/                      # 237 个用例（含 QA 验收测试）
+│   ├── tests/                      # 244 个用例（含 QA 验收测试）
 │   └── scripts/make_sample_pdf.py
 ├── frontend/
+│   ├── public/                     # PWA 静态资源
+│   │   ├── manifest.webmanifest    # 安装清单（standalone / 深色主题）
+│   │   ├── sw.js                   # Service Worker（排除所有 /api/ 缓存）
+│   │   ├── offline.html            # 离线提示页
+│   │   └── icons/                  # 192 / 512 / maskable-512 / SVG 源
 │   └── src/
 │       ├── types/                  # 与 Pydantic 严格对应的 TS 接口
 │       ├── api/                    # client + 手写 SSE 解析器（fetch + ReadableStream）
@@ -223,14 +252,20 @@ python scripts/e2e_smoke.py
 │       │   ├── chat/               # 对话、锚点、引用、目录树
 │       │   └── canvas/             # ArtifactHost + 三种渲染器 + 6 布局
 │       ├── hooks/                  # useChatStream / useArtifactPatch
-│       └── lib/                    # jsonPointer / fingerprint / anim2d / scene3d
+│       └── lib/                    # jsonPointer / fingerprint / anim2d / scene3d / theme
 ├── docs/
+│   ├── index.html                  # ★ 文档站入口（20 篇 HTML）
+│   ├── 01-快速开始/ … 06-项目档案/  # 分类文档
+│   ├── assets/style.css            # 文档站共享样式
 │   ├── PRD.md                      # 12 条 P0 与可测试验收标准
 │   ├── ARCHITECTURE.md             # 系统设计与任务分解
 │   ├── SPEC.md                     # 需求方原始规范
 │   ├── IMPL-NOTES.md               # 实施期裁定与架构勘误（**读这个能避开所有坑**）
 │   └── QA-REPORT-backend.md        # 后端 P0 逐条验收结论
-└── scripts/e2e_smoke.py            # 端到端冒烟（38 项检查）
+└── scripts/
+    ├── start-web.ps1               # Windows 启动主逻辑（UTF-8 BOM，中文提示在这）
+    ├── e2e_smoke.py                # 端到端冒烟（38 项，验流程正确性）
+    └── real_llm_check.py           # 真实 LLM 链路验证（验内容质量，需 Key）
 ```
 
 ---
@@ -254,11 +289,14 @@ python scripts/e2e_smoke.py
 
 | 项 | 说明 |
 |---|---|
-| **真实 LLM 路径未验证** | 所有测试都在 `LLM_API_KEY=""` 下跑。真实路径的重试、三次降级、超时模板只有静态审查级信心。配好 Key 后建议单独冒烟一次。 |
+| ~~真实 LLM 路径未验证~~ | **已补验（2026-10-26，DeepSeek）**。首次验证即暴露 2 个 P0（提示词缺 JSON Schema 导致降级 mock、`stream_text` 用错模型导致 TTFT 55 秒），均已修复。现实测 TTFT **2.9s**、`contract_retry` **0 次**、页码全部真实。回归脚本：`scripts/real_llm_check.py`。 |
+| **真实模式总耗时约 70 秒** | TTFT 已达标（2.9s），但 5 页 PPT 要等 generator 出完才下发。优化方向：分批流式下发（先出前 2 页）或换更快档位。需先定「课件生成等待上限」。 |
 | **PostgreSQL 模式未验证** | 全部测试跑在 SQLite。`PgVectorStore` 与 `vector(1536)` 镜像列无自动化覆盖。 |
-| **grader 阈值在固定样本上标定** | 依据「18 条无关最高 0.40 / 16 条相关最低 0.50」。换教材（英文/马来文为主、或非历史学科）需重新标定。 |
+| **grader 阈值在固定样本上标定** | 依据「18 条无关最高 0.40 / 16 条相关最低 0.50」。换教材（英文/马来文为主、或非历史学科）需重新标定，方法见 `docs/03-架构设计/4. 检索与路由.html`。 |
 | **扫描版 PDF 不支持** | 只支持带文本层的 PDF。扫描件会返回明确错误提示，OCR 属 P1。 |
 | **P0-06① 仅单元级证据** | 端到端验证会把「路由准确率」与「检索覆盖度」混在一起，故在路由 seam 上验（10/10）。 |
+| **P0-07/08/09 前端交互未自动化** | 6 种布局渲染、拖时间轴 60 次不掉帧、3D 轨道旋转，目前只有人工验证。补 Playwright 可变成可回归的。 |
+| **无登录体系** | 单用户设计，公网部署前必须加一层认证，否则任何人都能用你的 API Key 烧钱。 |
 
 ---
 
