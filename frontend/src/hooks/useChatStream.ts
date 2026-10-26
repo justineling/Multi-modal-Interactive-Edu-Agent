@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getArtifact, toApiError } from "@/api/client";
 import { iterateChatStream } from "@/api/sse";
+import { runArtifactPatch } from "@/hooks/useArtifactPatch";
 import { useWorkspaceStore } from "@/store/useWorkspaceStore";
 import type { ChatRequestBody, StreamMode } from "@/types/api";
 import type { ArtifactType, KnowledgeScope } from "@/types/artifact";
@@ -193,20 +194,33 @@ export function useChatStream(): ChatStreamState {
           return;
         }
 
-        // patch：本轮先以服务端快照为准（拉一次最新 spec），
-        // B5 会用 lib/jsonPointer 本地应用 ops + 指纹自检来替代这次请求。
+        // patch：服务端已应用，前端本地应用同一批 op 让画面立刻动起来，
+        // 再用指纹自检确认「只有目标子树变了」，最后拉一次权威快照对齐。
         target.updateMessage(assistantMessageId, {
           artifact_id: data.artifact_id,
           artifact_version: data.version,
         });
-        try {
-          const fresh = await getArtifact(data.artifact_id);
-          const latest = useWorkspaceStore.getState();
-          latest.upsertArtifact(fresh);
-          latest.setActiveArtifact(data.artifact_id, null);
-        } catch (refreshError) {
-          setError(toApiError(refreshError).displayMessage);
+
+        if (data.ops === null || data.ops.length === 0) {
+          // 后端声称是 patch 却没下发 ops：契约异常，退化为整树刷新（宁可慢也不能画错）
+          try {
+            const fresh = await getArtifact(data.artifact_id);
+            const latest = useWorkspaceStore.getState();
+            latest.upsertArtifact(fresh);
+            latest.setActiveArtifact(data.artifact_id, null);
+          } catch (refreshError) {
+            setError(toApiError(refreshError).displayMessage);
+          }
+          return;
         }
+
+        await runArtifactPatch({
+          artifactId: data.artifact_id,
+          baseVersion: data.base_version ?? Math.max(data.version - 1, 1),
+          ops: data.ops,
+          version: data.version,
+          source: "event",
+        });
       };
 
       try {
