@@ -68,6 +68,11 @@ def _turn_request(payload: ChatRequest, request: Request) -> TurnRequest:
     即「跨全部教材检索」—— 与当前已上线的语义相同，不会引入回归。
     """
     turn_id = getattr(request.state, "request_id", "") or ""
+    # TODO(rebind-engineer): TurnRequest 尚无 document_id 字段（该文件正由后置页码重绑定
+    # 改动，避免同文件双写者）。补齐 TurnRequest.document_id + with_turn_id() 透传 +
+    # _retrieve() 之后，把下面这行加进 TurnRequest(...)：
+    #     document_id=payload.document_id,
+    # 检索层已就绪，无需再改 retriever / vector_store。
     return TurnRequest(
         workspace_id=payload.workspace_id,
         query=payload.query,
