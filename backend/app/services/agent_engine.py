@@ -891,6 +891,12 @@ class TurnRequest:
     artifact_type_override: str | None = None
     artifact_id: str | None = None
     turn_id: str = ""
+    # 教材作用域（Level 1「目录树点击直传」）。`None` = 不限文档，跨全部教材检索。
+    # 多教材同章节号（《Form 4》《Form 5》都有 `Bab 4 → 4.1`）时，没有它检索会把两本书
+    # 的 4.1 混在一起召回，引用显示「4.1, p.76」却不知道是哪本书的 p.76。
+    # 放在最后：frozen dataclass 里带默认值的字段必须在无默认值字段之后，且这样不破坏
+    # 任何按位置构造的既有调用方。
+    document_id: str | None = None
 
     def with_turn_id(self, turn_id: str) -> "TurnRequest":
         return TurnRequest(
@@ -901,6 +907,9 @@ class TurnRequest:
             artifact_type_override=self.artifact_type_override,
             artifact_id=self.artifact_id,
             turn_id=turn_id,
+            # 必须显式透传：漏了这行不会报错、不会让任何测试变红，只在「turn_id 为空
+            # 走重建」这条路径上静默丢掉教材作用域。见 test_with_turn_id_preserves_document_id。
+            document_id=self.document_id,
         )
 
     @property
@@ -996,6 +1005,9 @@ class AgentEngine:
             section_scope=result.section_scope,
             top_score=round(result.top_score, 4),
             chunks=chunk_events,
+            # 回显本次检索实际生效的教材作用域：多教材同章节号时，只给 section_scope
+            # 无法说明「这一轮按哪本书的 4.1 讲的」。前端据此渲染「当前按《Form 4》4.1 讲解」。
+            scope_document_id=result.document_id,
         )
 
         # ---- 2. 形态路由 ----
@@ -1178,6 +1190,9 @@ class AgentEngine:
             page=anchor.page if anchor else None,
             # 带锚点的追问锁死在该小节内检索（§6.2）
             strict_section=bool(anchor and anchor.section_code),
+            # 教材作用域：目录树点中某本书的某一节时，只在该书内检索。
+            # `None` 时行为与加参数前完全一致（跨全部教材），不改变既有语义。
+            document_id=req.document_id,
         )
 
     def _decide_action(

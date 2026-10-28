@@ -55,24 +55,15 @@ def _request_id(request: Request) -> str:
 def _turn_request(payload: ChatRequest, request: Request) -> TurnRequest:
     """把 HTTP 请求体映射成引擎入参。
 
-    **`payload.document_id` 的透传点在这里**（Level 1「目录树点击直传」）：
+    **`payload.document_id` 的透传起点在这里**（Level 1「目录树点击直传」）：
     `ChatRequest.document_id` → `TurnRequest.document_id` → `AgentEngine._retrieve()`
-    → `Retriever.retrieve(document_id=...)`。检索层（`retriever` / `vector_store`）
-    已完整支持该参数并有单测覆盖；`TurnRequest` 一侧的字段由
-    `services/agent_engine.py` 的维护者在合并「后置页码重绑定」时一并补齐
-    （frozen dataclass 加字段必须同时改 `with_turn_id()`，属于同一文件内的原子改动，
-    跨人同时改该文件会互相覆盖）。补齐后此处只需加一行
-    `document_id=payload.document_id`。
+    → `Retriever.retrieve(document_id=...)` → `search_similar(document_id=...)`。
+    链路每一段都有单测，且由 E2E 断言 `retrieval.scope_document_id` 回显验证。
 
-    在此之前不传该参数是**安全**的：`document_id=None` 与加入该参数前的行为逐字节一致，
-    即「跨全部教材检索」—— 与当前已上线的语义相同，不会引入回归。
+    `document_id=None`（前端未点目录树）时行为与加该参数前**逐字节一致**，
+    即「跨全部教材检索」—— 与既有线上语义相同，不引入回归。
     """
     turn_id = getattr(request.state, "request_id", "") or ""
-    # TODO(rebind-engineer): TurnRequest 尚无 document_id 字段（该文件正由后置页码重绑定
-    # 改动，避免同文件双写者）。补齐 TurnRequest.document_id + with_turn_id() 透传 +
-    # _retrieve() 之后，把下面这行加进 TurnRequest(...)：
-    #     document_id=payload.document_id,
-    # 检索层已就绪，无需再改 retriever / vector_store。
     return TurnRequest(
         workspace_id=payload.workspace_id,
         query=payload.query,
@@ -81,6 +72,7 @@ def _turn_request(payload: ChatRequest, request: Request) -> TurnRequest:
         artifact_type_override=payload.artifact_type_override,
         artifact_id=payload.artifact_id,
         turn_id=turn_id,
+        document_id=payload.document_id,
     )
 
 

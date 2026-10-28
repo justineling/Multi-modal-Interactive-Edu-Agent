@@ -32,8 +32,9 @@ from app.db.models import DocumentChunk
 from app.db.session import get_session_factory
 from app.db.vector_store import MemoryVectorStore, PgVectorStore, VectorItem, get_vector_store
 from app.schemas.chat import EVENT_ORDER, ChatRequest, RetrievalEvent
+from app.services.agent_engine import AgentEngine, TurnRequest
 from app.services.embedding import get_embedding_provider
-from app.services.retriever import NO_MATCH, Retriever
+from app.services.retriever import NO_MATCH, RetrievalResult, Retriever
 
 FORM4 = "Sejarah Form 4.pdf"
 FORM5 = "Sejarah Form 5.pdf"
@@ -376,3 +377,89 @@ def test_retrieval_event_carries_scope_document_id() -> None:
     assert legacy.model_dump(mode="json")["scope_document_id"] is None
     # 事件名集合没被改动
     assert "retrieval" in EVENT_ORDER and len(EVENT_ORDER) == 7
+
+
+# --------------------------------------------------------------------------- #
+# 9. 透传链的两处「静默丢失」风险（写对了、功能坏了、测试全绿）
+# --------------------------------------------------------------------------- #
+def test_with_turn_id_preserves_document_id() -> None:
+    """`TurnRequest.with_turn_id()` 必须**字段级**保住 `document_id`。
+
+    为什么必须写字段级断言，而不是「带 turn_id 的请求能检索到」那种行为级断言：
+    `stream_turn` 里是 `req = request if request.turn_id else request.with_turn_id(...)`
+    —— 只要调用方传了 `turn_id`，就**根本不会走 `with_turn_id()`**，行为级测试因此
+    完全测不到这行漏写。而漏写不会报错、不会变红，只在「turn_id 为空 → 重建对象」
+    这条路径上静默丢掉教材作用域。这是本次改动最隐蔽的坑：代码看着对、测试全绿、
+    功能坏的。
+    """
+    request = TurnRequest(workspace_id="w", query="q", document_id="doc-abc")
+    rebuilt = request.with_turn_id("turn-1")
+
+    assert rebuilt.document_id == "doc-abc"
+    assert rebuilt.turn_id == "turn-1"
+    # 其余字段同样不能丢（重建时最容易整体漏抄）
+    assert (rebuilt.workspace_id, rebuilt.query, rebuilt.mode) == ("w", "q", "syllabus_strict")
+
+    # `None` 也要原样保留，不能被兜底成空串或别的值
+    assert TurnRequest(workspace_id="w", query="q").with_turn_id("t").document_id is None
+
+
+async def test_retrieve_forwards_document_id_to_retriever() -> None:
+    """`AgentEngine._retrieve()` 必须把 `req.document_id` 交给 retriever。
+
+    这是「API → engine → retriever」链路的最后一跳，之前整条链断在这里。
+    用 `__new__` 绕过 `__init__`：本用例只验「参数转发」这一个动作，构造完整引擎会把
+    llm / store / settings 三个进程级单例一起拉进来，耦合了无关依赖。
+    """
+    captured: list[dict[str, Any]] = []
+
+    class _StubRetriever:
+        async def retrieve(self, workspace_id: str, query: str, **kwargs: Any) -> RetrievalResult:
+            captured.append({"workspace_id": workspace_id, "query": query, **kwargs})
+            return RetrievalResult(
+                chunks=(),
+                grader_status=NO_MATCH,
+                section_scope=None,
+                top_score=0.0,
+                query_terms=(),
+                document_id=kwargs.get("document_id"),
+            )
+
+    engine = AgentEngine.__new__(AgentEngine)
+    engine._retriever = _StubRetriever()  # type: ignore[attr-defined]
+
+    await engine._retrieve(TurnRequest(workspace_id="w", query="q", document_id="doc-abc"))
+    assert captured[0]["document_id"] == "doc-abc"
+    assert captured[0]["workspace_id"] == "w"
+
+    # 不指定文档时必须显式传 None（而不是干脆不传这个 kwarg）：
+    # retriever 的默认值就是 None，两者等价，但显式传能保证以后改默认值时不悄悄改变语义。
+    await engine._retrieve(TurnRequest(workspace_id="w", query="q"))
+    assert captured[1]["document_id"] is None
+
+
+def test_chat_stream_builds_turn_request_with_document_id() -> None:
+    """`_turn_request()` 必须把请求体的 `document_id` 搬进 `TurnRequest`。
+
+    这是链路起点。漏了这一行，前端发什么都白搭 —— 而且**上层测试一条都不会红**，
+    因为检索层和引擎层都「支持」这个参数，只是没人喂给它。
+    """
+    from types import SimpleNamespace
+
+    from app.api.chat_stream import _turn_request
+
+    request = SimpleNamespace(state=SimpleNamespace(request_id="turn-1"))
+    turn = _turn_request(
+        ChatRequest(workspace_id="w", query="学习 4.1", document_id="doc-abc"),  # type: ignore[arg-type]
+        request,  # type: ignore[arg-type]
+    )
+
+    assert turn.document_id == "doc-abc"
+    assert turn.turn_id == "turn-1"
+
+    # 不带 document_id 时保持 None（跨全部教材，向后兼容）
+    plain = _turn_request(
+        ChatRequest(workspace_id="w", query="学习 4.1"),  # type: ignore[arg-type]
+        request,  # type: ignore[arg-type]
+    )
+    assert plain.document_id is None
