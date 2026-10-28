@@ -360,6 +360,14 @@ export interface ChatRequestBody {
   artifact_type_override?: ArtifactType;
   /** 无锚点时用于「接着上一张画布继续改」 */
   artifact_id?: string;
+  /**
+   * 教材作用域：把检索收窄到这一本教材（Level 1「目录树点击直传」）。
+   *
+   * 同一工作区可以有多本教材，章节号会重复（《Form 4》《Form 5》都有 `Bab 4 → 4.1`）。
+   * 不带这个字段时检索跨全部教材，引用里的「4.1, p.76」无法定位到具体哪本书。
+   * 不传 = 不限文档（保持既有行为）。
+   */
+  document_id?: string;
   /** 带多少轮历史，0–50，默认 8 */
   history_limit?: number;
 }

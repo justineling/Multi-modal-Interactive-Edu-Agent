@@ -27,6 +27,13 @@ export interface SendChatInput {
   anchor: Anchor | null;
   /** 用户显式指定的形态（P0-06②），null 表示交给路由决策 */
   artifactTypeOverride: ArtifactType | null;
+  /**
+   * 教材作用域（Level 1「目录树点击直传」）。
+   *
+   * 点中某本书的某一节后，把该书 id 一并发出，检索才不会被另一本书的同名章节串味。
+   * `null` 表示不限定教材，请求体里**不带**这个字段（保持既有行为）。
+   */
+  documentId: string | null;
 }
 
 export interface ChatStreamState {
@@ -166,6 +173,10 @@ export function useChatStream(): ChatStreamState {
       if (input.anchor === null && store.activeArtifactId !== null) {
         // 无锚点时告知「接着这张画布继续改」，后端才能走 patch 而不是新开一张
         body.artifact_id = store.activeArtifactId;
+      }
+      if (input.documentId !== null && input.documentId.length > 0) {
+        // 多教材同章节号隔离：不带它时后端跨全部教材检索，引用页码无法定位到具体哪本书。
+        body.document_id = input.documentId;
       }
 
       const handleArtifactEvent = async (event: Extract<SseEvent, { type: "artifact" }>): Promise<void> => {

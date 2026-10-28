@@ -35,6 +35,27 @@ const INITIAL_LOADING: LoadingState = {
 
 const WORKSPACE_STORAGE_KEY = "edu.workspace.currentWorkspaceId";
 
+/**
+ * 目录树点中的章节 + 它所属的教材。
+ *
+ * **为什么必须带 `documentId`**：同一工作区可以有多本教材，章节号会重复
+ * （《Form 4》《Form 5》都有 `Bab 4 → 4.1`）。只传 `code` 时后端无法判断
+ * 「学生点的是哪本书的 4.1」，检索会把两本书的 4.1 混在一起召回，
+ * 引用显示「4.1, p.76」却不知道是哪本书的 p.76。
+ *
+ * 这也是 Level 2（会话惯性继承）与 Level 3（歧义时主选 + 一键切换）的接入点：
+ * - Level 2：本轮结束后**不清空** `pickedSection`，让后续追问继承同一本书的作用域；
+ * - Level 3：`pickedSection` 为 null 但工作区有多本书时，由后端回传主选文档，
+ *   前端渲染切换胶囊并调用 `setPickedSection` 改写。
+ * 当前 Level 1 的语义是**一次性作用域**：点一次目录树，只影响紧接着发出的那一轮。
+ */
+export interface PickedSection {
+  /** 章节号，如 `4.1` */
+  code: string;
+  /** 该章节所属教材 id */
+  documentId: string;
+}
+
 /** 读回上次的 workspace id。隐私模式 / 禁用存储时静默返回 null。 */
 function readPersistedWorkspaceId(): string | null {
   if (typeof window === "undefined") {
@@ -83,6 +104,11 @@ export interface WorkspaceState {
   // ---- 交互上下文 ----
   /** 画布节点锚点（追问时随请求发出） */
   anchor: Anchor | null;
+  /**
+   * 目录树点中的章节 + 所属教材（随下一轮请求的 `document_id` 发出）。
+   * `null` 表示「不限定教材」，检索跨全部教材。
+   */
+  pickedSection: PickedSection | null;
   /** 是否运行在 mock 模式（顶栏黄标常驻，P0-12） */
   demoMode: boolean;
 
@@ -125,6 +151,8 @@ export interface WorkspaceActions {
   // anchor / demo
   setAnchor: (anchor: Anchor) => void;
   clearAnchor: () => void;
+  /** 目录树点击：写入章节 + 所属教材 */
+  setPickedSection: (picked: PickedSection | null) => void;
   setDemoMode: (demoMode: boolean) => void;
 
   // 过程态
@@ -147,6 +175,7 @@ const INITIAL_STATE: WorkspaceState = {
   activeArtifactId: null,
   activeVersion: null,
   anchor: null,
+  pickedSection: null,
   demoMode: false,
   loading: INITIAL_LOADING,
   streamingMessageId: null,
@@ -205,6 +234,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()((set) => ({
         activeArtifactId: null,
         activeVersion: null,
         anchor: null,
+        pickedSection: null,
         streamingMessageId: null,
         error: null,
       };
@@ -220,6 +250,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()((set) => ({
       activeArtifactId: null,
       activeVersion: null,
       anchor: null,
+      pickedSection: null,
       streamingMessageId: null,
       error: null,
     });
@@ -360,6 +391,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()((set) => ({
 
   clearAnchor: () => set({ anchor: null }),
 
+  setPickedSection: (picked) => set({ pickedSection: picked }),
+
   setDemoMode: (demoMode) => set({ demoMode }),
 
   // ------------------------------------------------------------------ //
@@ -386,6 +419,7 @@ export const useWorkspaceStore = create<WorkspaceStore>()((set) => ({
       activeArtifactId: null,
       activeVersion: null,
       anchor: null,
+      pickedSection: null,
       streamingMessageId: null,
       error: null,
       loading: INITIAL_LOADING,

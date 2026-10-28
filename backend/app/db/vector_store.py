@@ -52,7 +52,13 @@ class VectorHit:
 
 @runtime_checkable
 class EmbeddingStore(Protocol):
-    """§4.2 的向量存取协议。业务代码只依赖它，不依赖具体实现。"""
+    """§4.2 的向量存取协议。业务代码只依赖它，不依赖具体实现。
+
+    `search_similar` 的过滤维度是**三层的**：workspace（必填）→ document（可选）→
+    section 前缀（可选）。`document_id=None` 表示「不限文档」，行为与加入该参数前完全
+    一致 —— 这是向后兼容的硬要求：`document_id` 是「多教材同章节号」场景的补丁，
+    不该改变任何既有调用方的语义。
+    """
 
     async def upsert_vectors(self, items: list[VectorItem]) -> None: ...
 
@@ -62,6 +68,7 @@ class EmbeddingStore(Protocol):
         query_vec: list[float],
         top_k: int = 10,
         section_prefix: str | None = None,
+        document_id: str | None = None,
     ) -> list[VectorHit]: ...
 
     async def delete_by_document(self, document_id: str) -> None: ...
@@ -196,17 +203,20 @@ class MemoryVectorStore:
         query_vec: list[float],
         top_k: int = 10,
         section_prefix: str | None = None,
+        document_id: str | None = None,
     ) -> list[VectorHit]:
         if not self._loaded:
             await self.initialize()
         if not query_vec:
             return []
 
-        candidate_ids = await self._candidate_ids(workspace_id, section_prefix)
+        candidate_ids = await self._candidate_ids(workspace_id, section_prefix, document_id)
         if not candidate_ids:
             return []
 
-        chunk_ids, matrix = self._matrix_for(workspace_id, section_prefix, candidate_ids)
+        chunk_ids, matrix = self._matrix_for(
+            workspace_id, section_prefix, document_id, candidate_ids
+        )
         if matrix.size == 0:
             return []
 
@@ -251,40 +261,71 @@ class MemoryVectorStore:
         self._matrix_cache.clear()
 
     # ---------------- 内部 ----------------
-    async def _candidate_ids(self, workspace_id: str, section_prefix: str | None) -> list[str]:
-        """按 workspace（可选按章节前缀）取候选 chunk_id。
+    async def _candidate_ids(
+        self,
+        workspace_id: str,
+        section_prefix: str | None,
+        document_id: str | None = None,
+    ) -> list[str]:
+        """按 workspace（可选按文档、可选按章节前缀）取候选 chunk_id。
+
+        `document_id` 在**内存里**过滤：`_meta` 本来就存了 `(workspace_id, document_id)`，
+        再查一次库是纯浪费。这也正是 `_meta` 保留 document_id 的理由 —— 它让「多教材
+        同章节号」的隔离不需要额外的数据库往返。
 
         section_prefix 走 DB 而不是内存：内存里只有向量与归属，没有 section_code，
         为省一次查询而在内存维护冗余索引，会在「切片重解析」时产生脏数据。
+        section 查询里同样带上 `document_id`：虽然内存过滤已经保证了正确性，但让 SQL
+        只扫一本书的切片，能避免大 workspace 下为「取一本书的某一节」而拉回全部章节号。
         """
         in_workspace = [
-            chunk_id for chunk_id, meta in self._meta.items() if meta[0] == workspace_id
+            chunk_id
+            for chunk_id, meta in self._meta.items()
+            if meta[0] == workspace_id and (document_id is None or meta[1] == document_id)
         ]
         if section_prefix is None or not in_workspace:
             return in_workspace
 
+        conditions = [
+            DocumentChunk.workspace_id == workspace_id,
+            DocumentChunk.section_code.like(f"{section_prefix}%"),
+        ]
+        if document_id is not None:
+            conditions.append(DocumentChunk.document_id == document_id)
+
         async with self._sessions() as session:
             rows = (
-                await session.execute(
-                    select(DocumentChunk.id).where(
-                        DocumentChunk.workspace_id == workspace_id,
-                        DocumentChunk.section_code.like(f"{section_prefix}%"),
-                    )
-                )
+                await session.execute(select(DocumentChunk.id).where(*conditions))
             ).scalars().all()
         allowed = set(rows)
         return [chunk_id for chunk_id in in_workspace if chunk_id in allowed]
 
     def _matrix_for(
-        self, workspace_id: str, section_prefix: str | None, chunk_ids: list[str]
+        self,
+        workspace_id: str,
+        section_prefix: str | None,
+        document_id: str | None,
+        chunk_ids: list[str],
     ) -> tuple[list[str], np.ndarray]:
         """把候选向量堆成一个矩阵（按需缓存）。
 
         缓存键带上 section_prefix 并校验候选 id 列表完全相同：只比长度会踩坑 ——
         同一 workspace 下「全量候选」与「某章节候选」长度碰巧相等时，会拿到错的矩阵，
         表现为「按章节过滤检索却返回别章内容」。
+
+        **`document_id` 也进缓存键**（而不是「先建 workspace 全量矩阵再切行」）。
+        理由有两条，第二条才是决定性的：
+        1. *正确性*：矩阵与 `chunk_ids` 必须一一对应。若键里不带 document_id，
+           两次「同 workspace 不同文档」的检索会争用同一个键，只靠 `chunk_ids` 全等
+           来兜底 —— 一旦两本书的候选列表恰好长度相等且元素顺序巧合，缓存校验就形同
+           虚设。把作用域写进键里，语义与命中条件一一对应，不留这种巧合窗口。
+        2. *性能*：本场景（目录树点中某本书的某一节）的访问模式是**在一本书内连续追问**。
+           键里带 document_id 时，同一本书的连续检索复用同一份小矩阵；若只在 workspace
+           维度缓存，则每本书各自建一次矩阵，交替提问会不停重建，缓存退化成全量矩阵乘。
+        代价是键的数量随「(文档, 章节前缀)」组合增长 —— 与加入 document_id 之前
+        「随章节前缀增长」是同一量级，且任何写操作都会整体清空（`_matrix_cache.clear()`）。
         """
-        cache_key = f"{workspace_id}|{section_prefix or ''}"
+        cache_key = f"{workspace_id}|{document_id or ''}|{section_prefix or ''}"
         cached = self._matrix_cache.get(cache_key)
         if cached is not None and cached[0] == chunk_ids:
             return cached
@@ -400,6 +441,7 @@ class PgVectorStore:
         query_vec: list[float],
         top_k: int = 10,
         section_prefix: str | None = None,
+        document_id: str | None = None,
     ) -> list[VectorHit]:
         if not query_vec:
             return []
@@ -411,12 +453,18 @@ class PgVectorStore:
               JOIN document_chunks c ON c.id = v.chunk_id
              WHERE v.workspace_id = $2
         """
+        # 占位符按「已追加的参数个数」递增，避免手写 $3/$4 时漏改一处就错位。
+        # 顺序即拼接顺序：先章节前缀、再文档、最后 LIMIT。
         params: list[Any] = [_to_pg_vector(query_vec), workspace_id]
         if section_prefix:
-            sql += " AND c.section_code LIKE $3"
             params.append(f"{section_prefix}%")
-        sql += " ORDER BY v.embedding_vec <=> $1::vector LIMIT $%d" % (len(params) + 1)
+            sql += f" AND c.section_code LIKE ${len(params)}"
+        if document_id:
+            # 多教材同章节号隔离：不加这一条，两本《Form 4》《Form 5》的 4.1 会互相串。
+            params.append(document_id)
+            sql += f" AND v.document_id = ${len(params)}"
         params.append(max(1, top_k))
+        sql += f" ORDER BY v.embedding_vec <=> $1::vector LIMIT ${len(params)}"
 
         async with pool.acquire() as connection:
             rows = await connection.fetch(sql, *params)

@@ -9,7 +9,15 @@ import type { DocumentOut, TocNode } from "@/types/api";
 interface DocumentCardProps {
   document: DocumentOut;
   pickedCode: string | null;
-  onPickSection: (node: TocNode) => void;
+  /**
+   * 点中某个目录节点。
+   *
+   * **必须带上 `documentId`**：同一工作区可有多本教材且章节号重复
+   * （《Form 4》《Form 5》都有 `Bab 4 → 4.1`）。`DocumentCard` 是唯一
+   * 「同时知道 node 与 document.id」的地方，所以由它把两者一起交出去，
+   * 上游才能把 `document_id` 一路透传到检索层。
+   */
+  onPickSection: (node: TocNode, documentId: string) => void;
   onCancel: (documentId: string) => void;
   onDelete: (documentId: string) => void;
   onRetry: (document: DocumentOut) => void;
@@ -151,7 +159,11 @@ export function DocumentCard({
 
           {tocOpen ? (
             <div className="mt-1 max-h-56 overflow-y-auto pr-0.5">
-              <TocTree nodes={document.toc_tree} onPick={onPickSection} pickedCode={pickedCode} />
+              <TocTree
+                nodes={document.toc_tree}
+                onPick={(node: TocNode) => onPickSection(node, document.id)}
+                pickedCode={pickedCode}
+              />
             </div>
           ) : null}
         </div>

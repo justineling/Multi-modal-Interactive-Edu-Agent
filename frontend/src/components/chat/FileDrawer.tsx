@@ -9,7 +9,8 @@ import type { DocumentOut, TocNode } from "@/types/api";
 
 interface FileDrawerProps {
   workspaceId: string | null;
-  onPickSection: (node: TocNode) => void;
+  /** 点中某个目录节点：`documentId` 是该节点所属教材，用于按教材隔离检索 */
+  onPickSection: (node: TocNode, documentId: string) => void;
   pickedCode: string | null;
 }
 

@@ -68,6 +68,11 @@ class RetrievalResult:
     `content_hit_ratio` 是「问句实词在 Top-N 切片里的命中率」，即 Grader 判 NO_MATCH 时
     真正依据的语义信号。放进结果体是为了让误判可被观测：线上出现「该覆盖却判未覆盖」时，
     先看这个值，而不是去猜融合分数。
+
+    `document_id` 是**本次检索实际生效的教材作用域**（`None` 表示跨全部教材）。
+    放进结果体有两个用途：一是让上层（SSE `retrieval` 事件、后续的会话惯性继承）
+    不必回头去猜「这一轮到底锁的是哪本书」；二是让「带 document_id 检索却返回空」
+    这类问题在日志里能直接看出作用域，而不是误判成「课本未覆盖」。
     """
 
     chunks: tuple[RetrievedChunk, ...]
@@ -76,6 +81,7 @@ class RetrievalResult:
     top_score: float
     query_terms: tuple[str, ...]
     content_hit_ratio: float = 0.0
+    document_id: str | None = None
 
     @property
     def is_empty(self) -> bool:
@@ -245,7 +251,17 @@ class Retriever:
         page: int | None = None,
         top_k: int | None = None,
         strict_section: bool = False,
+        document_id: str | None = None,
     ) -> RetrievalResult:
+        """混合检索 + 评估。
+
+        `document_id` 把检索作用域收窄到**一本教材**。为什么需要它：同一工作区里
+        同时存在《Form 4》《Form 5》两本历史课本时，两本书都有 `Bab 4 → 4.1`，
+        只按 workspace + 章节号过滤会把两本书的 4.1 混在一起召回 —— 引用显示
+        「4.1, p.76」，但学生不知道是哪本书的 p.76，等于知识张冠李戴。
+
+        `document_id=None`（默认）表示不限文档，行为与加入该参数前**逐字节一致**。
+        """
         settings = self._settings
         resolved_top_k = top_k or settings.RETRIEVAL_TOP_K
         scope = section_code or extract_section_code(query)
@@ -258,10 +274,20 @@ class Retriever:
         short_terms = tuple(token for token in query_tokens if len(token) >= 2)
 
         hits = await self._search_with_widening(
-            workspace_id, query, scope, strict_section=strict_section
+            workspace_id,
+            query,
+            scope,
+            strict_section=strict_section,
+            document_id=document_id,
         )
         if not hits:
-            log_event("retrieval_done", grader_status=NO_MATCH, top_score=0.0, candidates=0)
+            log_event(
+                "retrieval_done",
+                grader_status=NO_MATCH,
+                top_score=0.0,
+                candidates=0,
+                document_id=document_id,
+            )
             return RetrievalResult(
                 chunks=(),
                 grader_status=NO_MATCH,
@@ -269,6 +295,7 @@ class Retriever:
                 top_score=0.0,
                 query_terms=short_terms,
                 content_hit_ratio=0.0,
+                document_id=document_id,
             )
 
         async with self._session_factory() as session:
@@ -286,6 +313,7 @@ class Retriever:
                 top_score=0.0,
                 query_terms=short_terms,
                 content_hit_ratio=0.0,
+                document_id=document_id,
             )
 
         documents = [tokenize(chunk.content) for _, chunk in candidates]
@@ -342,6 +370,7 @@ class Retriever:
             top_score=round(top_score, 4),
             candidates=len(candidates),
             section_scope=scope,
+            document_id=document_id,
             content_hit_ratio=round(coverage.ratio, 4),
             content_hit_words=list(coverage.matched),
         )
@@ -352,16 +381,29 @@ class Retriever:
             top_score=top_score,
             query_terms=short_terms,
             content_hit_ratio=coverage.ratio,
+            document_id=document_id,
         )
 
     async def _search_with_widening(
-        self, workspace_id: str, query: str, scope: str | None, *, strict_section: bool = False
+        self,
+        workspace_id: str,
+        query: str,
+        scope: str | None,
+        *,
+        strict_section: bool = False,
+        document_id: str | None = None,
     ) -> list[VectorHit]:
         """元数据过滤优先，命中不足逐级放宽（本节 → 本章 → 全 workspace）。
 
         `strict_section=True` 时**不做放宽**：这是「用户点了某个节点」的场景，
         §6.2 明确要求「按 anchor.section_code 限定检索范围」。放宽会把同章其它小节的
         切片拉进来，导致引用页码与被点中的节点对不上（用户看到的是「p.70」而不是他点的那页）。
+
+        **放宽只在文档内部进行，绝不跨文档。** `document_id` 一旦给定，三次尝试
+        （本节 / 本章 / 全书）都带着同一个 `document_id` 下去。若把它在某一级置 None
+        来「多找点候选」，就等于把另一本书的同名章节混进来 —— 那正是这个参数要修的 bug，
+        放宽反而会把它重新引回。所以「文档内无命中」时的正确结果是空列表（上层按
+        NO_MATCH 处理，回答「这本书里没有这一节」），而不是拿别本书的内容冒充。
         """
         query_vector = await self._provider.embed_one(query)
         limit = self._settings.RETRIEVAL_CANDIDATE_LIMIT
@@ -376,7 +418,11 @@ class Retriever:
 
         for candidate_scope in scopes:
             hits = await self._store.search_similar(
-                workspace_id, query_vector, top_k=limit, section_prefix=candidate_scope
+                workspace_id,
+                query_vector,
+                top_k=limit,
+                section_prefix=candidate_scope,
+                document_id=document_id,
             )
             if hits and strict_section:
                 # 锚点场景：本节只要有命中就锁死在本节，不再放宽

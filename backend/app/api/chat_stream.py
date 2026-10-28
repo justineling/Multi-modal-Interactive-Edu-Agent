@@ -53,6 +53,20 @@ def _request_id(request: Request) -> str:
 
 
 def _turn_request(payload: ChatRequest, request: Request) -> TurnRequest:
+    """把 HTTP 请求体映射成引擎入参。
+
+    **`payload.document_id` 的透传点在这里**（Level 1「目录树点击直传」）：
+    `ChatRequest.document_id` → `TurnRequest.document_id` → `AgentEngine._retrieve()`
+    → `Retriever.retrieve(document_id=...)`。检索层（`retriever` / `vector_store`）
+    已完整支持该参数并有单测覆盖；`TurnRequest` 一侧的字段由
+    `services/agent_engine.py` 的维护者在合并「后置页码重绑定」时一并补齐
+    （frozen dataclass 加字段必须同时改 `with_turn_id()`，属于同一文件内的原子改动，
+    跨人同时改该文件会互相覆盖）。补齐后此处只需加一行
+    `document_id=payload.document_id`。
+
+    在此之前不传该参数是**安全**的：`document_id=None` 与加入该参数前的行为逐字节一致，
+    即「跨全部教材检索」—— 与当前已上线的语义相同，不会引入回归。
+    """
     turn_id = getattr(request.state, "request_id", "") or ""
     return TurnRequest(
         workspace_id=payload.workspace_id,

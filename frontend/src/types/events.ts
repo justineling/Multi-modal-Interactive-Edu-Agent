@@ -91,6 +91,14 @@ export interface RetrievalEventData {
   section_scope: string | null;
   top_score: number;
   chunks: RetrievedChunk[];
+  /**
+   * 本次检索实际生效的教材作用域（`null` = 跨全部教材）。
+   *
+   * 多教材同章节号时，`section_scope="4.1"` 不足以说明「按哪本书讲的」——
+   * 这个字段用来渲染「当前按《Form 4》4.1 讲解」这类提示条。
+   * 后端恒发该字段（可选字段，旧前端忽略即可）。
+   */
+  scope_document_id: string | null;
 }
 
 // --------------------------------------------------------------------------- //

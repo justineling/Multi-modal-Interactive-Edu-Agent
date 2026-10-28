@@ -46,18 +46,23 @@ function buildSectionIndex(documents: readonly DocumentOut[]): Map<string, strin
 /**
  * 左栏：教材 → 消息流 → 输入区。
  *
- * 三个关键行为：
+ * 四个关键行为：
  * 1. **粘底滚动**：只有当用户本来就在底部时才自动滚动，否则会被「你在往上翻历史」时
  *    每来一个 token 就拽回底部，完全没法读。
  * 2. **锚点消费**：发送后 `turn_end` 会清掉锚点（见 useChatStream），回到全局模式。
  * 3. **引用定位**：`section_code` → `documentId` 的映射一次算好，
  *    避免每条消息每次渲染都遍历目录树。
+ * 4. **教材作用域（Level 1）**：点目录树时把「章节号 + 所属教材 id」一起记下，
+ *    下一轮请求带上 `document_id`，检索才不会把另一本书的同名章节混进来。
+ *    这一轮用完即清 —— 跨轮继承属于 Level 2，接入点见 `handleSend`。
  */
 export function ChatPanel({ workspaceId, mode, draft, onSamplePrompt }: ChatPanelProps): ReactElement {
   const messages = useWorkspaceStore((state) => state.messages);
   const documents = useWorkspaceStore((state) => state.documents);
   const anchor = useWorkspaceStore((state) => state.anchor);
   const clearAnchor = useWorkspaceStore((state) => state.clearAnchor);
+  const pickedSection = useWorkspaceStore((state) => state.pickedSection);
+  const setPickedSection = useWorkspaceStore((state) => state.setPickedSection);
   const streamingMessageId = useWorkspaceStore((state) => state.streamingMessageId);
 
   const { isStreaming, error, meta, send, stop, dismissError } = useChatStream();
@@ -113,11 +118,16 @@ export function ChatPanel({ workspaceId, mode, draft, onSamplePrompt }: ChatPane
   }, []);
 
   const handlePickSection = useCallback(
-    (node: TocNode): void => {
+    (node: TocNode, documentId: string): void => {
+      // 高亮：保持既有行为（记住「最后点过的那个节点」，直到点下一个）
       setPickedCode(node.code);
+      // 检索作用域：同时记下所属教材，随下一轮请求的 `document_id` 发出。
+      // 与 `pickedCode` 分开是因为二者生命周期不同 —— 高亮常驻，作用域一次性（见 handleSend）。
+      setPickedSection({ code: node.code, documentId });
+      // 自动填输入框：既有行为，不能动（学生点一下就有一句可发的问句）
       onSamplePrompt(`学习 ${node.code}（${node.title}），帮我梳理要点`);
     },
-    [onSamplePrompt],
+    [onSamplePrompt, setPickedSection],
   );
 
   const handleSend = useCallback(
@@ -126,15 +136,23 @@ export function ChatPanel({ workspaceId, mode, draft, onSamplePrompt }: ChatPane
         return;
       }
       stickRef.current = true;
+      const scopeDocumentId = pickedSection === null ? null : pickedSection.documentId;
+      // Level 1 的语义是**一次性作用域**：点一次目录树，只影响紧接着发出的那一轮。
+      // 用完即清，避免学生之后自由提问时被上一本书悄悄锁死（跨书提问会答「课本未覆盖」）。
+      // Level 2（会话惯性继承）的接入点就是删掉下面这次清空，让作用域跨轮继承。
+      if (scopeDocumentId !== null) {
+        setPickedSection(null);
+      }
       void send({
         workspaceId,
         query,
         mode,
         anchor,
         artifactTypeOverride: override,
+        documentId: scopeDocumentId,
       });
     },
-    [workspaceId, mode, anchor, send],
+    [workspaceId, mode, anchor, pickedSection, setPickedSection, send],
   );
 
   return (

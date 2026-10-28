@@ -75,6 +75,11 @@ class ChatRequest(BaseModel):
     # 无锚点时用于「接着上一张画布继续改」
     artifact_id: str | None = None
     history_limit: int = Field(default=8, ge=0, le=50)
+    # 教材作用域（Level 1：目录树点击直传所属文档）。
+    # 同一工作区可以有多本教材，且它们的章节号会重复（《Form 4》《Form 5》都有 `Bab 4 → 4.1`）。
+    # 不带这个字段时检索跨全部教材，引用里的「4.1, p.76」无法定位到具体哪本书。
+    # `None` = 不限文档，保持既有行为（向后兼容）。
+    document_id: str | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -100,10 +105,21 @@ class TurnStartEvent(_Event):
 
 
 class RetrievalEvent(_Event):
+    """检索结果事件。
+
+    `scope_document_id` 是本次检索实际生效的教材作用域，用来让前端回答
+    「这一轮到底是按哪本书的 4.1 讲的」—— 多教材同章节号时，只显示 `section_scope="4.1"`
+    是不够的（两本书都有 4.1）。
+
+    **不新增事件类型**：`EVENT_ORDER` 是 8 类固定契约，多一个事件名等于改协议。
+    在既有事件里加一个可选字段则是纯增量，旧前端忽略即可。
+    """
+
     grader_status: GraderStatus
     section_scope: str | None = None
     top_score: float
     chunks: list[RetrievedChunk] = Field(default_factory=list)
+    scope_document_id: str | None = None
 
 
 class TokenEvent(_Event):
