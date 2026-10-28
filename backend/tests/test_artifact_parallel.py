@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import time
 from typing import Any
 
@@ -74,6 +75,10 @@ class FakeLLM:
     """假 LLM：可控的 delta 节奏、可控的产物耗时、可注入的异常。
 
     记录**每次调用的时刻**，TTFT 保护与「断连后不再发请求」都靠这份时间线判定。
+
+    额外记录 `artifact_entered_at`（产物请求**进入**的时刻，即 `complete_json` 的第一行、
+    还没 sleep）。这个时刻让「并行是否成立」可以**按先后关系**判定，而不必去比两个
+    很接近的墙钟差值 —— 见 B1 的 docstring。
     """
 
     enabled = True
@@ -95,6 +100,9 @@ class FakeLLM:
         # [(kind, model, perf_counter)]，kind ∈ {"reply", "artifact"}
         self.calls: list[tuple[str, str | None, float]] = []
         self.first_delta_at: float | None = None
+        # 产物请求**进入**的时刻（sleep 之前）。这是「分支 B 何时起步」的唯一可信信号：
+        # 用它和「最后一个 token 何时 yield」比先后，与调度抖动无关。
+        self.artifact_entered_at: float | None = None
         self.artifact_calls = 0
 
     async def stream_text(self, **kwargs: Any):
@@ -114,7 +122,9 @@ class FakeLLM:
 
     async def complete_json(self, **kwargs: Any) -> dict[str, Any]:
         self.artifact_calls += 1
-        self.calls.append(("artifact", kwargs.get("model"), time.perf_counter()))
+        entered_at = time.perf_counter()
+        self.artifact_entered_at = entered_at
+        self.calls.append(("artifact", kwargs.get("model"), entered_at))
         await asyncio.sleep(self.artifact_delay)
         if self.spec_error is not None:
             raise self.spec_error
@@ -181,25 +191,198 @@ def _build(settings: Settings, llm: FakeLLM, retriever: Any = None) -> AgentEngi
     )
 
 
+class TurnTimeline:
+    """消费端观测到的一轮时间线（引擎 yield 边界处打点）。
+
+    为什么在**消费端**打点而不是改引擎：本轮红线是「`agent_engine.py` 一行都不能动」。
+    而 `stream_turn` 是 async generator，`yield` 之后到消费端收到事件之间**没有 await**
+    （引擎内部下一个 await 是 `asyncio.sleep(0)`，在消费端取走事件之后才发生），
+    所以消费端记下的时刻就是「引擎 yield 该事件的时刻」，误差在微秒级、且不含调度抖动
+    带来的方向性偏差 —— 这正是墙钟差值做不到的。
+    """
+
+    def __init__(self) -> None:
+        self.elapsed: float = 0.0
+        self.last_token_at: float | None = None
+        self.token_count: int = 0
+
+
+async def _run_timed(
+    engine: AgentEngine, workspace_id: str, **kwargs: Any
+) -> tuple[list[tuple[str, Any]], TurnTimeline]:
+    """同 `_run`，额外返回 `TurnTimeline`（总耗时 + 最后一个 token 的 yield 时刻）。
+
+    **测量窗口内关掉自动 GC**，理由不是「图快」，而是「别测错东西」：
+    本测试要测的是「两条支路有没有重叠」，而一次 gen2 回收能在窗口里塞进
+    100–300ms 的停顿（全量跑时进程已存活几百个测试，堆大、回收更重）。
+    这个停顿与并发实现无关，却会一次性吃掉整个容差 —— 实测过：同一份代码
+    连跑 5 次全量，前三次 0.64/0.65/0.70s，第五次直接越过 0.82s 门槛。
+    `gc.collect()` + `gc.disable()` 把这块噪声移出窗口，`finally` 保证恢复，
+    断言失败时也不会把 GC 留在关闭状态污染后续测试。
+    """
+    request = TurnRequest(
+        workspace_id=workspace_id,
+        query="4.1 Malayan Union 的影响",
+        artifact_type_override="ppt",
+        **kwargs,
+    )
+    timeline = TurnTimeline()
+    events: list[tuple[str, Any]] = []
+    gc.collect()  # 先把待回收的对象清干净，窗口内才不会有自动回收
+    gc.disable()
+    try:
+        started = time.perf_counter()
+        async for event in engine.stream_turn(request):
+            if event[0] == "token":
+                timeline.token_count += 1
+                timeline.last_token_at = time.perf_counter()
+            events.append(event)
+        timeline.elapsed = time.perf_counter() - started
+    finally:
+        gc.enable()
+    return events, timeline
+
+
 # --------------------------------------------------------------------------- #
 # B1 / B2 / B3 / B4：并行真的并行 + 顺序契约
 # --------------------------------------------------------------------------- #
+# 并行场景的**统一时间档**（两条 B1 测试必须共用，否则「并行更快」与「串行更慢」
+# 会各自漂移，两条断言合起来就不再是同一个命题）。
+#
+# 档位怎么定的（都是实测值，不是拍的）：
+# - 一轮回合有一块**加性固定开销**：落库 + 版本行 + turn/message 写入。单跑时 0.14–0.20s，
+#   全量跑时 0.24–0.35s（进程堆大、磁盘忙）。并行与串行都要付，所以它会把两侧的
+#   实测值同时抬高。这决定了门槛不能写成「串行估算 × 比例」：比例式被这块开销同时
+#   顶起两侧，余量会被压扁。反例（实测）：正文 8×0.05、产物 0.30 时并行实测 0.51s，
+#   而 0.80×(0.40+0.30)=0.56s —— 看着有 20% 容差，实际只剩 50ms，等于把 flaky 换个数字。
+# - 正文 12 × 0.05 = 0.60s；产物 0.55s，fork 点在首个 token 之后（≈0.05s），
+#   所以两条支路**同时**在 0.60s 收尾 —— 并行总耗时对调度抖动最不敏感。
+# - 理论差值 G = 串行 − 并行 = min(正文, 产物) = 0.55s。门槛取**理论中点**
+#   「并行 + G/2 + 固定开销」= 1.12s，于是并行侧、串行侧各留 G/2 = 0.275s 余量。
+#   全量实测（5 连跑）：并行 0.84–0.95s，串行 1.40–1.68s —— 两侧余量都 ≥0.16s。
+_B1_DELTAS = 12
+_B1_DELTA_DELAY = 0.05  # 正文 12 × 0.05 = 0.60s
+_B1_ARTIFACT_DELAY = 0.55  # 产物 0.55s（fork 后 0.05s 起步 → 与正文同时收尾）
+# 固定开销按**全量跑实测下界**取（单跑会低估：全量跑时进程堆大、磁盘忙，实测 0.24–0.35s）。
+# 取下界而不是上界，是为了让**区分力不依赖这块开销**：最典型的坏实现是「fork 了却立刻
+# await」（产物跑完再继续流正文），它的纯 sleep 下界是 正文 + 产物 = 1.15s，必须高于门槛。
+# 门槛 1.12s < 1.15s，所以即使固定开销退化为 0，坏实现仍然会红。
+_B1_FIXED_OVERHEAD = 0.24
+_B1_SERIAL_FLOOR_RATIO = 0.80  # 反向验证：串行下界 = 串行估算 × 0.80
+
+
+def _b1_llm() -> FakeLLM:
+    return FakeLLM(
+        deltas=_B1_DELTAS,
+        delta_delay=_B1_DELTA_DELAY,
+        artifact_delay=_B1_ARTIFACT_DELAY,
+    )
+
+
+def _serial_estimate() -> float:
+    """串行估算：正文跑完再跑产物（`asyncio.sleep` 是下界，真实值只会更长）。"""
+    return _B1_DELTAS * _B1_DELTA_DELAY + _B1_ARTIFACT_DELAY
+
+
+def _parallel_estimate() -> float:
+    """并行估算：两条支路同时跑，取较长的一条。
+
+    产物分支在**首个 token 之后**才 fork，所以它的收尾时刻是
+    `delta_delay + artifact_delay`；正文是 `deltas × delta_delay`。
+    """
+    reply = _B1_DELTAS * _B1_DELTA_DELAY
+    artifact = _B1_DELTA_DELAY + _B1_ARTIFACT_DELAY
+    return max(reply, artifact)
+
+
+def _parallel_budget() -> float:
+    """并行侧的墙钟门槛 = 理论并行 + 半个理论差值 + 固定开销。
+
+    取「理论中点」而不是「串行 × 比例」，是为了让**两侧余量对称**：并行侧余量
+    = G/2，串行侧余量也 = G/2。比例式做不到这点 —— 固定开销是加性的，
+    比例式只会把门槛和实测值一起顶高，看着有容差、实际余量被吃掉。
+    """
+    parallel = _parallel_estimate()
+    return parallel + (_serial_estimate() - parallel) / 2 + _B1_FIXED_OVERHEAD
+
+
 async def test_parallel_is_actually_parallel(db_env: Any, workspace_id: str) -> None:
-    """B1：总耗时 < 正文耗时 + 产物耗时（否则等于没并行）。"""
-    llm = FakeLLM(deltas=8, delta_delay=0.03, artifact_delay=0.12)
+    """B1：产物分支在正文**还没结束**时就已经起步（逻辑观测）+ 总耗时显著低于串行。
+
+    断言 ①「时序关系」是主断言：并行的本质就是「产物请求先于正文结束发出」，
+    这可以直接观测，不依赖任何计时精度。原来的写法只比两个很接近的墙钟差值
+    （容差 18ms），全量跑时**一次 gen2 GC 回收就能吃掉整个容差** —— 那是测试的
+    问题，不是实现的问题（实测：同一份代码全量连跑，前三次 0.64/0.65/0.70s，
+    第五次直接越线）。所以这里把「顺序」和「耗时」拆成两条断言各管一件事。
+
+    断言 ②「总耗时」保留，但把信号拉大：串行实测 1.40–1.68s，并行实测 0.84–0.95s，
+    门槛 1.12s（理论中点），两侧余量都 ≥0.16s —— 是原来那 18ms 的十几倍。
+    门槛刻意压在「坏实现的纯 sleep 下界 1.15s」之下，区分力不依赖落库开销。
+    两断言分工：① 判「顺序对不对」，② 判「有没有真的省下时间」
+    （顺序对但两段串行执行时，② 会红 —— 已用变异验证）。
+    """
+    llm = _b1_llm()
     engine = _build(_settings(), llm)
 
-    started = time.perf_counter()
-    events = await _run(engine, workspace_id)
-    elapsed = time.perf_counter() - started
+    events, timeline = await _run_timed(engine, workspace_id)
 
-    reply_ms = llm.deltas * llm.delta_delay
-    artifact_ms = llm.artifact_delay
-    assert elapsed < (reply_ms + artifact_ms) * 0.95, (
-        f"并行未生效：总耗时 {elapsed * 1000:.0f}ms ≥ 串行估算 "
-        f"{(reply_ms + artifact_ms) * 1000:.0f}ms"
+    # ---- 断言 ①：逻辑观测（不受调度抖动影响）----
+    # 先校验场景本身成立：token 数必须等于档位里的 deltas，否则 last_token_at 记的
+    # 不是「最后一个」，下面的先后比较就失去意义（比如降级到模板正文时）。
+    assert timeline.token_count == _B1_DELTAS, (
+        f"正文 token 数 {timeline.token_count} ≠ 档位 {_B1_DELTAS}，场景不成立"
+    )
+    assert timeline.last_token_at is not None, "正文一个 token 都没有，场景不成立"
+    assert llm.artifact_entered_at is not None, "产物分支根本没被调用"
+    assert llm.artifact_entered_at < timeline.last_token_at, (
+        "产物请求在正文结束之后才发出，等于没并行："
+        f"产物进入于 {llm.artifact_entered_at:.3f}s，"
+        f"最后一个 token 产出 / yield 于 {timeline.last_token_at:.3f}s"
+    )
+
+    # ---- 断言 ②：墙钟（信噪比已拉大，见 docstring 与档位注释）----
+    budget = _parallel_budget()
+    assert timeline.elapsed < budget, (
+        f"并行未生效：总耗时 {timeline.elapsed * 1000:.0f}ms ≥ 门槛 {budget * 1000:.0f}ms"
+        f"（理论并行 {_parallel_estimate() * 1000:.0f}ms + 半差值 "
+        f"{(_serial_estimate() - _parallel_estimate()) * 500:.0f}ms + 固定开销 "
+        f"{_B1_FIXED_OVERHEAD * 1000:.0f}ms；串行估算 {_serial_estimate() * 1000:.0f}ms）"
     )
     assert any(name == "artifact" for name, _ in events)
+
+
+async def test_serial_path_is_slower_than_parallel(
+    db_env: Any, workspace_id: str
+) -> None:
+    """B1（反向验证）：关掉并行后同一场景必须**变慢**，且产物请求退到正文之后。
+
+    没有这条，① 和 ② 有可能同时「假绿」：如果有人把并行改坏成「两段顺序执行」，
+    断言 ① 仍可能恰好成立（产物任务确实 fork 了、也先于正文结束进入），
+    而断言 ② 只保证「没比理论并行慢太多」，卡在门槛边缘的坏实现仍可能混过。
+    这条把「串行确实更慢」变成显式断言：并行一旦退化成串行，它必红。
+    """
+    llm = _b1_llm()
+    engine = _build(_settings(ARTIFACT_PARALLEL_ENABLED=False), llm)
+
+    events, timeline = await _run_timed(engine, workspace_id)
+
+    assert any(name == "artifact" for name, _ in events), "串行回退也要有产物，否则场景不成立"
+    assert llm.artifact_entered_at is not None, "串行路径没调用产物"
+    assert timeline.token_count == _B1_DELTAS, (
+        f"正文 token 数 {timeline.token_count} ≠ 档位 {_B1_DELTAS}，场景不成立"
+    )
+    assert timeline.last_token_at is not None, "正文一个 token 都没有，场景不成立"
+
+    # 逻辑方向必须相反：串行 = 正文全部 yield 完之后才发产物请求
+    assert llm.artifact_entered_at > timeline.last_token_at, (
+        "关闭并行后产物请求竟然先于正文结束发出，说明开关没有真正生效"
+    )
+    # 墙钟：串行估算的 80% 是下界（sleep 是下界，真实只会更慢）
+    floor = _serial_estimate() * _B1_SERIAL_FLOOR_RATIO
+    assert timeline.elapsed >= floor, (
+        f"关闭并行后总耗时只有 {timeline.elapsed * 1000:.0f}ms < 下界 {floor * 1000:.0f}ms"
+        f"（串行估算 {_serial_estimate() * 1000:.0f}ms）—— 串行路径没有真正串行"
+    )
 
 
 async def test_artifact_always_after_last_token(db_env: Any, workspace_id: str) -> None:
