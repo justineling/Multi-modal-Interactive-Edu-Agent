@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ReactElement } from "react";
 
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
@@ -6,8 +7,9 @@ import { cx } from "@/components/common/cx";
 import { parseSourceRef } from "@/components/chat/pageRefs";
 import { SLIDE_HEIGHT, SLIDE_WIDTH } from "@/components/canvas/layouts/shared";
 import { LAYOUT_LABELS, getLayoutComponent } from "@/components/canvas/slideLayouts";
+import { PRINT_ROOT_ID } from "@/lib/exportPdf";
 import { createAnchor } from "@/types/patch";
-import type { SlideDeckSpec } from "@/types/artifact";
+import type { SlideDeckSpec, SlideNode } from "@/types/artifact";
 import type { Anchor } from "@/types/patch";
 
 interface SlideRendererProps {
@@ -66,6 +68,105 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable;
 }
 
+interface SlideCardProps {
+  slide: SlideNode;
+  /** 0 基序号 */
+  pageIndex: number;
+  totalPages: number;
+}
+
+/**
+ * 一张 1280×720 的幻灯片「纸面」。
+ *
+ * 屏幕单页视图与打印全页视图**共用这一个组件**：导出 PDF 必须和屏幕上看到的
+ * 完全一致（同一套布局、同一个来源角标、同一个页码脚注），
+ * 各写一份迟早会漂移成「导出的和看到的不一样」。
+ *
+ * 本组件只负责纸面内容，定位 / 缩放由调用方决定：
+ * - 屏幕：外层 `absolute` + `transform: scale()`；
+ * - 打印：外层 `.print-page` 1:1 铺满一页。
+ */
+function SlideCard({ slide, pageIndex, totalPages }: SlideCardProps): ReactElement {
+  const Layout = getLayoutComponent(slide.layout);
+  const source = parseSourceRef(slide.source_ref);
+
+  return (
+    <div className="slide-card relative h-full w-full overflow-hidden bg-white">
+      <ErrorBoundary resetKey={`${slide.node_id}-${pageIndex}-${slide.layout}`}>
+        <Layout slide={slide} pageIndex={pageIndex} totalPages={totalPages} />
+      </ErrorBoundary>
+
+      {/* 来源角标：超纲来源用琥珀色，和「课本内」在视觉上分开 */}
+      <span
+        className="absolute"
+        style={{
+          right: 24,
+          bottom: 18,
+          maxWidth: 640,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          padding: "4px 10px",
+          borderRadius: 999,
+          fontSize: 14,
+          border: source.isExtended ? "1px solid #F59E0B" : "1px solid #E2E8F0",
+          backgroundColor: source.isExtended ? "#FFFBEB" : "#F8FAFC",
+          color: source.isExtended ? "#B45309" : "#64748B",
+        }}
+      >
+        {source.isExtended ? "超纲拓展 · " : ""}
+        {slide.source_ref}
+      </span>
+
+      <span className="absolute font-mono" style={{ left: 24, bottom: 18, fontSize: 14, color: "#94A3B8" }}>
+        {LAYOUT_LABELS[slide.layout]} · {pageIndex + 1}/{totalPages}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * 打印用「全部页」视图。
+ *
+ * ## 为什么要 portal 到 `document.body`
+ *
+ * 画布所在的 DOM 是 `Allotment` 分栏：每一格都是**绝对定位 + 固定像素尺寸 +
+ * `overflow: hidden`**。想把「6 页竖排」塞进那个格子里，得先把整条祖先链的
+ * `position` / `width` / `height` / `overflow` 全部用 `!important` 覆盖回来 ——
+ * 这种级联一碰就碎，而且分栏库一升级就失效。
+ *
+ * 挂到 `body` 下则完全绕开布局：打印时 `@media print` 里把 `#root` 整个摘掉
+ * （见 `src/index.css`），页面上只剩这个 deck，天然就是一页接一页的流。
+ *
+ * ## 为什么常驻挂载（而不是点导出时才挂）
+ *
+ * `window.print()` 必须在 DOM 已经 commit 且完成 layout 之后调用，否则会印出空白。
+ * 常驻挂载把这个时序风险直接消掉：deck 一直在文档里，只是 `display: none`
+ * （`display: none` 的子树不参与 layout / paint，屏上开销≈0）。
+ * 代价是同一份 spec 会渲染两遍 DOM —— 课件是纯静态 div，这个量级可以接受。
+ *
+ * `memo` 保证拖动缩放条（`zoom` 变化）时不会连带重渲染整个 deck。
+ */
+const PrintDeck = memo(function PrintDeck({ spec }: { spec: SlideDeckSpec }): ReactElement | null {
+  const total = spec.slides.length;
+
+  // 理论上只在非浏览器环境（SSR）走到；组件本身是纯展示，降级成 null 即可
+  if (typeof document === "undefined" || document.body === null) {
+    return null;
+  }
+
+  return createPortal(
+    <div id={PRINT_ROOT_ID} className="print-deck" aria-hidden="true">
+      {spec.slides.map((item, itemIndex) => (
+        <section key={`${item.node_id}-${itemIndex}`} className="print-page">
+          <SlideCard slide={item} pageIndex={itemIndex} totalPages={total} />
+        </section>
+      ))}
+    </div>,
+    document.body,
+  );
+});
+
 /**
  * PPT 渲染器（B4 的门面）。
  *
@@ -77,6 +178,10 @@ function isTypingTarget(target: EventTarget | null): boolean {
  * - 点击页面 → 回传 `/slides/{i}` 锚点，并把 `source_ref` 里的章节号/页码一起带上
  *   （不带 `section_code` 会导致后端检索不锁定该小节，引用页码跑到同章其它页）；
  * - `speaker_notes` 默认折叠：它是助教的口语化讲解，不该抢版面的注意力，但很有价值。
+ *
+ * 导出 PDF：屏幕上是「单页 + 缩略图条」，但打印要的是**全部页**。
+ * 因此本组件额外常驻渲染一份 `PrintDeck`（全部页、portal 到 body、屏上隐藏），
+ * 导出逻辑在 `src/lib/exportPdf.ts`，打印样式在 `src/index.css`。
  */
 export function SlideRenderer({
   spec,
@@ -156,8 +261,6 @@ export function SlideRenderer({
     return <p className="p-4 text-xs text-content-muted">这份课件没有任何页面。</p>;
   }
 
-  const Layout = getLayoutComponent(slide.layout);
-  const source = parseSourceRef(slide.source_ref);
   const isAnchored = anchoredIndex === safeIndex;
 
   return (
@@ -193,38 +296,7 @@ export function SlideRenderer({
               transform: `scale(${scale})`,
             }}
           >
-            <ErrorBoundary resetKey={`${artifactId}-${safeIndex}-${slide.layout}`}>
-              <Layout slide={slide} pageIndex={safeIndex} totalPages={total} />
-            </ErrorBoundary>
-
-            {/* 来源角标：超纲来源用琥珀色，和「课本内」在视觉上分开 */}
-            <span
-              className="absolute"
-              style={{
-                right: 24,
-                bottom: 18,
-                maxWidth: 640,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                padding: "4px 10px",
-                borderRadius: 999,
-                fontSize: 14,
-                border: source.isExtended ? "1px solid #F59E0B" : "1px solid #E2E8F0",
-                backgroundColor: source.isExtended ? "#FFFBEB" : "#F8FAFC",
-                color: source.isExtended ? "#B45309" : "#64748B",
-              }}
-            >
-              {source.isExtended ? "超纲拓展 · " : ""}
-              {slide.source_ref}
-            </span>
-
-            <span
-              className="absolute font-mono"
-              style={{ left: 24, bottom: 18, fontSize: 14, color: "#94A3B8" }}
-            >
-              {LAYOUT_LABELS[slide.layout]} · {safeIndex + 1}/{total}
-            </span>
+            <SlideCard slide={slide} pageIndex={safeIndex} totalPages={total} />
           </div>
 
           {readOnly ? (
@@ -235,8 +307,8 @@ export function SlideRenderer({
         </div>
       </div>
 
-      {/* 翻页 + 缩略图条 */}
-      <div className="shrink-0 border-t border-line bg-surface-base px-3 py-2">
+      {/* 翻页 + 缩略图条（纯操作 UI，打印时必须整块消失） */}
+      <div className="no-print shrink-0 border-t border-line bg-surface-base px-3 py-2">
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -308,6 +380,9 @@ export function SlideRenderer({
           </p>
         ) : null}
       </div>
+
+      {/* 打印专用的「全部页」副本：屏上 display:none，@media print 时才显示 */}
+      <PrintDeck spec={spec} />
     </div>
   );
 }

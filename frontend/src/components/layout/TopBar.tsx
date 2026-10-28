@@ -111,7 +111,7 @@ export function TopBar({ mode, onModeChange, bootstrapping }: TopBarProps): Reac
 
   return (
     <header
-      className="flex shrink-0 items-center gap-2 border-b border-line bg-surface-raised px-3"
+      className="no-print flex shrink-0 items-center gap-2 border-b border-line bg-surface-raised px-3"
       style={{ height: LAYOUT.topBarHeight }}
     >
       <span className="shrink-0 text-sm font-semibold tracking-wide text-content-primary">

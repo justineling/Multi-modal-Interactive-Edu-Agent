@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { ReactElement } from "react";
 
 import { cx } from "@/components/common/cx";
 import { VersionMenu } from "@/components/canvas/VersionMenu";
+import { ExportPdfError, canExportPdf, exportPdf } from "@/lib/exportPdf";
 import type { ArtifactOut } from "@/types/api";
 
 interface CanvasToolbarProps {
@@ -31,10 +32,29 @@ const ZOOM_MIN = 0.6;
 const ZOOM_MAX = 1.8;
 
 /**
+ * 按钮悬停提示：把「会弹系统打印对话框、要自己选另存为 PDF」提前讲清楚。
+ *
+ * 顺带提醒取消「页眉和页脚」：Chrome 的打印对话框**默认勾选**它，
+ * 而 `@page { margin: 0 }` 压不住它 —— 实测（Chrome 156 headless + CDP
+ * `displayHeaderFooter: true`）页眉/页脚会**叠在幻灯片内容上**，
+ * 在深色封面上尤其明显。CSS 没有任何办法关掉这个选项，只能在提示里说明。
+ */
+const EXPORT_HINT =
+  "打印对话框里把「目标打印机」选为「另存为 PDF」，并取消勾选「页眉和页脚」";
+
+/**
  * 画布工具条。
  *
- * 刻意不做「导出 PDF / 分享」这类按钮：MVP 阶段它们只会带来「点了没反应」的坏印象，
- * 保留的每个按钮都必须是真能用的。
+ * 关于「导出 PDF」：这是**唯一**一个会弹系统对话框的按钮，因此必须在按钮上
+ * 把预期讲明白 —— 用户点了之后看到的是打印预览而不是直接下载文件，
+ * 不提前说明就会被当成「按钮坏了」。
+ *
+ * 实现走浏览器打印管线（`window.print()`）而不是截图 + jsPDF：
+ * 公式是 KaTeX 的 SVG 字形，截图管线会丢字形；打印产出的是矢量 PDF，放大不糊。
+ * 详见 `src/lib/exportPdf.ts` 的模块注释。
+ *
+ * 只有 `ppt` 可导出：2D / 3D 是实时渲染的 canvas / WebGL，打印只会得到
+ * 当前帧的空白或糊图，与其给一个骗人的按钮，不如显式禁用并说明原因。
  */
 export function CanvasToolbar({
   artifact,
@@ -47,10 +67,32 @@ export function CanvasToolbar({
   readOnly,
 }: CanvasToolbarProps): ReactElement {
   const [menuOpen, setMenuOpen] = useState<boolean>(false);
+  const [exporting, setExporting] = useState<boolean>(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
   const type = TYPE_META[artifact.artifact_type];
+  const exportable = canExportPdf(artifact.artifact_type);
+
+  const handleExportPdf = useCallback((): void => {
+    if (!exportable || exporting) {
+      return;
+    }
+    setExporting(true);
+    setExportError(null);
+    void exportPdf()
+      .catch((error: unknown) => {
+        // 失败原因直接展示给用户：静默失败会被误认为「点了没反应」
+        setExportError(
+          error instanceof ExportPdfError ? error.message : "导出失败，请稍后重试",
+        );
+      })
+      .finally(() => {
+        setExporting(false);
+      });
+  }, [exportable, exporting]);
 
   return (
-    <div className="flex shrink-0 items-center gap-2 border-b border-line bg-surface-raised px-3 py-1.5">
+    <div className="no-print flex shrink-0 items-center gap-2 border-b border-line bg-surface-raised px-3 py-1.5">
       <span className={cx("shrink-0 rounded-xs border px-1.5 py-px text-xxs font-medium", type.className)}>
         {type.label}
       </span>
@@ -64,6 +106,12 @@ export function CanvasToolbar({
           历史版本 v{viewingVersion} · 只读
         </span>
       ) : null}
+
+      {exportError === null ? null : (
+        <span className="max-w-[16rem] shrink-0 truncate text-xxs text-palette-red" title={exportError}>
+          {exportError}
+        </span>
+      )}
 
       <div className="ml-auto flex items-center gap-1.5">
         <div className="flex items-center gap-1 rounded-sm border border-line px-1">
@@ -101,6 +149,23 @@ export function CanvasToolbar({
           className="rounded-sm border border-line px-2 py-0.5 text-xxs text-content-secondary transition-colors hover:border-accent/60 hover:text-content-primary"
         >
           {isFullscreen ? "退出全屏" : "全屏"}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleExportPdf}
+          disabled={!exportable || exporting}
+          title={exportable ? EXPORT_HINT : "当前形态暂不支持导出"}
+          aria-label={exportable ? `导出 PDF：${EXPORT_HINT}` : "当前形态暂不支持导出"}
+          className={cx(
+            "rounded-sm border px-2 py-0.5 text-xxs transition-colors",
+            exportable
+              ? "border-line text-content-secondary hover:border-accent/60 hover:text-content-primary"
+              : "border-line text-content-muted opacity-40",
+            exporting ? "cursor-progress border-accent/60 text-accent" : "",
+          )}
+        >
+          {exporting ? "打开打印…" : "导出 PDF"}
         </button>
 
         <div className="relative">

@@ -138,7 +138,7 @@ export function ChatPanel({ workspaceId, mode, draft, onSamplePrompt }: ChatPane
   );
 
   return (
-    <section className="flex h-full min-h-0 flex-col bg-surface-base">
+    <section className="no-print flex h-full min-h-0 flex-col bg-surface-base">
       <FileDrawer workspaceId={workspaceId} onPickSection={handlePickSection} pickedCode={pickedCode} />
 
       <div ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto px-3 py-3">

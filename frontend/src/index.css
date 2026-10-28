@@ -192,3 +192,108 @@
     text-wrap: balance;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* 打印导出（PPT → PDF）                                               */
+/* ------------------------------------------------------------------ */
+/*
+ * 页面尺寸：课件设计稿是 1280×720 px（16:9）。按 CSS 的 96dpi 约定，
+ * 1280px = 13.333in = 338.667mm，720px = 7.5in = 190.5mm。
+ * 所以把 @page 直接设成这个尺寸，打印时幻灯片就是 **1:1 铺满整页**：
+ * 没有缩放、没有白边、字号与屏幕上完全一致。
+ *
+ * 为什么多给 0.03mm 余量：如果浏览器把页宽算成 1279.99px，1280px 的内容
+ * 就会溢出 1px，而 `break-after: page` 会把这点溢出当成「放不下」，
+ * 结果每页被拆成两页（PDF 页数翻倍）。宁可留一条肉眼看不见的白边。
+ *
+ * 注意：`@page size` 是**唯一**能让 PDF 页面比例正确的地方。忘了写这一条，
+ * 输出就是 A4 纵向，课件被压成中间一条。
+ */
+@page {
+  size: 338.7mm 190.6mm;
+  margin: 0;
+}
+
+/*
+ * 打印根在屏上一律不显示。
+ *
+ * 它是 `SlideRenderer` 为打印准备的第二份 DOM（全部页），portal 到 body 下。
+ * `display: none` 的子树不参与 layout / paint，屏上开销≈0。
+ */
+.print-deck {
+  display: none;
+}
+
+@media print {
+  /*
+   * 第一层：整个应用外壳直接摘掉。
+   *
+   * 画布容器是 Allotment 分栏（绝对定位 + 固定像素 + overflow:hidden），
+   * 靠给每个面板加 `display:none` 是压不住的 —— 祖先的裁剪还在。
+   * `#root` 一摘，页面上只剩 portal 到 body 的打印根，天然是正常文档流。
+   */
+  #root {
+    display: none !important;
+  }
+
+  /*
+   * 第二层：`no-print` 兜底。
+   *
+   * 给顶栏 / 对话栏 / 画布工具条 / 缩略图条都打了这个类。当前被 `#root`
+   * 那条规则覆盖着，属于冗余保险 —— 万一以后有人为了局部打印去掉
+   * `#root` 的隐藏，这些纯操作 UI 仍然不会跑到纸上。
+   */
+  .no-print {
+    display: none !important;
+  }
+
+  /* body 在屏上是 `overflow: hidden` + `height: 100%`，打印时必须放开，
+     否则第二页之后的内容会被裁掉（表现为「只导出了第一页」）。 */
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  .print-deck {
+    display: block !important;
+    background: #ffffff;
+  }
+
+  /* 一页幻灯片 = 一张 PDF 页 */
+  .print-page {
+    position: relative;
+    width: 1280px;
+    height: 720px;
+    overflow: hidden;
+    background: #ffffff;
+    break-after: page;
+    page-break-after: always; /* 旧版 WebKit / 部分企业浏览器只认这个 */
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* 最后一页不能再 break，否则尾部多出一张空白页 */
+  .print-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  /*
+   * 背景色是课件版面的一部分（色块、对比栏底、超纲角标），
+   * 不写这条 Chrome 默认会把背景色丢掉，导出的 PDF 会变成一堆白底黑字。
+   */
+  .print-deck,
+  .print-deck * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    box-shadow: none !important;
+  }
+
+  /* 屏幕上那层 transform: scale 在打印态还原 1:1（打印根里本来就没有缩放，双保险） */
+  .slide-card {
+    transform: none !important;
+    border-radius: 0 !important;
+  }
+}
