@@ -28,9 +28,22 @@ except ImportError:  # pragma: no cover - 兼容旧版本
 from app.errors import AppError, ErrorCode
 from app.logging_conf import log_event
 
-# 少于这个字符数就认为没有文本层（扫描件）。200 字符 ≈ 半页正文，
-# 定得太低会把「只有页眉页脚的扫描件」误判为可解析。
+# 扫描件判据是**双条件**：下面两个条件只要命中任意一个，就认为「没有文本层」。
+# ① `MIN_TEXT_CHARS`：全书总字符数太少 → 整本都是图片，或只有封面几个字；
+# ② `MIN_CHARS_PER_PAGE`：平均每页字符数太少 → 页数很多但每页只有页眉的扫描件。
+#
+# **为什么必须两个都要**：只判 ① 会漏判长扫描件 —— 300 页的扫描书每页只有页眉 30 个字符，
+# 总量 9000 远大于 200，校验顺利通过，于是静默入库 300 个几乎空的切片，检索永远 NO_MATCH，
+# 用户看到的是「课本未覆盖」而不是「这份 PDF 是扫描件」（页数越多越容易漏判，600 页
+# = `MAX_PDF_PAGES` 上限时几乎必然漏判）；只判 ② 会误判「1 页 50 字符」这类小文档
+# （平均每页够 40，但全书没有真正的正文）。两个条件同时保留，判据只会比原来更严。
+#
+# 200 字符 ≈ 半页正文，定得太低会把「只有页眉页脚的扫描件」误判为可解析。
 MIN_TEXT_CHARS = 200
+# 40 字符 ≈ 半页正文的量级（一行中文正文约 30~40 字，半页十几行）。取值依据：
+# 纯页眉页脚每页通常 < 30 字符，而真正的正文页一般每页数百字符，40 落在两者之间；
+# 同时留出「标题页 / 章节扉页本来就没几个字」的余量，避免把正常教材误判成扫描件。
+MIN_CHARS_PER_PAGE = 40
 # 降级模式下每多少页一组
 FALLBACK_GROUP_SIZE = 5
 # 标题候选的最大行长：超过这个长度的行必然是正文段落
@@ -361,7 +374,11 @@ def parse_pdf(
     finally:
         document.close()
 
-    if sum(len(text.strip()) for text in pages_text) < MIN_TEXT_CHARS:
+    total_chars = sum(len(text.strip()) for text in pages_text)
+    avg_chars_per_page = total_chars / max(page_count, 1)
+    # 双条件（见 `MIN_TEXT_CHARS` / `MIN_CHARS_PER_PAGE` 处的说明）：全书总量太少，
+    # 或平均每页太少，都说明没有真正的文本层。
+    if total_chars < MIN_TEXT_CHARS or avg_chars_per_page < MIN_CHARS_PER_PAGE:
         # 扫描件没有文本层：与其给出一个空目录树，不如明确告诉用户不支持（PRD Q1）
         raise AppError(ErrorCode.PDF_NO_TEXT_LAYER)
 
@@ -403,6 +420,7 @@ def flatten_toc(toc: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
 
 __all__ = [
     "FALLBACK_GROUP_SIZE",
+    "MIN_CHARS_PER_PAGE",
     "MIN_TEXT_CHARS",
     "ParseCancelled",
     "ParsedDocument",

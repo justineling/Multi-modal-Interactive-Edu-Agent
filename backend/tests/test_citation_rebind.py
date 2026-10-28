@@ -16,20 +16,26 @@
 3. `quiz` / `title_hero` 兜底 = **内容页命中切片的并集**，**不是**召回池全集跨度；
 4. 全军覆没（所有页都不到置信度）→ 才退化为召回池跨度，且不崩；
 5. 幂等（对已正确的 spec 再跑一次结果不变）—— 重试 / 回放路径会重复处理同一份 spec；
-6. 引擎接线：`_generate_spec_stream` 里顺序是 **校验 → 数量 → 重绑定 → 钳制**。
+6. 引擎接线：`_generate_spec_stream` 里顺序是 **校验 → 数量 → 重绑定 → 钳制**；
+7. 纵深防御联合测试：**`REBIND=True` 时钳制仍在执行路径上**，且能独立兜住
+   「重绑定漏掉（或失效）」的越界页码 —— 补上 `test_qa_p1_03_invariants.py` 里
+   那 5 条用例（它们必须在 `REBIND=False` 下跑）留下的盲区。
 """
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 import pytest
 
 from app.config import Settings
+from app.services import agent_engine as engine_module
 from app.services.agent_engine import (
     AgentEngine,
     TurnRequest,
     _rebind_spec_source_pages,
+    _ref_page_span,
 )
 from app.services.mock_generator import MockContext
 from app.services.retriever import RetrievedChunk
@@ -678,6 +684,7 @@ async def _run_spec_stream(
     chunks: tuple[RetrievedChunk, ...],
     *,
     settings: Settings | None = None,
+    context: MockContext | None = None,
 ) -> dict[str, Any]:
     engine = _engine(spec, settings=settings)
     decision = route("4.1 Malayan Union 的反应", anchor=None, user_override="ppt")
@@ -685,7 +692,7 @@ async def _run_spec_stream(
     events = [
         event
         async for event in engine._generate_spec_stream(
-            request, decision, _mock_context(), chunks
+            request, decision, context or _mock_context(), chunks
         )
     ]
     spec_events = [payload for kind, payload in events if kind == "spec"]
@@ -769,3 +776,168 @@ def test_rebind_reuses_content_words_helper() -> None:
     assert "会强" not in words
     assert "的权" not in words
     assert "了吗" not in words
+
+
+# --------------------------------------------------------------------------- #
+# 7. 纵深防御联合测试：**重绑定开启时，钳制仍在生效路径上**
+# --------------------------------------------------------------------------- #
+# **为什么必须有这一节**：`tests/test_qa_p1_03_invariants.py` 里那 5 条钳制用例是在
+# `CITATION_REBIND_ENABLED=False` 下跑的 —— 也只能如此，否则上游重绑定先把假页码改对，
+# 被测的钳制层就无事可做、观测不到。代价是那 5 条只证明了「**钳制逻辑本身**对」，
+# 没有证明「线上真实配置（`REBIND=True`）下钳制**还在执行路径上**」。
+#
+# 风险形态很具体：某次重构把调用顺序写反，或在 `REBIND=True` 分支里顺手 `return` 跳过
+# 钳制 —— 那 5 条旧用例依然全绿，而线上兜底已经没了。本节补的就是这个盲区。
+#
+# 两个用例的分工（缺一不可）：
+# - 用例 1（真实重绑定）：`REBIND=True` 时越界页码绝不会出现在产物里，且钳制**确实被调用**；
+# - 用例 2（重绑定失效）：注入「重绑定什么都没改」这一回归，钳制必须独立兜住 ——
+#   这才是「重绑定漏掉的东西，钳制还能兜住」的字面验证。
+#
+# 与课本**完全无关**的生僻内容（量子光学片段）：实词重叠数必须为 0，这样重绑定达不到
+# 置信度门槛（命中 >= 3），无法靠「真的匹配上了」把页码改对。
+_QUANTUM_LINES = (
+    "利用超导量子比特的受激辐射，在毫开尔文温区观测到光子数分辨的拉比振荡。",
+    "密度矩阵重构显示退相干时间达到 220 微秒，与主方程的预测吻合。",
+    "微波谐振腔的色散频移随驱动功率呈非线性上升，拟合残差低于百分之一。",
+    "双光子干涉条纹的可见度受探测器暗计数限制，需做偶然符合扣除。",
+    "该体系的希尔伯特空间维度随比特数指数增长，经典模拟很快遇到瓶颈。",
+)
+
+# 越界页码：`_mock_context().allowed_pages` 是 71~77，999 必然在范围外
+OUT_OF_RANGE_REF = "4.1.3, p.999"
+
+
+def _rebind_on_settings() -> Settings:
+    """线上默认配置：重绑定**开启**。
+
+    显式写出来而不是依赖默认值：万一哪天默认值被改成 False，本节用例会悄悄变成
+    「测另一条路径」却依然全绿 —— 那是本节最不能接受的失效方式。
+    """
+    return Settings(
+        LLM_API_KEY="test-key",
+        LLM_MODEL_ARTIFACT="artifact-model",
+        CITATION_REBIND_ENABLED=True,
+    )
+
+
+def _unrelated_deck(source_ref: str = OUT_OF_RANGE_REF) -> dict[str, Any]:
+    """5 页课件，内容与召回池零重叠，`source_ref` 却写着越界的 `p.999`。"""
+    layouts = ("title_hero", "bullet_points", "bullet_points", "comparison", "bullet_points")
+    slides: list[dict[str, Any]] = []
+    for index, layout in enumerate(layouts):
+        line = _QUANTUM_LINES[index % len(_QUANTUM_LINES)]
+        slides.append(
+            _slide(
+                f"slide-{index + 1}",
+                layout,
+                title=line[:14],
+                source_ref=source_ref,
+                bullets=[line],
+                comparison_left=[line] if layout == "comparison" else None,
+                comparison_right=[_QUANTUM_LINES[0]] if layout == "comparison" else None,
+                speaker_notes=line,
+            )
+        )
+    return _deck(slides, topic="量子光学实验")
+
+
+def _max_word_overlap(deck: dict[str, Any], chunks: tuple[RetrievedChunk, ...]) -> list[int]:
+    """每一页与召回池任意切片的最大实词重叠数（0 = 重绑定不可能匹配上）。"""
+    from app.services.agent_engine import _slide_semantic_text
+
+    pool_words = [frozenset(content_words(chunk.content)) for chunk in chunks]
+    overlaps: list[int] = []
+    for slide in deck["slides"]:
+        slide_words = frozenset(content_words(_slide_semantic_text(slide)))
+        overlaps.append(max((len(slide_words & words) for words in pool_words), default=0))
+    return overlaps
+
+
+def _spy_on_clamp(monkeypatch: pytest.MonkeyPatch, sink: list[dict[str, Any]]) -> None:
+    """按名包住模块级 `_clamp_spec_pages`，把**钳制前**的 spec 样本存进 `sink`。
+
+    按名替换是可行的：`_generate_spec_stream` 在调用点从模块全局取这个名字
+    （`test_artifact_parallel.py` 的 MC-5 已把「必须是模块级可替换属性」锁住）。
+    """
+    original = engine_module._clamp_spec_pages
+
+    def wrapper(
+        spec: dict[str, Any], allowed: frozenset[int], *, fallback_ref: str = ""
+    ) -> tuple[dict[str, Any], int]:
+        sink.append(copy.deepcopy(spec))
+        return original(spec, allowed, fallback_ref=fallback_ref)
+
+    monkeypatch.setattr(engine_module, "_clamp_spec_pages", wrapper)
+
+
+async def test_rebind_enabled_still_calls_clamp_on_the_live_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`REBIND=True` 时越界页码不得留在产物里，且钳制**必须仍在执行路径上**。
+
+    前半段（产物里没有 `p.999`、页码落在允许集合内）是用户可见的底线；
+    真正补盲区的是后半段：**钳制被调用了一次**。少了这一条，将来「在 REBIND 分支里
+    提前 return 跳过钳制」的重构会让前半段依然全绿 —— 因为重绑定的兜底分支正好也能
+    把页码改对，两条路径在正常数据上结果相同，观测不到差别。
+    """
+    deck = _unrelated_deck()
+    chunks = _pool()
+
+    # 前置断言：内容与召回池零重叠。否则重绑定是「真的匹配上了」才改对页码，
+    # 本用例就退化成一个普通的重绑定用例，测不到钳制是否还在路径上。
+    assert _max_word_overlap(deck, chunks) == [0] * len(deck["slides"]), (
+        "夹具构造有误：课件内容与召回池存在实词重叠，重绑定会因真实匹配而改写页码"
+    )
+
+    clamped_samples: list[dict[str, Any]] = []
+    _spy_on_clamp(monkeypatch, clamped_samples)
+
+    spec = await _run_spec_stream(deck, chunks, settings=_rebind_on_settings())
+
+    refs = _refs(spec)
+    assert all("999" not in ref for ref in refs), f"越界页码留在了产物里：{refs}"
+    allowed = set(_mock_context().allowed_pages)
+    for ref in refs:
+        for page in _ref_page_span(ref):
+            assert page in allowed, f"产物里的页码 {page} 不在允许集合 {sorted(allowed)} 内：{ref}"
+
+    assert len(clamped_samples) == 1, (
+        "REBIND=True 时钳制没有被调用（或调用多次）—— 兜底层已经不在执行路径上"
+    )
+
+
+async def test_clamp_catches_what_rebind_leaves_behind(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """注入「重绑定失效」：钳制必须**独立**兜住越界页码。
+
+    为什么必须注入故障、不能只靠自然数据：重绑定的兜底分支（所有内容页都未达置信度门槛
+    时退化为召回切片全集跨度）会改写**任何**不真实的 `source_ref`，所以在 chunks 非空的
+    正常流水线里，重绑定的覆盖范围是钳制的超集，钳制天然无事可做。「重绑定漏掉 →
+    钳制兜住」这个组合只在**重绑定自身出故障**时才出现，而那正是本节要守的形态：
+    顺序写反、分支提前 return、忘了把改写写回 spec、`deepcopy` 后用错对象……
+    """
+    deck = _unrelated_deck()
+
+    # 模拟「重绑定跑过但什么都没改」（最温和的一种故障形态：不抛异常、计数为 0，
+    # 日志里完全看不出异常）
+    def _noop_rebind(
+        spec: dict[str, Any], chunks: Any, *, section_code: str = ""
+    ) -> tuple[dict[str, Any], int]:
+        return spec, 0
+
+    monkeypatch.setattr(engine_module, "_rebind_spec_source_pages", _noop_rebind)
+
+    clamped_samples: list[dict[str, Any]] = []
+    _spy_on_clamp(monkeypatch, clamped_samples)
+
+    spec = await _run_spec_stream(deck, _pool(), settings=_rebind_on_settings())
+
+    # ① 坏页码真的流到了钳制层（否则下面的断言是空转：可能别的地方已经改对了）
+    assert clamped_samples, "钳制没有被调用 —— 兜底层已经不在执行路径上"
+    assert all(str(s["source_ref"]) == OUT_OF_RANGE_REF for s in clamped_samples[0]["slides"]), (
+        f"钳制前的 spec 里已经没有 p.999：{_refs(clamped_samples[0])}"
+    )
+    # ② 钳制把整条页码剥掉，只留章节号（`_clamp_ref` 的口径：任一端点越界就整条剥）
+    assert _refs(spec) == ["4.1.3"] * 5, f"钳制没有兜住越界页码：{_refs(spec)}"
