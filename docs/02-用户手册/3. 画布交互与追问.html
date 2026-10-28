@@ -66,6 +66,40 @@
     相当于老师在你旁边讲。它是生成时一起产出的，不是事后补的。</p>
   </div>
 
+  <h3>导出成 PDF（打印/交作业用）</h3>
+
+  <p>工具栏右侧有一个「导出 PDF」按钮，点它会把<strong>整份课件的全部页面</strong>导出（不是只导当前页）。</p>
+
+  <ol class="steps">
+    <li>
+      <span class="st-title">点「导出 PDF」</span>
+      <p>会弹出系统的打印对话框。这是正常的——导出走的是浏览器打印管线，输出的是矢量 PDF，放大不会糊。</p>
+    </li>
+    <li>
+      <span class="st-title">目标打印机选「另存为 PDF」</span>
+      <p>Windows 上是 <code>Microsoft Print to PDF</code> 或「另存为 PDF」，macOS 是左下角的「PDF → 存储为 PDF」。</p>
+    </li>
+    <li>
+      <span class="st-title">⚠️ 取消勾选「页眉和页脚」</span>
+      <p><strong>这一步必须做。</strong>Chrome/Edge 默认勾选它，会把网址、日期、页码<strong>直接叠在幻灯片内容上</strong>——深色封面上尤其明显，而且代码关不掉。</p>
+    </li>
+    <li>
+      <span class="st-title">保存</span>
+      <p>页面尺寸是 16:9 横向（338.7 × 190.5 mm），每页一张幻灯片，没有白边。</p>
+    </li>
+  </ol>
+
+  <div class="warn">
+    <p><strong>「背景图形」不用管。</strong>实测无论勾不勾，导出的 PDF 逐像素一致——代码里已经强制了
+    <code>print-color-adjust: exact</code>，深色背景不会丢。</p>
+  </div>
+
+  <div class="note">
+    <p><strong>目前只有 PPT 支持导出。</strong>2D 动画和 3D 场景的按钮是灰的——
+    它们的「导出」语义不同（一个是动画、一个是可交互场景），打印成静态 PDF 意义不大。
+    如果确实需要，可以用系统截图工具截当前画面。</p>
+  </div>
+
   <h2 id="anim">2D 动画的操作</h2>
 
   <p>2D 动画用于"随时间演变的过程"——疆域变化、航线开辟、权力转移、受力分解。</p>
@@ -181,6 +215,7 @@
     <dt>版本下拉</dt><dd>切换历史版本，显示每个版本的来源（初始生成 / 某次补丁）</dd>
     <dt>全屏</dt><dd>演示模式，隐藏左右栏专注画布</dd>
     <dt>缩放</dt><dd>适应窗口 / 100% / 放大</dd>
+    <dt>导出 PDF</dt><dd>仅 PPT 可用，导出全部页面为矢量 PDF。详见上文「导出成 PDF」</dd>
   </dl>
 
   <h3>空态是什么样</h3>
