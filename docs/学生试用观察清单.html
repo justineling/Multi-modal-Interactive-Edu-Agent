@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>学生试用观察清单 · 第一次真人测试怎么做</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="index.html">文档中心</a><span class="sep">/</span>
+      <span class="cur">学生试用观察清单</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1>学生试用观察清单</h1>
+  <p class="lede">
+    第一次真人测试的目标不是「证明产品好用」，而是<strong>找出你没想到的问题</strong>。
+    所以最重要的原则是：<strong>不要教他们怎么用</strong>。
+  </p>
+
+  <div class="warn">
+    <p><strong>为什么不教：</strong>你一教，测的就是「你的讲解能力」，不是「产品能不能自己跑通」。
+    真实用户拿到链接时，没有人在旁边讲。你教得越多，试用结论越假。</p>
+    <p style="margin-top:10px">唯一可以主动说的是：「遇到不懂的就问我，但我会先看你打算怎么弄。」</p>
+  </div>
+
+  <h2>一、试用前准备</h2>
+
+  <table>
+    <thead><tr><th style="width:150px">项</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>找谁</strong></td>
+        <td>1~2 个<strong>正在学这门课</strong>的学生（不是家长、不是老师）。
+          最好是「会用手机但不太会用电脑」的那种——他们最接近真实用户，也最容易卡住</td>
+      </tr>
+      <tr>
+        <td><strong>用什么教材</strong></td>
+        <td>让他们<strong>带自己的课本 PDF</strong>。不要用你准备的样本——样本结构规整，测不出目录树识别的问题</td>
+      </tr>
+      <tr>
+        <td><strong>环境</strong></td>
+        <td>你自己电脑上跑服务（`1. 启动网页端(Windows).bat`），让学生用你的电脑操作。
+          <strong>不要让他装任何东西</strong></td>
+      </tr>
+      <tr>
+        <td><strong>API Key</strong></td>
+        <td>用真实 Key（`backend/.env` 里填好）。演示模式的产物是模板，学生一眼就看穿</td>
+      </tr>
+      <tr>
+        <td><strong>记录方式</strong></td>
+        <td>手机录音 + 你手写记「他卡在第几秒、说了什么」。<strong>不要一边看一边解释</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>二、让他做的 5 个任务</h2>
+
+  <p>按顺序给，每个任务只说一句话，说完就闭嘴观察。</p>
+
+  <table>
+    <thead><tr><th style="width:50px">#</th><th style="width:280px">你说的话</th><th>想看什么</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>「这是你的课本，你用这个工具学一下 <strong>4.1</strong> 这一节。」</td>
+        <td><strong>第一步卡在哪</strong>：知道要先上传吗？知道上传后要等吗？会不会点错地方？
+          能不能自己找到「问问题」的输入框？</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>「让它给你做一份<strong>能带去学校</strong>的东西。」</td>
+        <td>他会不会用「导出 PDF」？导出时有没有被「页眉和页脚」坑到？
+          他觉得生成的东西「能带去学校」吗（看他的表情和原话）</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>「这一页你看不懂，问问它。」（指着画布某一页）</td>
+        <td><strong>会不会用锚点追问</strong>（点画布上的元素/页再提问）？
+          还是直接在输入框里重新打字？后者说明锚点交互不够明显</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td>「刚才那份，第 3 页改成<strong>只讲原因、不讲结果</strong>。」</td>
+        <td>能不能说清楚「改哪一页」？系统改对了吗？<strong>其他页有没有被误改</strong>？
+          他能不能看出「只有第 3 页变了」</td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td>「换你另一本课本，问同一个问题。」（如果有第二本）</td>
+        <td>会不会撞上章节碰撞？他能不能察觉「答的是另一本书的内容」？
+          （这是 Level 1 修的问题，但真人未必会点目录树）</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="tip">
+    <p><strong>任务 1 最关键。</strong>如果他在第一步就卡住超过 1 分钟，后面的都不用测了——
+    先修「第一分钟」。</p>
+  </div>
+
+  <h2>三、观察什么（记录表）</h2>
+
+  <p>每个任务记一行，<strong>只记事实，不记判断</strong>：</p>
+
+  <table>
+    <thead><tr><th style="width:60px">任务</th><th style="width:110px">卡了多久</th><th style="width:200px">他做了什么</th><th>他的原话</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>___ 秒</td><td>（点击/犹豫/问问题）</td><td>「……」</td></tr>
+      <tr><td>2</td><td>___ 秒</td><td></td><td></td></tr>
+      <tr><td>3</td><td>___ 秒</td><td></td><td></td></tr>
+      <tr><td>4</td><td>___ 秒</td><td></td><td></td></tr>
+      <tr><td>5</td><td>___ 秒</td><td></td><td></td></tr>
+    </tbody>
+  </table>
+
+  <h3>特别注意这四个信号</h3>
+
+  <ol>
+    <li><strong>「这是什么东西？」</strong>——第一眼没看懂产品是什么。说明首屏缺一句说明。</li>
+    <li><strong>「等一下……好了吗？」</strong>——等待时不知道在干什么。说明缺进度反馈（生成要 18 秒）。</li>
+    <li><strong>「它说的对吗？」</strong>——不信任内容。说明页码引用没起作用，或者内容太泛。</li>
+    <li><strong>沉默超过 10 秒</strong>——在找东西。说明按钮/入口的位置不符合直觉。</li>
+  </ol>
+
+  <h2>四、试完问他 5 个问题</h2>
+
+  <p>不要问「好不好用」（他一定说好用）。问具体的：</p>
+
+  <table>
+    <thead><tr><th style="width:50px">#</th><th>问什么</th><th style="width:220px">想挖出什么</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>「如果明天要考试，你会用它复习吗？为什么？」</td><td>真实价值判断（不是客套）</td></tr>
+      <tr><td>2</td><td>「刚才哪一步最烦？」</td><td>最大的摩擦点</td></tr>
+      <tr><td>3</td><td>「生成的东西，你敢直接拿去用吗？哪里不敢？」</td><td>信任度 / 内容质量</td></tr>
+      <tr><td>4</td><td>「你平时怎么复习这门课？这个能替掉哪一步？」</td><td>是否真的嵌入他的学习流程</td></tr>
+      <tr><td>5</td><td>「如果只能改一个地方，你改哪？」</td><td>优先级（比你自己猜准）</td></tr>
+    </tbody>
+  </table>
+
+  <h2>五、试完之后做什么</h2>
+
+  <ol class="steps">
+    <li>
+      <span class="st-title">先记录，别急着改</span>
+      <p>当天把观察写下来（哪个任务卡了多久、原话）。<strong>隔一天再看，你会发现有些"问题"其实是他不熟悉电脑。</strong></p>
+    </li>
+    <li>
+      <span class="st-title">区分「产品问题」和「这个人不会用」</span>
+      <p>如果他连"上传文件"都不会，那是他的数字素养问题，不是产品问题——但<strong>你的用户可能都是这样</strong>，
+      所以这也算产品问题（要不要做"拖拽上传"、要不要做引导）。</p>
+    </li>
+    <li>
+      <span class="st-title">只挑一个最痛的去改</span>
+      <p>不要一次改五个。改完再找他试一次，看那个痛点是否消失。</p>
+    </li>
+  </ol>
+
+  <h2>六、这份清单解决不了的事</h2>
+
+  <div class="note">
+    <p><strong>1~2 个学生不能证明产品可行。</strong>它只能告诉你「第一分钟有没有明显障碍」。
+    要判断「值不值得做」，需要 10 个以上真实用户、连续用两周。</p>
+    <p style="margin-top:10px">但<strong>1~2 个学生足以推翻你的假设</strong>——如果两个人都卡在同一个地方，
+    那基本就是产品问题。</p>
+  </div>
+
+  <h2>附：和「用户任务清单」的区别</h2>
+
+  <table>
+    <thead><tr><th style="width:200px">文档</th><th>给谁</th><th>测什么</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><a href="用户任务清单.html">用户任务清单</a></td>
+        <td><strong>你自己</strong></td>
+        <td>功能是否正常（导出 PDF 能不能出、真实教材识别准不准、3D 有没有穿模）</td>
+      </tr>
+      <tr>
+        <td><strong>本文档</strong></td>
+        <td><strong>真实学生</strong></td>
+        <td>产品能不能被<strong>没有背景知识的人</strong>自己用起来</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="pager">
+    <a href="用户任务清单.html">
+      <div class="dir">← 相关</div>
+      <div class="ttl">用户任务清单（给你自己的）</div>
+    </a>
+    <a class="next" href="index.html">
+      <div class="dir">返回 →</div>
+      <div class="ttl">文档中心</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>
