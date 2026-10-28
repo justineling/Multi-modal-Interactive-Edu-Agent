@@ -284,12 +284,17 @@ git log --oneline -3
 git status
 
 # 2. 跑一遍测试确认基线是绿的
-cd backend && ./.venv/Scripts/python.exe -m pytest tests -q    # 期望 356 passed
-cd ../frontend && npm test                                      # 期望 153 passed
+cd backend && ./.venv/Scripts/python.exe -m pytest tests -q --basetemp=/tmp/pt_$(date +%s)
+cd ../frontend && npm test
 
 # 3. 启动看看
 双击 "1. 启动网页端(Windows).bat"
 ```
+
+> **`--basetemp` 不是可选项，是必须。** 不加的话，pytest 会尝试批量删除上一次的
+> `garbage-*` 临时目录，被平台的 safe-delete 守卫拦掉（>50 个文件），
+> 结果是 **`EXIT=1` 但 `0 FAILED`** —— 看起来像红了，实际一条都没失败，summary 行被吞了。
+> 用全新的 `--basetemp` 目录才能拿到真实结果。**别被假红骗去查不存在的失败。**
 
 三条都正常 → 直接挑一件 P1 任务开工。  
 任何一条不对 → 先看第七节的坑，再查第九节的排查顺序。

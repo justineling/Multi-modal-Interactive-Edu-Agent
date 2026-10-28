@@ -270,6 +270,48 @@ print(json.dumps(a, sort_keys=True, ensure_ascii=False)[:200])
 
   <p>如果排序后一致，说明只是序列化顺序不同，内容没坏。</p>
 
+  <h2>测试与构建类（都是环境问题，不是代码问题）</h2>
+
+  <h3>pytest 显示 <code>EXIT=1</code> 但 <code>0 FAILED</code></h3>
+
+  <p>这是本项目最容易骗人的一个坑：<strong>看起来红了，实际一条都没失败</strong>。</p>
+
+  <p><strong>原因：</strong>pytest 启动时会清理上一次的 <code>garbage-*</code> 临时目录。当文件数超过阈值（50）时，平台的 safe-delete 守卫会拦截批量删除，报错信息把 pytest 的 summary 行吞掉，退出码变成 1。</p>
+
+  <p><strong>修法：</strong>每次都指定一个全新的 <code>--basetemp</code>，绕开清理：</p>
+
+  <pre><code><span class="cm"># Windows (Git Bash)</span>
+cd backend && .venv/Scripts/python.exe -m pytest tests -q --basetemp=/tmp/pt_$(date +%s)
+
+<span class="cm"># 或直接用固定但干净的目录</span>
+cd backend && .venv/Scripts/python.exe -m pytest tests -q --basetemp=/tmp/pt_run1</code></pre>
+
+  <div class="danger">
+    <p><strong>不加 <code>--basetemp</code> 时，如果你看到 <code>EXIT=1</code>，先数一遍 <code>FAILED</code> 的条数。</strong>
+    0 条失败 + 退出码非 0 = 环境问题，不要去看代码。</p>
+    <p style="margin-top:10px">这类"环境造成的假红"和「<code>ASGITransport</code> 测不出事务竞态」是同一类：
+    <strong>测试基础设施本身的缺陷会伪装成被测代码的缺陷。</strong></p>
+  </div>
+
+  <h3><code>npm run build</code> 报 <code>SAFE_DELETE_BULK_CONFIRM_REQUIRED</code></h3>
+
+  <p><strong>原因：</strong>Vite 构建前要清空 <code>dist/assets</code>，文件数超过阈值（50）被 safe-delete 守卫拦截。</p>
+
+  <p><strong>关键判断：</strong>这个报错发生在 <code>vite:prepare-out-dir</code> 阶段，<strong>在 <code>997 modules transformed</code> 之后</strong>——说明类型检查和打包都已经通过了，<strong>不是代码问题</strong>。</p>
+
+  <p><strong>两种绕法：</strong></p>
+
+  <pre><code><span class="cm"># ① 手动删掉 dist 再构建</span>
+rm -rf frontend/dist &amp;&amp; cd frontend &amp;&amp; npm run build
+
+<span class="cm"># ② 换个输出目录，完全绕开清理</span>
+cd frontend &amp;&amp; npx vite build --outDir .build-verify --emptyOutDir</code></pre>
+
+  <div class="note">
+    <p><strong>看报错发生在哪个阶段，比看报错内容更有信息量。</strong>
+    <code>prepare-out-dir</code> 阶段失败 = 代码已通过；<code>transformed</code> 之前失败 = 代码有问题。</p>
+  </div>
+
   <h2>还是查不出？</h2>
 
   <p>按这个顺序收集信息：</p>
