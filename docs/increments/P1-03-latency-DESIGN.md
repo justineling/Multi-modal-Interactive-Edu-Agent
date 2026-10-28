@@ -5,7 +5,7 @@
 | 文档 | `docs/increments/P1-03-latency-DESIGN.md` |
 | 版本 | v1.0（增量设计，对应 PRD v1.1） |
 | 作者 | 高见远（架构师） |
-| 上游 | `docs/increments/P1-03-latency-PRD.md` v1.1 · `docs/increments/latency-profile.md` · `docs/IMPL-NOTES.md`（E11 / §四 / §五） · `HANDOVER.md` §七 |
+| 上游 | `docs/increments/P1-03-latency-PRD.md` v1.1 · `docs/increments/latency-profile.md` · `docs/00-源文档/IMPL-NOTES.md`（E11 / §四 / §五） · `HANDOVER.md` §七 |
 | 代码基线 | `HEAD 3a7aa4b`（后端 244 测试 / 前端 153 测试全绿） |
 | 文档状态 | 待评审 |
 
@@ -189,7 +189,7 @@ def artifact_model_for(self, artifact_type: str | None) -> str:
 | `backend/app/services/llm_client.py` | `complete_json` docstring（123-128 行） | **必须重写**：现行文字是「准确率优先于延迟，所以用重模型」。实测已推翻该取舍，要写成「flash 实测 55.5s→10.1s、契约 3/3 通过；新的取舍是『延迟优先 + 用 retry 率做护栏』；若 retry 率破 G1 阈值，用 `LLM_MODEL_ARTIFACT` 切回重档」。**不写这段，后来者会照着旧理由把档位改回去** |
 | 同上 | `stream_text` docstring（175-182 行） | 第二段「结构化 AST 正相反……必须用准确率更高的 GENERATOR」同步改为「结构化 AST 用 `LLM_MODEL_ARTIFACT`，见 `complete_json` 的实测取舍」 |
 | `backend/app/config.py` | LLM 段注释（41-43 行） | 「两个独立配置项」→「三个独立配置项」+ 各自用途 |
-| `docs/IMPL-NOTES.md` | 新增 §E12 | 记录本次两个裁定：换档（推翻 E11 问题 2 的取舍，附实测数据与新护栏）+ 并行（fork 点选 `after_first_token` 的理由）。**E11 问题 2 的原文不改**（历史记录只增不改），在 E12 里显式写「E11 问题 2 的取舍已被 E12 推翻」 |
+| `docs/00-源文档/IMPL-NOTES.md` | 新增 §E12 | 记录本次两个裁定：换档（推翻 E11 问题 2 的取舍，附实测数据与新护栏）+ 并行（fork 点选 `after_first_token` 的理由）。**E11 问题 2 的原文不改**（历史记录只增不改），在 E12 里显式写「E11 问题 2 的取舍已被 E12 推翻」 |
 | `docs/01-快速开始/2. 环境搭建与运行.html`、`docs/05-运维部署/1. 部署方案.html` | 环境变量表 | **本次不同步**（已裁决，见 §9.2 Q-6）：只在 IMPL-NOTES E12 里留一句「HTML 站未同步，运维以 `.env.example` 与 E12 为准」+ 一条补更待办。**不要顺手改这两篇 HTML** |
 
 ---
@@ -300,7 +300,7 @@ assert hasattr(engine_module, "parse_artifact_spec")
 assert rate_limited_event.stage == "generate"
 ```
 
-### 3.4 `backend/.env.example` / `README.md` / `docs/IMPL-NOTES.md`
+### 3.4 `backend/.env.example` / `README.md` / `docs/00-源文档/IMPL-NOTES.md`
 
 见 §2.3。
 
@@ -829,10 +829,10 @@ T02 开工前用最小复现脚本跑过三种边界，结论全部支持上面�
 
 | 项 | 内容 |
 |---|---|
-| 源文件 | `docs/IMPL-NOTES.md`、`scripts/profile_latency.py`、`scripts/flash_quality_check.py` |
+| 源文件 | `docs/00-源文档/IMPL-NOTES.md`、`scripts/profile_latency.py`、`scripts/flash_quality_check.py` |
 | 依赖 | T02 |
 | 内容 | E12 裁定记录，**必须包含六项**：① 换档裁定（`LLM_MODEL_ARTIFACT` 默认 flash，附实测 55.5s→10.1s）；② **显式声明「E11 问题 2 的取舍已被推翻」**（原文不改，只加推翻声明）；③ Q-3 的比率口径裁定（并行口径 vs 串行口径并列、> 50% 写「已归因」不写「已豁免」）；④ Q-6 的 HTML 站滞后留痕句「HTML 站（`docs/01-*`、`docs/05-*`）未同步新增变量，运维以 `.env.example` 与 E12 为准」+ 末尾待办列出 `LLM_MODEL_ARTIFACT` / `ARTIFACT_FORK_MODE` / `ARTIFACT_PARALLEL_ENABLED` / `ARTIFACT_MAX_CONCURRENCY`；⑤ **实现约束「`CancelledError` 是 `BaseException`，`finally` 里不得改成 `except Exception`」**（改了会让「子任务被取消」静默失效、断连继续烧 token；见 §5.3.1 实证）；⑥ **页码钳制（§4.9）定位为「换档带来的连带修复」而非独立缺陷**：写清根因（提示词不给页码 + 契约示例硬编码 `p.76` + facts 与 pages 无对应关系）、钳制与后校验的区别、patch 也钳制，并**必须写明「钳制会掩盖提示词缺陷，因此 G3 必须同时报告钳制前编造率与钳制后达标率」**+ 待办「提示词层根治（facts 与 pages 对齐 / 示例去硬编码）」。另含 §3.5 的四处脚本改动 |
-| 验收 | ① `python scripts/profile_latency.py --runs 1 --no-probes` 能跑通，输出表里「产物 span」「overlap_ms」有值；② **脚本自检断言生效**：`|Σ各阶段耗时 − 总耗时| / 总耗时 ≤ 10%`，不满足时**非零退出并打印阶段表**（这类退化不报错、只给假数字，必须让它在跑的时候就炸）；③ `scripts/flash_quality_check.py` 的 docstring 与行为一致，且 §3.3.4 的 MC-1–MC-5 五条测量约定在重构后仍成立（用它跑一次 mock 回合，确认 G1/G2 字段非空、`contract_error_counts` 能被填充）；④ `docs/IMPL-NOTES.md` 里能搜到 `LLM_MODEL_ARTIFACT` |
+| 验收 | ① `python scripts/profile_latency.py --runs 1 --no-probes` 能跑通，输出表里「产物 span」「overlap_ms」有值；② **脚本自检断言生效**：`|Σ各阶段耗时 − 总耗时| / 总耗时 ≤ 10%`，不满足时**非零退出并打印阶段表**（这类退化不报错、只给假数字，必须让它在跑的时候就炸）；③ `scripts/flash_quality_check.py` 的 docstring 与行为一致，且 §3.3.4 的 MC-1–MC-5 五条测量约定在重构后仍成立（用它跑一次 mock 回合，确认 G1/G2 字段非空、`contract_error_counts` 能被填充）；④ `docs/00-源文档/IMPL-NOTES.md` 里能搜到 `LLM_MODEL_ARTIFACT` |
 
 **依赖图**
 

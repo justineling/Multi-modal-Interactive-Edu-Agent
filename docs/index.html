@@ -134,6 +134,62 @@
     每一条都配了数据和算式 —— 它们省掉的是下一个人重新试一遍的时间。</p>
   </div>
 
+  <h2>源文档（Markdown）</h2>
+
+  <p>文档站是这些源文档<strong>面向不同读者的重组版本</strong>。源文档保留原始语境
+  （含勘误、含「此处已推翻」的历史判断），文档站负责「现在该怎么用」——两者都要留。</p>
+
+  <p>全部收在 <a href="00-源文档/README.md"><code>docs/00-源文档/</code></a>，
+  每个文件的定位见下表：</p>
+
+  <table>
+    <thead><tr><th style="width:210px">文件</th><th>是什么</th><th style="width:170px">什么时候看</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><a href="00-源文档/SPEC.md"><code>SPEC.md</code></a></td>
+        <td>需求方原始规范，<strong>不可篡改</strong>。冲突时优先级最高</td>
+        <td>怀疑需求被理解偏了</td>
+      </tr>
+      <tr>
+        <td><a href="00-源文档/PRD.md"><code>PRD.md</code></a></td>
+        <td>12 条 P0 需求 + 可测试的验收标准</td>
+        <td>判定「做完没有」</td>
+      </tr>
+      <tr>
+        <td><a href="00-源文档/ARCHITECTURE.md"><code>ARCHITECTURE.md</code></a></td>
+        <td>架构、模块划分、数据模型、任务分解</td>
+        <td>改架构 / 加模块</td>
+      </tr>
+      <tr>
+        <td><a href="00-源文档/IMPL-NOTES.md"><code>IMPL-NOTES.md</code></a></td>
+        <td><strong>踩坑与裁定记录（E1~E12）</strong>，记的是「为什么这么写」</td>
+        <td><strong>改代码之前</strong></td>
+      </tr>
+      <tr>
+        <td><a href="00-源文档/QA-REPORT-backend.md"><code>QA-REPORT-backend.md</code></a></td>
+        <td>P0 逐条验收结论 + 8 个缺陷 + 遗留风险 R1~R8</td>
+        <td>查「验过什么、漏了什么」</td>
+      </tr>
+      <tr>
+        <td><a href="00-源文档/class-diagram.mermaid"><code>class-diagram.mermaid</code></a></td>
+        <td>数据模型类图（7 张表、AST 契约、服务层接口）</td>
+        <td>看表结构与契约关系</td>
+      </tr>
+      <tr>
+        <td><a href="00-源文档/sequence-diagram.mermaid"><code>sequence-diagram.mermaid</code></a></td>
+        <td>一次提问的时序图（含降级链路 C）</td>
+        <td>看调用链与失败路径</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <p><strong>最该先读的是 <a href="00-源文档/IMPL-NOTES.md"><code>IMPL-NOTES.md</code></a></strong>——
+    它记的是「为什么这么写」，比「写了什么」更能防止你把已经修好的 bug 改回去。</p>
+    <p style="margin-top:8px">与 <code>docs/increments/</code> 的区别：本目录是<strong>项目级基线</strong>（改了就改），
+    <code>increments/</code> 是<strong>单次迭代的过程记录</strong>（只增不改，历史快照）。</p>
+  </div>
+
   <h2>其他</h2>
 
   <div class="cards">

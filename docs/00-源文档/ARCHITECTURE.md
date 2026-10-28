@@ -4,7 +4,7 @@
 |---|---|
 | 文档版本 | v1.0（MVP 施工图） |
 | 作者 | 高见远（架构师） |
-| 上游输入 | `docs/PRD.md`（12 条 P0）、`docs/SPEC.md`（原始工程规范，冲突时以 SPEC 为准） |
+| 上游输入 | `docs/00-源文档/PRD.md`（12 条 P0）、`docs/00-源文档/SPEC.md`（原始工程规范，冲突时以 SPEC 为准） |
 | 交付目标 | 单机零外部依赖可跑通的全链路 Demo：上传 PDF → 目录树 → 检索 → 路由 → 生成 AST → 渲染 → 锚点 patch → 版本回看 |
 | 约束 | 技术栈已锁定，本文档只做落地设计，不重新选型 |
 
@@ -394,7 +394,7 @@ apply(spec_dict, ops):
 
 ## 6. 核心调用时序
 
-> 完整可编辑版本见 `docs/sequence-diagram.mermaid`（含降级链路 C）；类图见 `docs/class-diagram.mermaid`。
+> 完整可编辑版本见 `docs/00-源文档/sequence-diagram.mermaid`（含降级链路 C）；类图见 `docs/00-源文档/class-diagram.mermaid`。
 
 ### 6.1 链路 A：上传 PDF → 解析 → 切片入库
 

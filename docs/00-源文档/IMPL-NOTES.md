@@ -1,6 +1,6 @@
 # IMPL-NOTES.md — 实施期裁定与架构勘误
 
-> 本文档记录**实现阶段**相对 `docs/ARCHITECTURE.md` 的偏离、勘误与交付总监裁定。
+> 本文档记录**实现阶段**相对 `docs/00-源文档/ARCHITECTURE.md` 的偏离、勘误与交付总监裁定。
 > 冲突时的优先级：`SPEC.md` > 本文档 > `ARCHITECTURE.md`（后者是设计意图，前者是落地事实）。
 
 ---

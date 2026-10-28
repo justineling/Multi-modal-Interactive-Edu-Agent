@@ -257,7 +257,7 @@ patch payload: {'source_page': 76, 'source_ref': '4.3.1'}  计数=1
 
 | 项 | 内容 |
 |---|---|
-| 文件:行号 | `docs/IMPL-NOTES.md` §六 验证基线表：「端到端冒烟 \| 38 项全通过」 |
+| 文件:行号 | `docs/00-源文档/IMPL-NOTES.md` §六 验证基线表：「端到端冒烟 \| 38 项全通过」 |
 | 责任方 | Engineer（文档准确性） |
 | 说明 | `scripts/e2e_smoke.py` 内共 **31** 处 `check(` 调用，实测输出 **31 条 `[PASS]`、0 条 `[FAIL]`**。「38 项」在脚本里找不到对应。这不影响功能，但会让下一个验收人以为「少了 7 项没跑」 |
 
@@ -325,7 +325,7 @@ patch payload: {'source_page': 76, 'source_ref': '4.3.1'}  计数=1
 | **问题 2**（§4.9.4「字节一致」措辞） | ✅ **已修（文档收窄）** | `DESIGN.md:588` 已改为「在**页码字段上**逐字节相同」，并显式写明 `position`/`scale`/`rotation`/`target`/2D `x y` 等 float 字段「**值相同、文本表示可能不同**」，同时补了「改钳制规则属内容变更，不得回写历史版本」的死约束；`backend/app/schemas/api.py:207-213` docstring 同步。**采用 A 方案（零成本），未动键序** |
 | **问题 6**（「分支 B 物理上无法落库」措辞过强） | ✅ **已修** | `grep -rn "物理上无法落库" docs/increments/P1-03-latency-DESIGN.md backend/app/services/agent_engine.py` → 设计文档**零命中**；源码仅剩 `agent_engine.py:434` 一处「早期文档写成『物理上无法落库』是夸大」的**更正说明**。措辞已从「不能写」（结构）纠正为「不写」（行为，由 commit 计数测试锁死） |
 | **问题 3**（`.env.example` / README 缺 `ARTIFACT_RATE_LIMIT_RETRY`） | ✅ **已修** | `grep -c "ARTIFACT_RATE_LIMIT_RETRY"` → `backend/.env.example`: **1**、`README.md`: **1** |
-| **问题 5**（冒烟项数 38 与实际不符） | ✅ **已修** | `docs/IMPL-NOTES.md:406` 已改为「**31 项**全通过」，并注明「**原记录『38 项』为误记**，实测 `check(...)` 调用 31 处」。本次实测 `grep -c "check("` = 32（含 1 处 `def check(` 定义）⇒ **31 个真实调用**，与文档一致 |
+| **问题 5**（冒烟项数 38 与实际不符） | ✅ **已修** | `docs/00-源文档/IMPL-NOTES.md:406` 已改为「**31 项**全通过」，并注明「**原记录『38 项』为误记**，实测 `check(...)` 调用 31 处」。本次实测 `grep -c "check("` = 32（含 1 处 `def check(` 定义）⇒ **31 个真实调用**，与文档一致 |
 | **问题 4**（`_join_artifact_work` 里 429 分支是死代码） | ✅ **已修（删真死的、留活着的）** | ① 真死的 `except RateLimitedError` **已删**，位置改为说明性 docstring（`agent_engine.py:1111-1115`）：「别再加一个『看着像在处理 429』的分支：看着有效的死代码比没有更危险」；② **`if work.rate_limited:`（`:1152`）保留** —— 它**不是**死代码：`ARTIFACT_RATE_LIMIT_RETRY=0` 时 `for` 循环一次都不跑（`:1146`），`work` 仍是 defer 返回的 `rate_limited=True`，**此处是唯一降级路径**，删掉会导致「本轮既无产物也无 error 事件」= 画布白屏 |
 
 #### 7.2 真正未修（3 项，均不阻塞）

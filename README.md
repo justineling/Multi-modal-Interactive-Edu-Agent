@@ -70,7 +70,7 @@ flowchart TB
     P --> C
 ```
 
-四种工程设计模式（详见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)）：
+四种工程设计模式（详见 [`docs/00-源文档/ARCHITECTURE.md`](docs/00-源文档/ARCHITECTURE.md)）：
 
 1. **受控 DSL 驱动渲染**（策略模式）— LLM 填 JSON，前端策略分发渲染，零编译等待、100% 不崩
 2. **双轨知识路由 + 自纠错检索**（CRAG）— 课本内严格依据 vs 超纲拓展，边界清晰
@@ -192,7 +192,7 @@ cd backend && ./.venv/Scripts/python.exe ../scripts/real_llm_check.py
 ```
 
 > **跑冒烟前请确认处于演示模式**（`LLM_API_KEY` 置空），否则会打真实链路消耗配额。
-> 已知：冒烟有约 4% 概率偶发失败，根因是一个**改动前就存在**的竞态（建工作区返回 200 后事务尚未提交），重跑即过，详见 [`docs/IMPL-NOTES.md`](docs/IMPL-NOTES.md) E12。
+> 已知：冒烟有约 4% 概率偶发失败，根因是一个**改动前就存在**的竞态（建工作区返回 200 后事务尚未提交），重跑即过，详见 [`docs/00-源文档/IMPL-NOTES.md`](docs/00-源文档/IMPL-NOTES.md) E12。
 
 ---
 
@@ -232,9 +232,15 @@ cd backend && ./.venv/Scripts/python.exe ../scripts/real_llm_check.py
 │       ├── components/canvas/      # 三种渲染器 + 6 种 PPT 布局
 │       ├── hooks/useChatStream.ts  # SSE 流 + 事件归约
 │       └── lib/                    # jsonPointer / fingerprint / theme
-├── docs/                       # 文档站（21 篇 HTML）+ 增量文档
+├── docs/
+│   ├── index.html              # ★ 文档站入口（23 篇 HTML）
+│   ├── 00-源文档/              # 项目级基线文档（SPEC/PRD/ARCHITECTURE/IMPL-NOTES/QA 报告 + 2 张 mermaid）
+│   ├── 01-快速开始/ … 06-项目档案/  # 按读者重组的 HTML 文档
+│   ├── increments/             # 单次迭代的过程记录（只增不改）
+│   └── assets/                 # 共享样式与配图
 ├── scripts/                    # 启动、冒烟、真实链路验证、性能剖析
 ├── HANDOVER.md                 # ★ 接手开发先读这个
+├── NEXT-ACTION.md              # 当前待办与交接（给下一位 AI）
 └── README.md
 ```
 
@@ -249,11 +255,11 @@ cd backend && ./.venv/Scripts/python.exe ../scripts/real_llm_check.py
 | **第一次看到这个项目** | 本 README → [`01-快速开始`](docs/01-快速开始/1.%20这个项目是什么.html) |
 | **想跑起来用** | [`02-用户手册`](docs/02-用户手册/1.%20上传你的第一本教材.html)（4 篇，无需技术背景） |
 | **要改代码** | [`HANDOVER.md`](HANDOVER.md) → [`04-开发指南`](docs/04-开发指南/1.%20一次提问的完整旅程.html) |
-| **要理解设计** | [`03-架构设计`](docs/03-架构设计/1.%20系统总览.html) + [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| **要理解设计** | [`03-架构设计`](docs/03-架构设计/1.%20系统总览.html) + [`docs/00-源文档/ARCHITECTURE.md`](docs/00-源文档/ARCHITECTURE.md) |
 | **要部署运维** | [`05-运维部署`](docs/05-运维部署/1.%20部署方案.html) |
-| **AI 接手开发** | `HANDOVER.md` → [`docs/IMPL-NOTES.md`](docs/IMPL-NOTES.md) → `docs/increments/` |
+| **AI 接手开发** | `HANDOVER.md` → [`docs/00-源文档/IMPL-NOTES.md`](docs/00-源文档/IMPL-NOTES.md) → `docs/increments/` |
 
-**`docs/IMPL-NOTES.md` 是最该先读的一份** —— 它记的是「为什么这么写」，比「写了什么」更能防止你把已经修好的 bug 改回去。里面每条都是踩过的坑，带实测数据。
+**`docs/00-源文档/IMPL-NOTES.md` 是最该先读的一份** —— 它记的是「为什么这么写」，比「写了什么」更能防止你把已经修好的 bug 改回去。里面每条都是踩过的坑，带实测数据。
 
 ---
 
@@ -291,7 +297,7 @@ cd backend && ./.venv/Scripts/python.exe ../scripts/real_llm_check.py
 
 ## 开发约定
 
-**改动代码前必读 [`docs/IMPL-NOTES.md`](docs/IMPL-NOTES.md)**。几条最容易踩的：
+**改动代码前必读 [`docs/00-源文档/IMPL-NOTES.md`](docs/00-源文档/IMPL-NOTES.md)**。几条最容易踩的：
 
 | 约定 | 不遵守的后果 |
 |---|---|

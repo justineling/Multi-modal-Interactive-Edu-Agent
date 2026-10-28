@@ -102,7 +102,7 @@
       <code>BaseException</code>，写成 <code>except Exception</code> 会让整个取消机制<strong>静默失效</strong></li>
   </ol>
 
-  <p>这一条已记在 <code>docs/IMPL-NOTES.md</code> E12 ⑤，原文写着「这两条是并行方案成立的前提，不是实现细节」。</p>
+  <p>这一条已记在 <code>docs/00-源文档/IMPL-NOTES.md</code> E12 ⑤，原文写着「这两条是并行方案成立的前提，不是实现细节」。</p>
 
   <h3>❌ 误判 3：「学生看到 [p.94] 却无法点击，页码锚点价值停留在纯文字标签上」</h3>
 
@@ -247,7 +247,7 @@
    finally 里有 work_task.cancel() + add_done_callback(_reap_task) +
    contextlib.suppress(asyncio.CancelledError)。cancel() 会让 httpx 请求随之取消。
    注意 CancelledError 继承自 BaseException，写成 except Exception 会让取消机制静默失效
-   （这一点记在 docs/IMPL-NOTES.md E12 ⑤）。
+   （这一点记在 docs/00-源文档/IMPL-NOTES.md E12 ⑤）。
 
 3) 「引用无法点击，停留在纯文字标签」——可点击。CitationList.tsx:45 调用
    listChunks(documentId, {section_code, limit:3})，展开的是该章节的切片原文，界面标注

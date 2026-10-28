@@ -119,10 +119,10 @@ Key 从 <https://platform.deepseek.com/api_keys> 取。
 ```
 README.md                     ← 项目入口（是什么 / 怎么跑 / 现状）
 docs/index.html               ← 文档站入口（21 篇 HTML，浏览器直接打开）
-docs/IMPL-NOTES.md            ← ★ 踩坑记录与设计裁定，改代码前必读
+docs/00-源文档/IMPL-NOTES.md            ← ★ 踩坑记录与设计裁定，改代码前必读
 docs/increments/              ← P1-03 增量文档（PRD / 设计 / 实测 / QA 报告 + 原始数据）
-docs/PRD.md                   ← 12 条 P0 需求与验收标准
-docs/ARCHITECTURE.md          ← 系统架构
+docs/00-源文档/PRD.md                   ← 12 条 P0 需求与验收标准
+docs/00-源文档/ARCHITECTURE.md          ← 系统架构
 ```
 
 ---
@@ -190,7 +190,7 @@ docs/ARCHITECTURE.md          ← 系统架构
 
 ## 七、必踩的坑
 
-完整版见 `docs/IMPL-NOTES.md`。这里是最高频的几条：
+完整版见 `docs/00-源文档/IMPL-NOTES.md`。这里是最高频的几条：
 
 ### 1. `update_node` 的 payload 是局部字段，必须字段级 merge
 
@@ -299,7 +299,7 @@ cd ../frontend && npm test
 三条都正常 → 直接挑一件 P1 任务开工。  
 任何一条不对 → 先看第七节的坑，再查第九节的排查顺序。
 
-**改代码前先读 `docs/IMPL-NOTES.md`。** 那里面记的是「为什么这么写」，比「写了什么」更能防止你把已经修好的 bug 改回去。
+**改代码前先读 `docs/00-源文档/IMPL-NOTES.md`。** 那里面记的是「为什么这么写」，比「写了什么」更能防止你把已经修好的 bug 改回去。
 
 ---
 

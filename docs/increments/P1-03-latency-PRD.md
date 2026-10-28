@@ -5,8 +5,8 @@
 | 产品名 | 多模态沉浸式智能助教 / 自适应生成式学习工作区（Edu-Spatial Workspace） |
 | 文档版本 | **v1.1**（增量 · P1-03） |
 | 作者 | 许清楚（产品经理） |
-| 变更性质 | **增量**。不改 `docs/PRD.md` 中 P0-01 ~ P0-12 的任何一条语义与验收标准 |
-| 上游依据 | `docs/PRD.md` v1.0 · `docs/increments/latency-profile.md`（实测基线，下称「剖析报告」）· `HANDOVER.md` 六·P1-3 · `docs/IMPL-NOTES.md` |
+| 变更性质 | **增量**。不改 `docs/00-源文档/PRD.md` 中 P0-01 ~ P0-12 的任何一条语义与验收标准 |
+| 上游依据 | `docs/00-源文档/PRD.md` v1.0 · `docs/increments/latency-profile.md`（实测基线，下称「剖析报告」）· `HANDOVER.md` 六·P1-3 · `docs/00-源文档/IMPL-NOTES.md` |
 | 前序版本 | v1.0（分批下发方案，已归档为 `P1-03-latency-PRD.v1.0.md`） |
 | 文档状态 | 待架构评审 |
 
@@ -472,7 +472,7 @@ G3 的口径是「**页码落在区间内**」，它**看不见「所有 slide �
 
 > **G3 ≥ 95% 只代表「不再编造区间外页码」，不代表页码问题已彻底解决。** 真修需要让 slide 与 fact 建立**结构对应**（如按页分配事实），不是继续在提示词里叮嘱。
 
-→ 详见 `docs/IMPL-NOTES.md` **E12 ⑦「已知局限」**。监控指标 `distinct_pages_per_deck` / `max_same_page_ratio` 为**咨询性，非门禁**。
+→ 详见 `docs/00-源文档/IMPL-NOTES.md` **E12 ⑦「已知局限」**。监控指标 `distinct_pages_per_deck` / `max_same_page_ratio` 为**咨询性，非门禁**。
 
 > 这套「留空 + 回填规则」与 v1.0 的「`待基线剖析确认`」是同一套做法，已被证明有效：**先把缺口写成可执行的空格，再让实测数据来填**，而不是先编一个数再让现实去迁就它。
 

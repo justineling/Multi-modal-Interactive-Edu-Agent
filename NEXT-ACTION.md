@@ -216,7 +216,7 @@ timeline_items source_page：[71,72,74] → [76,76,76]
 
 - `HANDOVER.md` 的「当前状态」表（测试数、P1 清单勾选）
 - `docs/03-架构设计/1. 系统总览.html`（Level 1 改变了检索语义，值得补一节）
-- `docs/IMPL-NOTES.md`（记录两个决策：页码重绑定的最小干预原则、document_id 三级消歧只做 Level 1）
+- `docs/00-源文档/IMPL-NOTES.md`（记录两个决策：页码重绑定的最小干预原则、document_id 三级消歧只做 Level 1）
 
 ---
 
