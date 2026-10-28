@@ -307,7 +307,20 @@ cd backend && ./.venv/Scripts/python.exe ../scripts/real_llm_check.py
 | `insert`/`delete` 的 `changed_paths` 声明到**父列表层** | 声明到元素层会让「非锚定不变」断言永远失效 |
 | `focus_camera` **不写入 spec** | 视角进 spec 会让同一内容产生不同指纹，版本比对失效 |
 
-**提交前跑**：`pytest tests -q` 全绿 + `npm test` 全绿。基线是 356 / 153，不是绿的先修基线。
+**提交前跑这两条，都应为 0 failed**（从仓库根目录执行，两条可一起粘）：
+
+```bash
+(cd backend && .venv/Scripts/python.exe -m pytest tests -q --basetemp=/tmp/pt_$(date +%s))
+(cd frontend && npm test)
+```
+
+> 当前基线：后端 **404 passed**（另有 1 条计时敏感用例默认不跑，见下）、前端 **158 passed**。
+> **数字会随迭代增长，判断标准是 `0 failed`，不是「条数对不对」**；不是绿的先修基线。
+>
+> 两条容易踩的：
+> - **必须带 `--basetemp`**，否则会因清理 `garbage-*` 目录被拦而得到 `EXIT=1` 但 `0 FAILED` 的假红。
+> - 有 1 条 `test_parallel_is_actually_parallel` 标了 `slow`（墙钟断言在机器有并发负载时会红），
+>   默认不跑；改了 fork 时机 / join 顺序 / `_parallel_budget` 时用 `pytest -m slow` 单独跑它。
 
 **版本锁定是硬约束**：`@react-three/fiber` 必须 v9（v8 与 React 19 不兼容，装了整块 3D 画布白屏）、`react-konva` 必须 19、`tailwindcss` 必须 v3.4、`katex` 必须 0.16 线（0.19 会出现两份 katex 导致公式字体错位）。
 
