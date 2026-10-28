@@ -352,7 +352,11 @@ def test_chat_request_accepts_optional_document_id() -> None:
 
 
 def test_retrieval_event_carries_scope_document_id() -> None:
-    """`retrieval` 事件加的是**可选字段**，不新增事件类型（`EVENT_ORDER` 仍 8 类）。
+    """`retrieval` 事件加的是**可选字段**，不新增事件类型。
+
+    数字口径（避免文档里出现「8 类 / 7 类」两个数字像是自相矛盾）：
+    **事件类型共 8 个**（`SseEventName`），其中 **7 个在 `EVENT_ORDER` 有序序列里**，
+    `error` 不在序列内（可插入任意位置，之后仍须补发 `turn_end`）。
 
     这个字段让前端能区分「4.1 是哪本书的 4.1」—— 两本书都有 4.1 时，
     只有 `section_scope` 无法支撑「当前按《Form 4》4.1 讲解」这类提示。

@@ -1,7 +1,13 @@
 """对话请求与 SSE 事件契约（§5.4）。
 
-8 类事件的字段名与表格逐字一致，全部 snake_case。这是前后端唯一的手写契约，
+**事件类型共 8 个，其中 7 个在 `EVENT_ORDER` 的有序序列里**（`error` 不在序列内，
+它可插入任意位置，但之后仍必须补发 `turn_end`）。这两个数字不是矛盾，是两件事：
+`SseEventName` 是**类型集合**（8 个），`EVENT_ORDER` 是**正常流的有序序列**（7 个）。
+
+8 个事件的字段名与表格逐字一致，全部 snake_case。这是前后端唯一的手写契约，
 前端 `types/events.ts` 与之一一对应；改名等于破坏协议，必须同步改前端。
+新增**事件类型**等于改协议（`EVENT_ORDER` / 前端联合类型都要动）；
+给既有事件加**可选字段**是纯增量，旧前端忽略即可。
 """
 
 from __future__ import annotations
@@ -29,6 +35,7 @@ SseEventName = Literal[
 ]
 
 # 事件顺序固定（§5.4 规则②）。error 可插入任意位置，但之后仍必须补发 turn_end。
+# 长度是 7 而不是 8：`SseEventName` 有 8 个类型，`error` 不在正常流的有序序列里。
 EVENT_ORDER: tuple[SseEventName, ...] = (
     "turn_start",
     "retrieval",
@@ -83,7 +90,7 @@ class ChatRequest(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
-# 8 类事件
+# 8 个事件类型（其中 7 个有序，见 EVENT_ORDER；error 可插入任意位置）
 # --------------------------------------------------------------------------- #
 class RetrievedChunk(_Event):
     chunk_id: str

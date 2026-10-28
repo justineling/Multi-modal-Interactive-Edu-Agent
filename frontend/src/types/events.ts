@@ -2,12 +2,16 @@
  * SSE 事件契约 —— 与后端 `backend/app/schemas/chat.py` 的 8 个事件模型逐字段对应。
  *
  * 关键约定（架构 §5.4）：
- * 1. 8 类事件，`data` 全部 snake_case，字段名与后端 Pydantic 模型一字不差。
+ * 1. **8 个事件类型**，`data` 全部 snake_case，字段名与后端 Pydantic 模型一字不差。
+ *    注意「8 个类型」与「7 个有序」不是矛盾：`error` 不在正常流的有序序列里
+ *    （见约定 2），所以有序序列长度是 7。
  * 2. 事件顺序固定：`turn_start → retrieval → modality_decision → token* → artifact? →
  *    citations → turn_end`；`error` 可插入任意位置，**之后仍会补发 `turn_end`**。
  * 3. 校验失败重试期间会发 `error{retryable:true}` 但**不中断**流，因此前端不能
  *    一遇 error 就关流。
  * 4. 无 `LLM_API_KEY` 时 `demo_mode: true`，在 `turn_start` 与 `turn_end` 双处携带。
+ * 5. 新增**事件类型**等于改协议；给既有事件加**可选字段**是纯增量（如
+ *    `retrieval.scope_document_id`），旧前端忽略即可。
  */
 
 import type { ErrorCode } from "@/types/api";
