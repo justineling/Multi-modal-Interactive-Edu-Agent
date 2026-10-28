@@ -29,6 +29,7 @@
       <li><a href="#layer">四层架构</a></li>
       <li><a href="#pattern">四种核心设计模式</a></li>
       <li><a href="#flow">一次请求的完整协作链</a></li>
+      <li><a href="#p1-03">并行生成与模型分档（P1-03）</a></li>
       <li><a href="#tradeoff">四个关键取舍</a></li>
       <li><a href="#boundary">模块边界与依赖方向</a></li>
     </ol>
@@ -186,6 +187,84 @@ switch (spec.type) {
     <p>事件顺序是<strong>契约</strong>：<code>turn_start → retrieval → modality_decision → token* → artifact? → citations → turn_end</code>。
     <code>error</code> 可插入任意位置，但<strong>之后仍必须补发 <code>turn_end</code></strong>——否则前端会一直以为还在生成，输入框永远禁用。</p>
   </div>
+
+  <h2 id="p1-03">并行生成与模型分档（P1-03）</h2>
+
+  <p>真实模式下整轮曾要 <strong>66.3 秒</strong>，右侧画布空白近 70 秒。剖析后发现瓶颈非常集中：
+  <strong>83.7%（55.5s）是一次 <code>complete_json</code></strong>，其中 36~54 秒是模型「思考」；
+  检索 + 路由 + 引用 + 落库合计<strong>不到 14 毫秒</strong>。</p>
+
+  <p>这个数字直接推翻了一个原定方案：v1.0 打算「分批下发，先出前 2 页」，但实测 2 页需 36.5 秒——
+  瓶颈是思考时长，不是输出长度，分批根本改不了瓶颈。方案已归档为 <code>P1-03-latency-PRD.v1.0.md</code>。</p>
+
+  <h3>两个改动</h3>
+
+  <table>
+    <thead><tr><th style="width:170px">改动</th><th>做法</th><th style="width:130px">效果</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>产物换轻量档</strong></td>
+        <td>新增 <code>LLM_MODEL_ARTIFACT</code>（默认 <code>deepseek-flash</code>）。
+          <strong>不改 <code>GENERATOR</code> 的默认值</strong>——那个变量的语义是「复杂 AST 用大模型」，
+          改它会让 README / <code>.env.example</code> / 架构文档三处同时变成假话</td>
+        <td>55.5s → <strong>10.1s</strong><br>契约通过率不变（11 回合 0 重试）</td>
+      </tr>
+      <tr>
+        <td><strong>正文/产物并行</strong></td>
+        <td>两者互不依赖，用 <code>asyncio.Task</code> 并行。<code>ARTIFACT_FORK_MODE=after_first_token</code></td>
+        <td>省 <strong>10.8s</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>fork 点为什么必须在首 token 之后</h3>
+
+  <p>如果产物分支和正文同时启动，两者会争抢同一个上游连接与事件循环，<strong>TTFT 会被产物耗时污染</strong>。
+  <code>after_first_token</code> 保证「首字延迟」与「产物生成」在时序上解耦：用户看到文字时，产物才刚开始跑。</p>
+
+  <p>这个不变量有测试锁着（<code>test_artifact_parallel.py</code>）：用 spy 记录产物分支的<strong>进入时刻</strong>，
+  断言它晚于首个 <code>token</code> 事件被消费的时刻；另外还有一条反向验证——切到 <code>immediate</code> 模式时断言方向反转，
+  证明测试有区分力而不是恒绿。</p>
+
+  <h3>换档暴露的连带问题：页码静默编造</h3>
+
+  <p>换档后出现了一个更隐蔽的问题：<strong>所有 slide 的 <code>source_ref</code> 都写 <code>p.76</code></strong>，
+  而真实页码可能是 83~91。根因是三件事叠在一起：</p>
+
+  <ol>
+    <li><code>_artifact_prompt</code> 从不把页码告诉模型（正文切片里一个页码都没有）</li>
+    <li><strong>契约示例里硬编码了 <code>"source_ref":"4.1.1, p.76"</code></strong>，轻量模型原样照抄</li>
+    <li><code>facts</code> 与 <code>pages</code> 之间没有对应关系，模型即使想标也标不出</li>
+  </ol>
+
+  <p>换档前重档模型是「明显缺失」（根本不写页码），换档后变成「看起来对但是假的」——后者危险得多。
+  修法是 <code>_clamp_spec_pages</code>：落库前把落在检索命中页之外的页码剥掉。</p>
+
+  <div class="warn">
+    <p><strong>钳制 ≠ 后校验，两者管不同的东西：</strong></p>
+    <ul style="margin:8px 0 0">
+      <li><code>_drop_invalid_citations</code> 管<strong>正文</strong>里的 <code>[p.N]</code>——不篡改已流出的正文，只剔除引用</li>
+      <li><code>_clamp_spec_pages</code> 管<strong>产物 AST</strong>里的页码——落库前剥离，不触发重试（编造页码重试三次还是编）</li>
+    </ul>
+    <p style="margin-top:8px">两者共用 <code>result.pages</code> 作为「哪页合法」，口径必须一致。<strong>patch 路径也要钳制</strong>——
+    <code>update_node</code> 的 payload 可能只带 <code>{"source_ref": "4.3.1, p.76"}</code>，
+    create 钳了 patch 不钳，用户点一次节点追问，刚剥掉的假页码就回来了。</p>
+  </div>
+
+  <h3>并行方案的唯一硬约束</h3>
+
+  <div class="danger">
+    <p><code>finally</code> 里取消产物分支时，<strong>只能</strong> <code>contextlib.suppress(asyncio.CancelledError)</code>。</p>
+    <p style="margin-top:10px">若有人改成 <code>except Exception</code>，<code>CancelledError</code> <strong>不会被捕获</strong>
+    （它继承自 <code>BaseException</code>），「子任务被取消」会静默失效——断连后继续烧 token，而且没有任何报错。</p>
+    <p style="margin-top:10px">另外 <code>await task</code> 之前必须先 <code>add_done_callback(_reap_task)</code>，
+    否则退出时会打 <code>Task exception was never retrieved</code>。<strong>这两条是并行方案成立的前提，不是实现细节。</strong></p>
+  </div>
+
+  <p style="color:var(--text-dim);font-size:14px">
+    完整实施记录：<code>docs/IMPL-NOTES.md</code> E12 · 实测数据：<code>docs/increments/latency-profile.md</code>、
+    <code>flash-quality.md</code>、<code>fork-mode-ab.md</code>
+  </p>
 
   <h2 id="tradeoff">四个关键取舍</h2>
 

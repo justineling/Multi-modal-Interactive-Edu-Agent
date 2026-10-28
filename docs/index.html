@@ -134,6 +134,21 @@
     每一条都配了数据和算式 —— 它们省掉的是下一个人重新试一遍的时间。</p>
   </div>
 
+  <h2>其他</h2>
+
+  <div class="cards">
+    <a class="card" href="用户任务清单.html">
+      <div class="k">待办</div>
+      <div class="t">用户任务清单</div>
+      <div class="d">需要你手动测试的 6 项、需要拍板的 7 个产品决策、需要提供的 3 类素材，以及 11 条已知问题清单。</div>
+    </a>
+    <a class="card" href="外部评审核对.html">
+      <div class="k">评审</div>
+      <div class="t">外部评审核对</div>
+      <div class="d">一份外部架构审查的逐条核实：8 条成立、2 条部分成立、<strong>3 条是误判</strong>（附代码位置与实测数据）。</div>
+    </a>
+  </div>
+
   <h2>项目一句话说明</h2>
 
   <p>
@@ -180,15 +195,16 @@
   <table>
     <thead><tr><th>指标</th><th>数值</th><th>说明</th></tr></thead>
     <tbody>
-      <tr><td>后端测试</td><td><span class="badge ok">356 passed</span></td><td>含 P0 验收测试 + 回归用例 + QA 独立不变量验证 38 条</td></tr>
-      <tr><td>前端测试</td><td><span class="badge ok">153 passed</span></td><td>7 个文件，含 SSE 解析器 16 例</td></tr>
-      <tr><td>端到端</td><td><span class="badge ok">31 项全通过</span></td><td>真实 HTTP + SSE，非 mock 断言。原记「38 项」为误记</td></tr>
+      <tr><td>后端测试</td><td><span class="badge ok">371 passed</span></td><td>含 P0 验收测试 + 回归用例 + QA 独立不变量验证 38 条 + 事务时序/数量校验/flaky 修复</td></tr>
+      <tr><td>前端测试</td><td><span class="badge ok">158 passed</span></td><td>8 个文件，含 SSE 解析器 16 例、导出管线守卫 5 例</td></tr>
+      <tr><td>端到端</td><td><span class="badge ok">31 项全通过</span></td><td>真实 HTTP + SSE，非 mock 断言。事务竞态修复后连跑 3 次均全过</td></tr>
       <tr><td>113 页 PDF 解析</td><td>0.41 秒</td><td>验收预算是 60 秒</td></tr>
       <tr><td>首字节 TTFT（演示模式）</td><td>7 毫秒</td><td>内置确定性生成器</td></tr>
       <tr><td>首字节 TTFT（真实模型）</td><td><span class="badge ok">4.14 秒</span></td><td>DeepSeek 实测 P50（n=15），门禁 ≤ 5.08 秒</td></tr>
       <tr><td>完整产物耗时（真实模型）</td><td><span class="badge ok">18.13 秒</span></td><td>P50（n=15）。P1-03 优化前 66.3 秒，降 73%；目标 18 秒，<strong>超 0.7%</strong>；P90 24.54 秒</td></tr>
       <tr><td>增量补丁影响面</td><td>仅目标子树</td><td>其余节点字节级不变</td></tr>
       <tr><td>桌面安装</td><td><span class="badge ok">支持（PWA）</span></td><td>Chrome/Edge 地址栏安装，独立窗口运行</td></tr>
+      <tr><td>PPT 导出</td><td><span class="badge ok">支持 PDF</span></td><td>打印管线，矢量不失真。实测 6 页 / 960×540pt / 16:9 / 0 张位图</td></tr>
     </tbody>
   </table>
 

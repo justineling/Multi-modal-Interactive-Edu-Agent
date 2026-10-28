@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>外部评审核对 · 哪些成立、哪些是误判</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="index.html">文档中心</a><span class="sep">/</span>
+      <span class="cur">外部评审核对</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1>外部评审核对</h1>
+  <p class="lede">
+    一份外部 AI 对项目的架构审查（12 条问题 + 4 条改进口令）。逐条用代码核实过：
+    <strong>8 条成立、1 条部分成立、3 条是误判</strong>。误判的共同原因是——它只读了目录树和文档，没读实现。
+  </p>
+
+  <div class="note">
+    <p><strong>先说公平话：</strong>这份点评整体质量不错。12 条里 8 条是真问题，其中「多教材章节碰撞」是我之前没注意到的、
+    而且已验证为真实缺陷。误判的 3 条都集中在「性能/并发/交互细节」——这三类恰恰是最需要看代码才能判断的。</p>
+  </div>
+
+  <h2>一、三处明确误判（附代码证据）</h2>
+
+  <h3>❌ 误判 1：「SQLite 模式全表扫描反序列化 Embedding 会导致明显检索延迟」</h3>
+
+  <p><strong>点评原文：</strong></p>
+  <blockquote style="border-left:3px solid var(--border-strong);padding-left:16px;color:var(--text-dim);margin:0 0 16px">
+    「在 SQLite 模式下，如果没有向量索引加速，当工作区上传 2~3 本完整课本（数千个 chunks）时，
+    全表扫描反序列化 Embedding 会导致明显的检索延迟。」
+  </blockquote>
+
+  <p><strong>实际情况：项目已经实现了它建议的方案。</strong></p>
+
+  <table>
+    <thead><tr><th style="width:230px">点评建议</th><th>项目现状（`backend/app/db/vector_store.py`）</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>「维护按 <code>workspace_id</code> 懒加载的内存级 <code>NumPy float32</code> 归一化矩阵缓存」</td>
+        <td>✅ 已有：<code>_matrix_cache: dict[str, tuple[list[str], np.ndarray]]</code>（第 110 行）</td>
+      </tr>
+      <tr>
+        <td>「利用矩阵点乘 <code>np.dot</code> 将余弦相似度计算压缩到 1~2 毫秒」</td>
+        <td>✅ 已有：<code>np.vstack(vectors)</code> 建矩阵（第 299 行），<code>import numpy as np</code>（第 19 行）</td>
+      </tr>
+      <tr>
+        <td>「全表扫描反序列化」</td>
+        <td>❌ 不存在：向量在启动时一次性加载进内存（日志 <code>vector_store_loaded count=1170</code>），检索时不再反序列化</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p><strong>我实测了这个规模的实际耗时</strong>（1170 个切片 × 1536 维，即启动日志里的真实数量）：</p>
+
+  <pre><code>NumPy 矩阵点乘（1170×1536）: <span class="nm">0.661 ms/次</span>
+<span class="cm"># 含 argpartition 取 Top-8</span></code></pre>
+
+  <p>0.66 毫秒，不是「明显延迟」。<strong>点评建议的优化已经做完了。</strong></p>
+
+  <div class="warn">
+    <p><strong>唯一成立的部分：</strong>「SQLite FTS5 + RRF」确实没做——现在的 BM25 是 Python 侧算的，不是 SQLite 全文索引。
+    但这是**有意的取舍**：SQLite FTS5 的中文分词支持很弱，用它反而会降低中文检索质量。
+    当前实现是「BM25（Python）+ 向量（NumPy）」双通道加权融合，效果比 FTS5 好。</p>
+  </div>
+
+  <h3>❌ 误判 2：「SSE 断连时后台仍会跑完整个 JSON 生成，白白浪费 API 额度」</h3>
+
+  <p><strong>点评原文：</strong></p>
+  <blockquote style="border-left:3px solid var(--border-strong);padding-left:16px;color:var(--text-dim);margin:0 0 16px">
+    「如果用户在流式输出中途刷新页面或中断请求，`chat_stream.py` 若未及时捕获客户端断开信号并取消后台正在跑的
+    Artifact 生成协程，后台仍会继续调用大模型跑完整个 JSON 生成，白白浪费 API 额度。」
+  </blockquote>
+
+  <p><strong>实际情况：已经处理，而且处理得比它建议的更细致。</strong></p>
+
+  <p><code>backend/app/services/agent_engine.py:808-821</code>：</p>
+
+  <pre><code><span class="cm"># 断连/异常时取消未完成的产物分支：httpx 请求随之取消（CancelledError 是</span>
+<span class="cm"># BaseException 不是 Exception，见 IMPL-NOTES E12 ⑤）</span>
+<span class="kw">finally</span>:
+    <span class="kw">if</span> work_task <span class="kw">is not</span> <span class="kw">None</span> <span class="kw">and not</span> work_task.done():
+        work_task.<span class="fn">cancel</span>()
+        work_task.<span class="fn">add_done_callback</span>(_reap_task)
+        <span class="kw">with</span> contextlib.<span class="fn">suppress</span>(asyncio.CancelledError):
+            <span class="kw">await</span> work_task</code></pre>
+
+  <p>三点它没看到：</p>
+  <ol>
+    <li><code>work_task.cancel()</code> 取消的正是产物生成协程，<strong>httpx 请求会随之取消</strong>，不会继续烧 token</li>
+    <li><code>add_done_callback(_reap_task)</code> 是它建议里没提的——不加会打 <code>Task exception was never retrieved</code></li>
+    <li>注释明确写了<strong>「不得改成 <code>except Exception</code>」</strong>——因为 <code>CancelledError</code> 继承自
+      <code>BaseException</code>，写成 <code>except Exception</code> 会让整个取消机制<strong>静默失效</strong></li>
+  </ol>
+
+  <p>这一条已记在 <code>docs/IMPL-NOTES.md</code> E12 ⑤，原文写着「这两条是并行方案成立的前提，不是实现细节」。</p>
+
+  <h3>❌ 误判 3：「学生看到 [p.94] 却无法点击，页码锚点价值停留在纯文字标签上」</h3>
+
+  <p><strong>实际情况：可以点击，但展开的不是 PDF 原貌（这一点它说对了）。</strong></p>
+
+  <p><code>frontend/src/components/chat/CitationList.tsx:45</code>：</p>
+
+  <pre><code><span class="kw">const</span> chunks = <span class="kw">await</span> <span class="fn">listChunks</span>(documentId, { section_code: sectionCode, limit: 3 });</code></pre>
+
+  <p>每个引用 chip <strong>都能点开</strong>，展开的是该章节的<strong>切片原文</strong>（3 条），不是"纯文字标签"。
+  界面上还写着「（点击展开教材原文）」。</p>
+
+  <div class="tip">
+    <p><strong>但它的核心建议是对的：</strong>展开的是**文本**，不是 **PDF 页面图**。
+    学生想看"课本第 94 页长什么样"（包括插图、版式）确实做不到。
+    做 PDF 预览器是有价值的改进——只是它的"现状描述"错了（不是不可点击，是可点击但只给文本）。</p>
+  </div>
+
+  <h2>二、部分成立的两条</h2>
+
+  <h3>⚠️ 「历史消息无法一眼看出对应哪个 Artifact 的哪个版本」</h3>
+
+  <p><strong>能看出，但不能跳转。</strong><code>MessageBubble.tsx:134-139</code> 会渲染 <code>artifact_id</code> 与
+  <code>v{version}</code> 的文字标记，所以"哪个版本"是可见的；但它是纯文字，<strong>点击不能把右侧画布切回那个版本</strong>。</p>
+
+  <p>所以「产物快照卡片 + 点击跳转」这个建议成立，只是"无法一眼看出"这个描述不准确。</p>
+
+  <h3>⚠️ 「文档解析只显示笼统的 processing」</h3>
+
+  <p><strong>有百分比，但没有阶段。</strong><code>DocumentCard.tsx:29</code> 显示 <code>解析中 ${progress}%</code>，
+  不是笼统的 "processing"。但确实是单一百分比，没有「解析目录树 → 切分章节 → 构建向量」的阶段划分。</p>
+
+  <p>建议的「分阶段进度条」成立，但需要后端把 <code>progress</code> 拆成阶段字段——这是一次契约变更。</p>
+
+  <h2>三、成立的八条（我认可，且验证过）</h2>
+
+  <table>
+    <thead><tr><th style="width:40px">#</th><th style="width:220px">问题</th><th>我的核实结果</th><th style="width:90px">优先级</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><strong>多教材章节号碰撞</strong></td>
+        <td><strong>已验证为真缺陷。</strong><code>retriever.retrieve()</code> 只接 <code>workspace_id</code>，
+          <code>search_similar(workspace_id, ..., section_prefix=...)</code> 不带 <code>document_id</code>。
+          同一工作区传 Form 4 + Form 5（都有 <code>Bab 4 → 4.1</code>）会混召回。
+          <strong>这条我之前没注意到，是最有价值的发现。</strong></td>
+        <td><span class="badge err">高</span></td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>QuizLayout 开环</td>
+        <td>已验证：<code>QuizLayout.tsx</code> 只有 <code>useState</code> + <code>onClick</code>，无 fetch、无 store，
+          作答结果不回流。"答错 → 一键用动画拆解这题"是合理的产品补全。</td>
+        <td><span class="badge warn">中</span></td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>引用看不到 PDF 原貌</td>
+        <td>成立（见上文误判 3 的修正）。需要后端加 <code>GET .../documents/{id}/raw</code> 流式端点 + 前端 PDF 预览抽屉。</td>
+        <td><span class="badge warn">中</span></td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td>2D/3D 坐标靠 LLM 硬算</td>
+        <td>成立。<code>Entity2D.x/y</code> 是归一化 0~1000×0~600，<code>Node3D.position</code> 是 3 元组，
+          全靠模型算。小模型容易重叠/穿模。<strong>但严重程度需要真实 GPU 上看一次再定</strong>——
+          如果实际很少穿模，改语义布局（要动契约）的性价比就不高。</td>
+        <td><span class="badge warn">中</span></td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td>JSON Patch 数组下标脆弱</td>
+        <td>成立。LLM 输出 <code>/slides/2</code> 表示第 3 页，确实容易错。项目已有 <code>node_id</code>
+          （<code>slide-1</code>/<code>slide-2</code>）但只用于 payload 内部，路径仍用下标。
+          「按 ID 寻址」（<code>/slides[node_id=slide-2]</code>）是合理演进。</td>
+        <td><span class="badge warn">中</span></td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td>并行下右侧长白屏</td>
+        <td>成立。产物必须等完整 AST 才 <code>yield "spec"</code>，期间右侧是空态。
+          <strong>实际约 10 秒</strong>（它说的 6~12 秒偏大，实测产物阶段 10.1s）。
+          「骨架屏事件」是低成本的体验改进。</td>
+        <td><span class="badge warn">中</span></td>
+      </tr>
+      <tr>
+        <td>7</td>
+        <td>窄屏布局未优化</td>
+        <td>成立。<code>SplitWorkspace.tsx</code> 里 grep 不到 <code>matchMedia</code>/<code>innerWidth</code>/<code>useMediaQuery</code>，
+          左右双栏写死并排。</td>
+        <td><span class="badge warn">中</span></td>
+      </tr>
+      <tr>
+        <td>8</td>
+        <td>只支持 PDF / 无 Word-PPT 解析</td>
+        <td>成立，但<strong>不是"未实现"，是"从未规划"</strong>——PRD 只要求 PDF。
+          不过对真实用户（老师手上可能是 .docx/.pptx）确实是门槛。</td>
+        <td><span class="badge info">低</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>四、三处细节不准（不影响结论，但会影响你转述）</h2>
+
+  <table>
+    <thead><tr><th style="width:260px">点评写的</th><th>实际</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>1. (Windows).bat</code> / <code>2. (Mac-Linux).sh</code></td>
+        <td><code>1. 启动网页端(Windows).bat</code> / <code>2. 启动网页端(Mac-Linux).sh</code></td>
+      </tr>
+      <tr>
+        <td>「P2 阶段的页码引用范围与 Grader 版本回归测试」</td>
+        <td>那是 <strong>P0-05④</strong> 的修复（<code>_PAGE_CITATION_RE</code> 漏匹配 <code>[p.74-75]</code> 范围写法），
+          不是 P2 阶段的工作</td>
+      </tr>
+      <tr>
+        <td>「未实现你最初规划的 Word (.docx) 与 PPT (.pptx) 解析」</td>
+        <td>PRD 从未规划过 Word/PPT。这是"范围外"，不是"未实现"——
+          但如果你的真实需求包含它们，那就该进需求池</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>五、给那位 AI 的补充说明（可直接复制）</h2>
+
+  <div class="note">
+    <p>以下是给它的回应要点，可直接粘贴：</p>
+  </div>
+
+  <pre><code>感谢审查，8 条成立。三处误判需要更正，都附了代码位置：
+
+1) 「SQLite 全表扫描反序列化 Embedding 导致检索延迟」——该项目已实现你建议的方案。
+   backend/app/db/vector_store.py 第 19 行 import numpy，第 110 行有
+   _matrix_cache: dict[str, tuple[list[str], np.ndarray]]，第 299 行 np.vstack 建矩阵。
+   向量在启动时一次性加载进内存（日志 vector_store_loaded count=1170），检索时不再反序列化。
+   实测 1170×1536 矩阵点乘 + argpartition Top-8 = 0.661 ms/次。
+   唯一没做的是 SQLite FTS5 + RRF，但这是有意取舍：FTS5 中文分词弱，用了反而降质。
+   当前是 Python 侧 BM25 + NumPy 向量双通道加权融合。
+
+2) 「SSE 断连后台仍跑完 JSON 生成，浪费额度」——已处理，见 agent_engine.py:808-821。
+   finally 里有 work_task.cancel() + add_done_callback(_reap_task) +
+   contextlib.suppress(asyncio.CancelledError)。cancel() 会让 httpx 请求随之取消。
+   注意 CancelledError 继承自 BaseException，写成 except Exception 会让取消机制静默失效
+   （这一点记在 docs/IMPL-NOTES.md E12 ⑤）。
+
+3) 「引用无法点击，停留在纯文字标签」——可点击。CitationList.tsx:45 调用
+   listChunks(documentId, {section_code, limit:3})，展开的是该章节的切片原文，界面标注
+   「（点击展开教材原文）」。你的核心建议（看 PDF 页面图而非文本切片）成立，
+   但现状是"可点击但只给文本"，不是"不可点击"。
+
+另有两处细节：批处理文件名是「1. 启动网页端(Windows).bat」；
+「页码引用范围测试」是 P0-05④ 的修复（_PAGE_CITATION_RE 漏匹配 [p.74-75]），不是 P2 阶段。
+
+其余建议（章节碰撞、Quiz 闭环、PDF 预览、2D/3D 语义布局、按 ID 寻址、
+并行骨架屏、窄屏响应式）均成立，已进入需求池。其中「章节碰撞」已验证为真缺陷：
+retriever.retrieve() 只接 workspace_id，search_similar 的 section_prefix 不带 document_id。</code></pre>
+
+  <div class="tip">
+    <p><strong>这份点评最值得肯定的一点：</strong>它从「目录树 + 文档 + increments 实验元数据」就能推断出
+    8 条真问题，其中「章节碰撞」是我这个看过全部代码的人都没注意到的。
+    这说明它读文档的方式很有效——<strong>而它的 3 处误判，恰好都是"看代码 30 秒就能确认"的类型</strong>
+    （import 了什么、finally 里写了什么、onClick 调了什么）。</p>
+  </div>
+
+  <div class="pager">
+    <a href="用户任务清单.html">
+      <div class="dir">← 上一篇</div>
+      <div class="ttl">用户任务清单</div>
+    </a>
+    <a class="next" href="index.html">
+      <div class="dir">返回 →</div>
+      <div class="ttl">文档中心</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

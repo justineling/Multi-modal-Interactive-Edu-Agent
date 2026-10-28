@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>用户任务清单 · 需要你手动确认的事项</title>
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  .ck { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .ck:last-child { border-bottom: none; }
+  .ck input { margin-top: 5px; width: 16px; height: 16px; flex-shrink: 0; accent-color: #4f9cf9; cursor: pointer; }
+  .ck .body { flex: 1; }
+  .ck .t { font-weight: 620; color: #fff; font-size: 15px; }
+  .ck .d { font-size: 13.5px; color: var(--text-dim); margin-top: 4px; line-height: 1.65; }
+  .ck .why { font-size: 12.5px; color: var(--text-faint); margin-top: 6px; }
+  .group { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px; padding: 4px 20px 8px; margin-bottom: 22px; }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 11px; font-weight: 650; margin-right: 6px; vertical-align: 1px; }
+  .t-block { background: rgba(240,96,93,.15); color: #f0605d; }
+  .t-need { background: rgba(240,168,60,.15); color: #f0a83c; }
+  .t-opt  { background: rgba(79,156,249,.15); color: #4f9cf9; }
+  .t-done { background: rgba(63,191,127,.15); color: #3fbf7f; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="index.html">文档中心</a><span class="sep">/</span>
+      <span class="cur">用户任务清单</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1>用户任务清单</h1>
+  <p class="lede">
+    分三类：<strong>只有你能做的测试</strong>（我做不了）、<strong>需要你拍板的产品决策</strong>、<strong>需要你提供的素材</strong>。
+    每条都写了「为什么只有你能做」或「不决策的后果」。
+  </p>
+
+  <div class="note">
+    <p><strong>怎么用：</strong>这是一份 checklist，可以直接在浏览器里勾。优先级从上到下——
+    先做完 A 类（阻塞后续判断），再看 B 类（可以慢慢想）。</p>
+  </div>
+
+  <h2>A · 只有你能做的测试</h2>
+
+  <p style="color:var(--text-dim);font-size:14px;margin-bottom:16px">
+    这些我全部做过自动化验证（headless / 脚本），但**最后一步必须真人操作**——要么涉及系统对话框，要么涉及真实硬件，要么需要真人判断"好不好用"。
+  </p>
+
+  <div class="group">
+
+    <label class="ck">
+      <input type="checkbox">
+      <div class="body">
+        <div class="t"><span class="tag t-block">必做</span>在有头浏览器里点一次「导出 PDF」</div>
+        <div class="d">启动服务 → 生成一份 PPT → 点工具栏「导出 PDF」→ 打印对话框选「另存为 PDF」→
+          <strong>记得取消勾选「页眉和页脚」</strong> → 打开产出的 PDF 看效果。</div>
+        <div class="why">为什么只有你能做：headless Chrome 弹不出系统打印对话框，我只能验证到「按钮 → window.print()」这一步。
+          对话框里点「另存为」这一段没有自动化覆盖。已实测产出 6 页 / 16:9 / 纯矢量，但那是脚本调 CDP 的路径。</div>
+      </div>
+    </label>
+
+    <label class="ck">
+      <input type="checkbox">
+      <div class="body">
+        <div class="t"><span class="tag t-block">必做</span>用一本<strong>真实教材</strong>跑一遍完整流程</div>
+        <div class="d">上传 → 看目录树识别准不准 → 点某一节 → 生成 → 点某页追问 → 导出。<br>
+          重点看三件事：① 目录树层级对不对 ② 引用页码翻书核对得上吗 ③ 生成的 PPT 内容像不像课本。</div>
+        <div class="why">为什么只有你能做：我手上只有 `make_sample_pdf.py` 生成的模拟教材（结构规整、无插图）。
+          真实教材的章节格式千奇百怪，grader 阈值 0.45 也是按这份样本标的——<strong>换教材必须重标</strong>，标定方法见「检索与路由」最后一节。</div>
+      </div>
+    </label>
+
+    <label class="ck">
+      <input type="checkbox">
+      <div class="body">
+        <div class="t"><span class="tag t-need">强烈建议</span>用真实 DeepSeek Key 跑 3~5 轮，看内容质量</div>
+        <div class="d">不只看"能不能生成"，要看"生成得像不像课本"。特别看：页码是不是每页都一样（已知问题，91.4% 的课件所有页共用一条事实的页码）、
+          有没有编造课本里没有的内容、讲解（speaker_notes）是不是套话。</div>
+        <div class="why">为什么只有你能做：判断"内容好不好"需要学科知识。我能验结构合法、页码落在区间内，但判断不了「这个答案考试能不能得分」。</div>
+      </div>
+    </label>
+
+    <label class="ck">
+      <input type="checkbox">
+      <div class="body">
+        <div class="t"><span class="tag t-opt">建议</span>把 PWA 装到桌面，用一整天</div>
+        <div class="d">Chrome/Edge 打开 <code>http://localhost:5173</code> → 地址栏右侧「安装」图标 → 装完是独立窗口。
+          然后像用正常软件一样用它学习一次，记下哪里别扭。</div>
+        <div class="why">为什么只有你能做：装完的体验（窗口行为、任务栏、Alt+Tab、关闭再打开）需要真人长时间用才有感受。
+          自动化只能验证「可安装性 0 错误」。</div>
+      </div>
+    </label>
+
+    <label class="ck">
+      <input type="checkbox">
+      <div class="body">
+        <div class="t"><span class="tag t-opt">建议</span>在真实 GPU 上看 3D 场景 + 2D 动画</div>
+        <div class="d">重点看：3D 场景里物体有没有穿模/堆在原点、标注点能不能点中、拖时间轴卡不卡、2D 元素有没有重叠。</div>
+        <div class="why">为什么只有你能做：我这边是无头环境，验不了 WebGL 实际渲染质量。已知 LLM 是"硬算坐标"的，
+          穿模风险真实存在（见下文 B-5）。</div>
+      </div>
+    </label>
+
+    <label class="ck">
+      <input type="checkbox">
+      <div class="body">
+        <div class="t"><span class="tag t-opt">可选</span>在手机 / iPad 上打开看布局</div>
+        <div class="d">PWA 支持移动端安装。看左右双栏在小屏上是否可用。</div>
+        <div class="why">为什么只有你能做：响应式布局在 <code>SplitWorkspace.tsx</code> 里是左右并排写死的，
+          窄屏可能挤。这是已知的未优化项。</div>
+      </div>
+    </label>
+
+  </div>
+
+  <h2>B · 需要你拍板的产品决策</h2>
+
+  <p style="color:var(--text-dim);font-size:14px;margin-bottom:16px">
+    这些不是 bug，是<strong>产品选择</strong>。工程师不该替你决定，因为每个选项都在「效果」和「成本」之间取舍。
+  </p>
+
+  <div class="group">
+
+    <label class="ck">
+      <input type="checkbox">
+      <div class="body">
+        <div class="t"><span class="tag t-need">影响体验</span>B-1 · 要不要把讲解字数缩短？</div>
+        <div class="d"><strong>选项：</strong>把每页的 <code>speaker_notes</code> 从 2~3 句压到 1~2 句。</div>
+        <div class="why"><strong>收益：</strong>整轮耗时再省 2.9~3.5s（现在 18.13s，能压到约 15s）。<br>
+          <strong>代价：</strong>讲解变短，学生点开「讲解」看到的内容变少。<br>
+          <strong>不决策的后果：</strong>产物长尾（P90 24.54s）压不下去，个别回合仍然偏慢。<br>
+          方案与失效模式见 <code>docs/increments/fork-mode-ab.md</code> 第八节。</div>
+      </div>
+    </label>
+
+    <label class="ck">
+      <input type="checkbox">
+      <div class="body">
+        <div class="t"><span class="tag t-need">核心承诺</span>B-2 · 要不要修「逐页页码对应」？</div>
+        <div class="d"><strong>现状：</strong>实测 5 份课件里 4 份，<strong>所有 slide 共用同一条事实的页码</strong>
+          （<code>max_same_page_ratio</code> 91.4%）。G3 门禁判它"达标"（页码确实落在区间内），但语义上仍是编造。</div>
+        <div class="why"><strong>为什么难修：</strong>提示词加硬规则实测无效（91.4% → 93.3%，已回退）。
+          真修要让 slide 与 fact 建立<strong>结构对应</strong>（比如契约加 <code>fact_index</code> 字段），成本 1~2 天。<br>
+          <strong>不决策的后果：</strong>学生如果发现"每页都是 p.76"，会怀疑整个「严格按教材」的卖点。<br>
+          <strong>我的建议：</strong>先让真实用户用一次，如果他们没注意到，就先不修。</div>
+      </div>
+    </label>
+
+    <label class="ck">
+      <input type="checkbox">
+      <div class="body">
+        <div class="t"><span class="tag t-opt">边界情况</span>B-3 · 模型生成 9+ 页时怎么办？</div>
+        <div class="d"><strong>现状：</strong>契约要求 5~8 页。模型给 9+ 页 → 触发重试 3 次（大概率还是 9+）→ <strong>降级成 6 页模板</strong>。</div>
+        <div class="why"><strong>两个选项：</strong><br>
+          ① 维持现状（富内容小节会无谓降级，用户从"模型真实生成的 9 页"变成"模板拼的 6 页"）<br>
+          ② 改成「裁到 8 页」（保留第 1 页标题 + 中间页 + 最后一页 quiz），但要定义"裁哪几页"<br>
+          <strong>触发条件：</strong>24 个真实回合页数都在 5~7，目前没触发。遇到"整个 Bab 4 的演变过程"这种极丰富小节才会走到。</div>
+      </div>
+    </label>
+
+    <label class="ck">
+      <input type="checkbox">
+      <div class="body">
+        <div class="t"><span class="tag t-block">真问题</span>B-4 · 多本教材的章节号会撞，要不要修？</div>
+        <div class="d"><strong>已验证的真缺陷：</strong>检索只按 <code>workspace_id + section_code</code> 过滤，
+          <strong>不带 <code>document_id</code></strong>。同一个工作区上传 Form 4 和 Form 5 两本历史课本（都有 <code>Bab 4 → 4.1</code>），
+          检索会把两本书的 4.1 混在一起召回。</div>
+        <div class="why"><strong>为什么不一定是问题：</strong>项目文档建议「一本教材一个文件」「按学期/科目分工作区」——
+          设计上假设一个工作区一本书。<strong>但如果你真的会传两本，这就是知识张冠李戴。</strong><br>
+          <strong>修法成本：</strong>1~2 天（前端加文档作用域切换 + 后端检索带 document_id + 引用标注书名）。<br>
+          <strong>我的建议：</strong>如果你确实会传多本，这个优先级高于 B-2。</div>
+      </div>
+    </label>
+
+    <label class="ck">
+      <input type="checkbox">
+      <div class="body">
+        <div class="t"><span class="tag t-opt">质量</span>B-5 · 2D/3D 的坐标要不要改成"语义布局"？</div>
+        <div class="d"><strong>现状：</strong>LLM 直接算 <code>(x, y)</code>（0~1000×0~600 归一化）和 <code>(x, y, z)</code>。
+          小模型算坐标容易重叠、穿模、堆在原点。</div>
+        <div class="why"><strong>选项：</strong>① 保持（让 LLM 硬算）② 改成语义槽位（<code>slot: "left-top"</code>）+ 前端自动布局防碰撞。<br>
+          <strong>成本：</strong>② 约 1~2 天，但会让契约变更（<code>Entity2D</code> 加 <code>slot</code> 字段，要兼容旧数据）。<br>
+          <strong>建议：</strong>先在真实 GPU 上看一次效果（A 类第 5 条），如果穿模不严重就别动。</div>
+      </div>
+    </label>
+
+    <label class="ck">
+      <input type="checkbox">
+      <div class="body">
+        <div class="t"><span class="tag t-need">上线前必须</span>B-6 · 要不要加登录体系？</div>
+        <div class="d"><strong>现状：</strong>单用户设计，<strong>没有任何认证</strong>。公网部署 = 任何人都能用你的 API Key 烧钱。</div>
+        <div class="why"><strong>什么情况下必须做：</strong>要给学校/学生用、要放到公网、要按用户隔离数据。<br>
+          <strong>什么情况下可以先不做：</strong>只在自己电脑上跑、或内网 + nginx basic auth 挡一层。<br>
+          <strong>成本：</strong>1~2 天（邮箱/手机号 + JWT + 数据按 user_id 隔离，工作量主要在隔离改造）。</div>
+      </div>
+    </label>
+
+    <label class="ck">
+      <input type="checkbox">
+      <div class="body">
+        <div class="t"><span class="tag t-opt">方向</span>B-7 · 下一步做什么？</div>
+        <div class="d"><strong>候选：</strong><br>
+          ① 扫描版 OCR（真实教材很多是扫描件，2~3 天）<br>
+          ② 跨文档对比（两本教材同主题对照，3 天）<br>
+          ③ 学习进度 / 错题本（需先定义掌握度模型，3~5 天）<br>
+          ④ 什么都不做，先找人试用</div>
+        <div class="why"><strong>我的建议：</strong>④。功能已经够用（能导出交作业、18 秒出课件、页码真实），
+          继续猜着加功能的收益越来越低。<strong>如果你手上正好有扫描版教材，那 ① 的优先级会跳到最前。</strong></div>
+      </div>
+    </label>
+
+  </div>
+
+  <h2>C · 需要你提供的素材</h2>
+
+  <div class="group">
+
+    <label class="ck">
+      <input type="checkbox">
+      <div class="body">
+        <div class="t">真实教材 PDF（至少 1 本，最好 2~3 本不同学科的）</div>
+        <div class="d">要能确认是<strong>带文本层</strong>的电子版（用阅读器能选中文字）。如果是扫描版，先告诉我——那会直接改变下一步优先级。</div>
+        <div class="why">用途：验证目录树识别、重标 grader 阈值、评估生成质量。</div>
+      </div>
+    </label>
+
+    <label class="ck">
+      <input type="checkbox">
+      <div class="body">
+        <div class="t">1~2 个真实学生（哪怕只是试一次）</div>
+        <div class="d">观察他们：会不会用、哪里卡住、生成的 PPT 他们觉得有用吗、最想要什么功能。</div>
+        <div class="why">用途：决定 B-2 / B-5 / B-7 的优先级。<strong>没有用户反馈，这些决策只能靠猜。</strong></div>
+      </div>
+    </label>
+
+    <label class="ck">
+      <input type="checkbox">
+      <div class="body">
+        <div class="t">部署目标（如果打算上线）</div>
+        <div class="d">要部署到哪：自己的服务器？云？学校内网？大概多少用户？</div>
+        <div class="why">用途：决定要不要切 PostgreSQL（现在是 SQLite，并发写会锁库）、要不要做登录、要不要买域名配 HTTPS（PWA 安装要求 secure context）。</div>
+      </div>
+    </label>
+
+  </div>
+
+  <h2>D · 已知问题清单（供你判断优先级）</h2>
+
+  <p style="color:var(--text-dim);font-size:14px;margin-bottom:16px">
+    这些是<strong>已经确认存在</strong>的问题，不是猜测。按「影响 × 成本」排序，你可以直接从里面挑。
+  </p>
+
+  <table>
+    <thead><tr><th style="width:50px">#</th><th style="width:200px">问题</th><th>现状</th><th style="width:110px">成本</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><strong>多教材章节号碰撞</strong></td>
+        <td>检索不带 <code>document_id</code>，两本书的 <code>4.1</code> 会混。已验证</td>
+        <td>1~2 天</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><strong>逐页页码共用</strong></td>
+        <td>91.4% 的课件所有页写同一个页码，语义上是编造</td>
+        <td>1~2 天</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><strong>9+ 页降级</strong></td>
+        <td>超上界走重试 → 降级 6 页模板，富内容小节有净损失</td>
+        <td>半天</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><strong>扫描版 PDF 不支持</strong></td>
+        <td>明确报错拒绝，OCR 属未实现</td>
+        <td>2~3 天</td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td><strong>2D/3D 坐标靠硬算</strong></td>
+        <td>LLM 直接输出坐标，小模型容易重叠/穿模</td>
+        <td>1~2 天</td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td><strong>引用看不到 PDF 原貌</strong></td>
+        <td>点 <code>[p.94]</code> 展开的是切片文本，不是 PDF 页面图</td>
+        <td>1 天</td>
+      </tr>
+      <tr>
+        <td>7</td>
+        <td><strong>随堂测验是开环</strong></td>
+        <td>答错只显示解析，不会触发"用动画拆解这题"的追问</td>
+        <td>半天</td>
+      </tr>
+      <tr>
+        <td>8</td>
+        <td><strong>无登录体系</strong></td>
+        <td>公网部署前必须加</td>
+        <td>1~2 天</td>
+      </tr>
+      <tr>
+        <td>9</td>
+        <td><strong>PostgreSQL 未实测</strong></td>
+        <td>代码支持、<code>DATABASE_URL</code> 一行切换，但没跑过</td>
+        <td>半天</td>
+      </tr>
+      <tr>
+        <td>10</td>
+        <td><strong>窄屏布局未优化</strong></td>
+        <td>左右双栏写死并排，平板/手机可能挤</td>
+        <td>1 天</td>
+      </tr>
+      <tr>
+        <td>11</td>
+        <td><strong>3D 表现力有限</strong></td>
+        <td>只有 6 种基础几何体，抽象场景难表达</td>
+        <td>2~3 天</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="tip">
+    <p><strong>如果只能做一件事：</strong>先做 A 类第 2 条（真实教材跑一遍）。它会一次性暴露 B-4（章节碰撞）、B-2（页码共用）、
+    以及 grader 阈值是否要重标——比在会议室里讨论十个需求有用。</p>
+  </div>
+
+  <div class="pager">
+    <a href="index.html">
+      <div class="dir">← 返回</div>
+      <div class="ttl">文档中心</div>
+    </a>
+    <a class="next" href="外部评审核对.html">
+      <div class="dir">下一篇 →</div>
+      <div class="ttl">外部评审核对（含 3 处错误）</div>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>
