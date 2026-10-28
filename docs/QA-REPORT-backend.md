@@ -10,7 +10,7 @@
 
 ## 0. 一句话结论
 
-**后端 P0-01 ~ P0-12 的「可自动化验收部分」全部通过（237 passed / 0 failed / 0 skipped）。**
+**后端 P0-01 ~ P0-12 的「可自动化验收部分」全部通过（366 passed / 0 failed / 0 skipped）。**
 本轮共发现 **4 个真实缺陷**（1 个 P0 阻塞、3 个 P1 严重），均已由 bugfix-engineer 修复并有回归用例锁定；
 另有 **1 个我自己的测试缺陷**（曾误报 P0-11③）已修正并撤回该缺陷结论；
 **4 个 P2 一般问题**待 team-lead 决策是否本轮处理。
@@ -24,10 +24,10 @@
 
 | 指标 | 数值 |
 |---|---|
-| 全量用例总数 | **237**（237 passed） |
+| 全量用例总数 | **366**（366 passed，后端测试集含 bugfix-engineer / 前端契约 / 另一批 QA 用例） |
 | 失败 | **0** |
 | 跳过 / 预期失败 | **0** |
-| 本轮新增用例 | **53**（3 个文件 + 1 个共享工具模块） |
+| 本报告负责的用例 | **53**（3 个文件 + 1 个共享工具模块） |
 | 其中上轮已写、本轮修正 | 17（`test_acceptance_p0_artifact.py` 8 + `test_acceptance_p0_retrieval.py` 9） |
 | 本轮新写 | **36**（`test_acceptance_p0_robustness.py` 33 + 留出集 2 + 版本保留窗口 1） |
 | 执行耗时 | 约 38s（含 113 页 PDF 生成与解析） |
@@ -123,7 +123,7 @@
 
 | # | 问题 | 影响 | 建议 |
 |---|---|---|---|
-| **B6** | **「头合法、正文损坏」的 PDF 可能留下无主孤儿文件**。`pymupdf.open` 失败时仍可能持句柄，`unlink` 抛 `WinError 32`；`_remove_quietly` 吞掉异常后文件残留（`documents` 表已回滚，文件成孤儿）。**实测同一份代码有时删得掉、有时删不掉**（取决于 CPython GC 释放句柄的时机），因此不是稳定可复现的缺陷，而是「清理 best-effort 的不确定性」。同一路径还返回 500 `PDF_PARSE_FAILED` | 磁盘缓慢泄漏；5xx 污染监控告警 | ① 上传目录加启动期 GC（扫描无对应 `documents` 行的文件并清理）；② 损坏文件按 4xx 处理（新增 `PDF_CORRUPTED=400` 或复用 `UNSUPPORTED_FILE_TYPE`）。测试侧已改为锁定**可观测性契约**（`test_broken_pdf_cleanup_failure_is_observable`：要么文件没了，要么日志里有 `upload_cleanup_failed`），避免 flaky 断言 |
+| **B6** | **「头合法、正文损坏」的 PDF 会留下无主孤儿文件**（P2）。原实现「先落盘 → 体检 → 失败则 `unlink`」，而 `pymupdf.open` 失败时留下的 OS 句柄**绑在异常 traceback 的帧上**，只要错误分支里的 `AppError` 还活着就释放不了 → `unlink` 必抛 `WinError 32`，文件成孤儿。（我最初判断为「取决于 GC 时机、不稳定」；工程师做了四组对照实验后给出确定机制，我的判断被修正 —— 记录在此以免后人重犯） | 磁盘缓慢泄漏；5xx 污染监控告警 | **已派工程师修复（`871453e`，结构性消除）**：`upload_document` 改为**先对内存字节体检、通过后才落盘**（`inspect_pdf(bytes)` 走 PyMuPDF stream 模式）。「体检失败」与「磁盘上出现文件」在时序上互斥，孤儿文件**不可能产生**，不再依赖「删除一定成功」。我的用例随之从「可观测性契约」收紧为确定性强断言：`test_broken_pdf_never_touches_disk`（`assert not leftovers`）—— 将来谁把 `inspect_pdf` 改回传路径，这条立刻红 |
 | **B7** | **`error` 事件的 `stage` 报 `"generate"`，实际发生在 patch 阶段**。`_patch_artifact_stream` 抛的 `AppError` 一路冒泡到 `chat_stream._event_stream` 的兜底 `except AppError`，stage 被硬编码成 `"generate"` | 前端按 stage 提示「哪一步失败」会指错环节；日志排查也会被误导 | 在 `_patch_artifact_stream` / `_create_artifact_stream` 内部捕获并标注 `stage="patch"` / `"validate"` |
 | **B8** | **NO_MATCH 时 `retrieval.chunks` 仍下发 8 个候选片段（含 `page_start/page_end`）**。当前前端只渲染 `citations`，所以用户看不到页码；但任何未来「显示相关片段」的 UI 都会立刻把页码暴露在「课本未覆盖」旁边 | 潜在泄漏面，非当前缺陷 | 二选一：NO_MATCH 时 `chunks=[]`；或在事件契约里注明「NO_MATCH 时 chunks 仅供调试，前端不得渲染」 |
 | **B9** | **兜底 `turn_end` 的 `duration_ms`/`ttft_ms` 恒为 0**（`_fallback_end`）。异常路径的耗时统计全部失真 | 可观测性失真：无法统计「失败回合」的 TTFT/总耗时 | 兜底时用 `time.perf_counter()` 差值填真实值（turn_id 已有，能对上日志） |

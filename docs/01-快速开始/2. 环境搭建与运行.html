@@ -317,8 +317,9 @@ python ../scripts/e2e_smoke.py</code></pre>
       <tr><td><code>DATABASE_URL</code></td><td><code>sqlite+aiosqlite:///./data/app.db</code></td><td>换成 <code>postgresql+asyncpg://...</code> 即切换 PostgreSQL + pgvector</td></tr>
       <tr><td><code>LLM_BASE_URL</code></td><td><code>https://api.openai.com/v1</code></td><td>任何 OpenAI 兼容端点（DeepSeek、通义、本地 vLLM 都行）</td></tr>
       <tr><td><code>LLM_API_KEY</code></td><td>空</td><td><strong>留空 = 演示模式</strong>，全链路仍可跑通</td></tr>
-      <tr><td><code>LLM_MODEL_ROUTER</code></td><td><code>gpt-4o-mini</code></td><td>轻量任务：路由、相关性评估、普通答疑</td></tr>
-      <tr><td><code>LLM_MODEL_GENERATOR</code></td><td><code>gpt-4o</code></td><td>复杂任务：JSON AST 生成、超纲深度推理</td></tr>
+      <tr><td><code>LLM_MODEL_ROUTER</code></td><td><code>gpt-4o-mini</code></td><td>轻量任务：<strong>正文流式生成</strong>、形态路由、相关性评估</td></tr>
+      <tr><td><code>LLM_MODEL_ARTIFACT</code></td><td><code>deepseek-flash</code></td><td><strong>产物生成档位</strong>（PPT / 2D / 3D 的 JSON AST）。置空则跟随 <code>GENERATOR</code></td></tr>
+      <tr><td><code>LLM_MODEL_GENERATOR</code></td><td><code>gpt-4o</code></td><td>重档：<code>LLM_MODEL_ARTIFACT</code> 的回退目标，也是将来更复杂任务的落点</td></tr>
       <tr><td><code>GRADER_CONTENT_HIT_MIN_RATIO</code></td><td><code>0.45</code></td><td>实词命中率门槛，低于它判「课本未覆盖」。<strong>换教材要重标</strong></td></tr>
       <tr><td><code>RETRIEVAL_TOP_K</code></td><td><code>8</code></td><td>检索返回的候选切片数</td></tr>
       <tr><td><code>MAX_UPLOAD_MB</code></td><td><code>50</code></td><td>上传体积上限</td></tr>
@@ -327,9 +328,55 @@ python ../scripts/e2e_smoke.py</code></pre>
     </tbody>
   </table>
 
+  <h3>产物并行与换档（P1-03）</h3>
+
+  <p>真实模式下产物生成曾是耗时大头——实测 <strong>55.5 秒</strong>占整轮 83.7%，其中 36~54 秒是模型「思考」。
+  改成「换轻量档 + 正文/产物并行」后，整轮 <strong>66.3s → 18.13s</strong>（P50，n=15）。</p>
+
+  <table>
+    <thead><tr><th style="width:250px">变量</th><th style="width:150px">默认值</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>LLM_MODEL_ARTIFACT_BY_TYPE</code></td>
+        <td>空</td>
+        <td>分形态覆盖档位，格式 <code>anim_2d=deepseek-v4-pro,scene_3d=deepseek-v4-pro</code>。<strong>键写错启动即抛 <code>ValueError</code></strong>（不静默忽略）</td>
+      </tr>
+      <tr>
+        <td><code>ARTIFACT_PARALLEL_ENABLED</code></td>
+        <td><code>true</code></td>
+        <td>正文与产物并行生成。关掉即回到串行（产物耗时 +10.8s，但行为更易排查）</td>
+      </tr>
+      <tr>
+        <td><code>ARTIFACT_FORK_MODE</code></td>
+        <td><code>after_first_token</code></td>
+        <td>并行的分叉时机。<code>after_first_token</code> 保证 TTFT 不被产物耗时污染；<code>immediate</code> 更早开始但可能抬高 TTFT</td>
+      </tr>
+      <tr>
+        <td><code>ARTIFACT_MAX_CONCURRENCY</code></td>
+        <td><code>8</code></td>
+        <td>并行信号量上限。多用户并发时防止瞬间打爆上游配额</td>
+      </tr>
+      <tr>
+        <td><code>ARTIFACT_RATE_LIMIT_RETRY</code></td>
+        <td><code>1</code></td>
+        <td>产物阶段遇 429 后的串行重试次数（<strong>不是</strong>「从头重跑正文」）</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="warn">
+    <p><strong>换档的代价：契约一次通过率可能下降，而一次重试就是一次完整调用——两次就吃掉全部收益。</strong>
+    所以必须同时看「重试率」，不能只看耗时。</p>
+    <p style="margin-top:8px">三条回退路径：<br>
+    ① 全局 → <code>LLM_MODEL_ARTIFACT=</code> 置空（跟随 <code>GENERATOR</code>）<br>
+    ② 分形态 → <code>LLM_MODEL_ARTIFACT_BY_TYPE=anim_2d=重档模型</code>（不整份回退，PPT 的收益不该被 2D/3D 拖下水）<br>
+    ③ 关并行 → <code>ARTIFACT_PARALLEL_ENABLED=false</code></p>
+  </div>
+
   <div class="note">
-    <p><strong>为什么模型要分两个？</strong>因为成本差 10 倍以上。路由、评估这类任务用大模型是浪费；
-    但生成 JSON AST 用太小的模型会频繁校验失败。分层路由能把单次学习会话成本压到几美分。</p>
+    <p><strong>为什么模型要分三档？</strong>成本与延迟差一个量级。路由/评估/正文用轻量档（正文是自然语言，
+    学生看不出措辞差异，但首字速度差 20 倍）；产物要输出强结构 JSON，字段错一个整份作废，所以单独一档可调；
+    重档留作回退目标与将来更复杂任务的落点。</p>
   </div>
 
   <h2 id="pitfall">三个必踩的坑</h2>
