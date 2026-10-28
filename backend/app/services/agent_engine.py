@@ -101,6 +101,75 @@ _ARTIFACT_SYSTEM_PROMPT = (
 # 调色板拼成一行写进契约，避免模型编造 #FF0000 这类不在 §9.5 里的颜色被校验拒绝。
 _PALETTE_TEXT = " ".join(PALETTE)
 
+# 产物「数量」契约：`{形态: (顶层列表字段, 下界, 上界)}`。
+#
+# 为什么单独一张表而不是塞进 pydantic 模型：`parse_artifact_spec` 是所有**读取**路径的
+# 共用入口（历史版本回放、版本列表、patch 基线校验、测试夹具），把 `min_length` 改成 5
+# 会让库里已有的 spec 与夹具里的 1 页样例全部校验失败。数量约束只对**生成**路径成立，
+# 所以放在引擎里做「生成后校验」。
+#
+# 为什么提示词里的数字要从这里派生（`_cardinality_span`）：提示词与校验器各写一份数字，
+# 改一处忘另一处就会出现「提示词要求 5~8 页、校验器却放行 1 页」的静默不一致 —— 那正是
+# 本模块要堵的那类缺陷。派生之后只有一个可改的数字源。
+_SPEC_CARDINALITY: dict[str, tuple[str, int, int]] = {
+    "ppt": ("slides", 5, 8),
+    "anim_2d": ("steps", 2, 5),
+    "scene_3d": ("nodes", 3, 8),
+}
+
+
+def _cardinality_span(artifact_type: str) -> str:
+    """`"5~8"` 形式的数量区间，供提示词文本引用（避免数字写两份）。"""
+    _, low, high = _SPEC_CARDINALITY[artifact_type]
+    return f"{low}~{high}"
+
+
+def _validate_spec_cardinality(spec: dict[str, Any], artifact_type: str) -> None:
+    """产物数量后校验：结构合法 ≠ 内容够用。
+
+    背景（IMPL-NOTES E12 ⑦.3）：`SlideDeckSpec.slides` / `Keyframe2DSpec.steps` /
+    `SceneGraph3DSpec.nodes` 的约束都只有 `min_length=1`，所以「只剩 1 页的残页课件」
+    能通过结构校验、正常落库、前端正常渲染 —— 系统不报警、日志无异常，用户看到的是
+    缺页课件，而系统认为它合法。**静默坏结果比报错更糟**，所以这里把它变成显式失败。
+
+    为什么抛 `ValueError` 而不是 `AppError` / 自定义异常：
+    调用点的 `except (ValidationError, AppError, ValueError)` 会捕获它，自动复用现有的
+    「重试 3 次 → 降级 mock」链路，**不需要新写重试逻辑**；同时 `feedback` 会把 message
+    原样回灌给模型，所以 message 必须写成**模型能照着改**的人话（说清「哪个字段、现在几个、
+    要求几个、怎么改」），而不是「invalid spec」。
+
+    只在**生成**路径调用。降级路径（`generate_spec` → mock）不校验：mock 的三种产物
+    数量都是确定的且在区间内（有测试锁着），而在这里拦一次只会把「6 页课件」换成
+    「空白画布」，反而更差。
+
+    **校验对象必须是 spec 自己声明的 `type`，不是请求的形态**：`parse_artifact_spec`
+    按 `spec["type"]` 分派校验器，落库也按 `spec["type"]` 写 `artifact_type` 列。
+    若按 `decision.artifact_type` 去数，一旦模型回的形态与请求不一致（例如请求 ppt、
+    模型回了一份合法的 anim_2d），就会去数根本不存在的 `slides`、把合法产物判成 0 个，
+    白重试 3 次后降级 —— 那是比原缺陷更糟的误伤。
+    """
+    spec_type = spec.get("type")
+    resolved = (
+        spec_type
+        if isinstance(spec_type, str) and spec_type in _SPEC_CARDINALITY
+        else artifact_type
+    )
+    rule = _SPEC_CARDINALITY.get(resolved)
+    if rule is None:
+        # 未知形态：`parse_artifact_spec` 已经先拒掉了，这里不猜规则、不误伤
+        return
+    field_name, low, high = rule
+    raw = spec.get(field_name)
+    # 不是 list 就当 0：结构校验已保证是 list，这里只做防御，不让 TypeError 漏出去
+    count = len(raw) if isinstance(raw, list) else 0
+    if low <= count <= high:
+        return
+    raise ValueError(
+        f"{resolved} 的 {field_name} 只有 {count} 个，契约要求 {low}~{high} 个。"
+        f"请补足到 {low}~{high} 个后重新输出。"
+    )
+
+
 # 每种产物的「字段契约」：字段名 + 类型 + 枚举取值 + 业务约束 + 一个最小合法示例。
 #
 # 为什么手写而不用 `model_json_schema()`：pydantic 的 schema 输出充满 $defs / anyOf /
@@ -129,7 +198,7 @@ _ARTIFACT_CONTRACT: dict[str, str] = {
         "不要写「这一节我们讲……」这类空话\n"
         "- source_ref：字符串，写本节章节号（如 \"4.1.3\"）；"
         "当该条事实标有页码时写成 \"4.1.3, p.71\"，**页码只能取自事实清单**\n"
-        "业务约束：共 5~8 页；第 1 页 layout 必须是 title_hero 且 title 用一句话概括本节主题"
+        "业务约束：共 " + _cardinality_span("ppt") + " 页；第 1 页 layout 必须是 title_hero 且 title 用一句话概括本节主题"
         "（与 topic 一致即可）；最后 1 页 layout 必须是 quiz；"
         "中间各页在 bullet_points / timeline / comparison / cause_effect 里至少用 3 种不同取值；"
         "bullet_points 页给 3~5 条 bullets；"
@@ -138,7 +207,7 @@ _ARTIFACT_CONTRACT: dict[str, str] = {
         "其余页对应字段写 null。\n"
         # 示例**只教结构，不教数字**：曾经这里写死 p.76，模型照抄到所有小节，
         # 于是「页码缺失」变成了「页码静默错误」。页码怎么写只在上面的文字说明里讲。
-        "最小合法示例（1 页，字段齐全，照此结构扩到 5~8 页）：\n"
+        "最小合法示例（1 页，字段齐全，照此结构扩到 " + _cardinality_span("ppt") + " 页）：\n"
         '{"type":"ppt","topic":"马来亚联合邦的成立","slides":[{"node_id":"slide-1",'
         '"layout":"title_hero","title":"马来亚联合邦的成立","subtitle":"4.1",'
         '"bullets":[],"comparison_left":null,"comparison_right":null,'
@@ -164,10 +233,10 @@ _ARTIFACT_CONTRACT: dict[str, str] = {
         "- color：只能取这些值：" + _PALETTE_TEXT + "\n"
         "- details：字符串，该元素的详细说明\n"
         "- source_page：整数或 null，页码只能取自事实清单，没有就写 null\n"
-        "业务约束：2~5 个关键帧；每帧 2~5 个 entity；"
+        "业务约束：" + _cardinality_span("anim_2d") + " 个关键帧；每帧 2~5 个 entity；"
         "画面要体现「随时间推进」—— 同一主体在不同帧的位置或标签应发生变化。\n"
         # 示例只教结构：source_ref 只写章节号、source_page 写 null（见 ppt 契约处的说明）
-        "最小合法示例（1 帧，照此扩到 2~5 帧）：\n"
+        "最小合法示例（1 帧，照此扩到 " + _cardinality_span("anim_2d") + " 帧）：\n"
         '{"type":"anim_2d","title":"联合邦计划的推进过程","steps":[{"step_index":0,'
         '"narration":"1946 年英国公布联合邦计划，各地马来人开始组织反对。",'
         '"source_ref":"4.1.1","entities":[{"id":"entity-0","shape":"zone",'
@@ -191,7 +260,7 @@ _ARTIFACT_CONTRACT: dict[str, str] = {
         "- parent_id：字符串或 null，表示从属于哪个节点的 id（主体写 null）\n"
         "每个机位的字段（4 个键全部必须出现）：\n"
         "- name：字符串；position：[x, y, z]；target：[x, y, z]；explanation：字符串\n"
-        "业务约束：3~8 个 node（1 个主体 + 若干部件，部件用 parent_id 挂到主体上）；"
+        "业务约束：" + _cardinality_span("scene_3d") + " 个 node（1 个主体 + 若干部件，部件用 parent_id 挂到主体上）；"
         "2~4 个机位。\n"
         # 示例只教结构：source_page 写 null（见 ppt 契约处的说明）
         "最小合法示例（1 个节点 + 1 个机位，照此扩展）：\n"
@@ -1290,6 +1359,10 @@ class AgentEngine:
                 )
                 candidate = payload.get("spec", payload)
                 parse_artifact_spec(candidate)
+                # 结构合法 ≠ 内容够用：`min_length=1` 放行「1 页残页课件」，
+                # 数量约束只能在这里补（见 `_validate_spec_cardinality` 的 docstring）。
+                # 抛 ValueError 会被下面的 except 接住，复用「重试 3 次 → 降级 mock」。
+                _validate_spec_cardinality(candidate, decision.artifact_type)
                 # 契约已通过，再做一次**确定性**页码钳制：把落在检索命中页之外的
                 # 页码剥掉。放在校验之后、且不改变字段类型，所以不会触发重试
                 # （见 `_clamp_spec_pages` 的 docstring：编造页码重试三次还是编）。
