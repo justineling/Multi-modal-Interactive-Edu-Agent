@@ -111,6 +111,13 @@ class Settings(BaseSettings):
     ARTIFACT_MAX_CONCURRENCY: int = Field(default=8, ge=0)
     # 产物侧遇 429 时，在正文结束后串行重试的次数（0 = 不重试，直接降级 mock）。
     ARTIFACT_RATE_LIMIT_RETRY: int = Field(default=1, ge=0, le=3)
+    # 后置确定性页码重绑定（`agent_engine._rebind_spec_source_pages`）的开关。
+    # 它会**改写用户可见的 source_ref / source_page**，所以按本节的既定原则留一个
+    # 「改环境变量就回退」的开关，而不是只能回滚代码。
+    # 关掉后回到改动前的行为：页码只由模型给出、再由 `_clamp_spec_pages` 剥离越界值。
+    # 已知用途之一：想**单独**验证钳制层（QA 的钳制攻击用例）时，必须关掉上游这一层，
+    # 否则「越界页码被剥成章节号」会被「越界页码被修正为真实页码」提前改写。
+    CITATION_REBIND_ENABLED: bool = True
 
     # ---------------- 检索 / Grader（§7.2 §7.3）----------------
     GRADER_MATCH_THRESHOLD: float = 0.55

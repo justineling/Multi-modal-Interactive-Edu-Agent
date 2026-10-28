@@ -226,6 +226,12 @@ def _settings(**overrides: Any) -> Settings:
         "ARTIFACT_PARALLEL_ENABLED": True,
         "ARTIFACT_FORK_MODE": "after_first_token",
         "ARTIFACT_RATE_LIMIT_RETRY": 1,
+        # 本文件测的是**钳制层**（P0-05④ 的「越界页码必须被剥掉」）。后置页码重绑定
+        # 是钳制**上游**的另一层，它会把「越界页码」直接修正成「真实页码」——
+        # 那是对的行为，但会让本文件的断言测不到钳制层（被测层被上游改写）。
+        # 所以这里关掉重绑定，把被测层隔离出来；重绑定自己的回归锁在
+        # `tests/test_citation_rebind.py`。
+        "CITATION_REBIND_ENABLED": False,
     }
     base.update(overrides)
     return Settings(**base)

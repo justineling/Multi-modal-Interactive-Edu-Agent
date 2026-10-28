@@ -54,11 +54,13 @@ from app.schemas.patch import PatchOp, PatchRequest
 from app.services.llm_client import LLMClient, RateLimitedError, get_llm_client
 from app.services.mock_generator import MockContext, build_context, generate_patch_ops, generate_spec
 from app.services.patch_engine import apply_patch_request
+from app.services.text_signals import content_words
 from app.services.retriever import (
     NO_MATCH,
     PARTIAL_OR_BEYOND,
     SYLLABUS_MATCH,
     RetrievalResult,
+    RetrievedChunk,
     Retriever,
     get_retriever,
 )
@@ -372,6 +374,331 @@ def _fix_source_page(node: dict[str, Any], allowed: frozenset[int]) -> int:
         # 只规范化、不计数：它不是越界，只是形态需要收敛，否则 SSE/DB 不一致
         node["source_page"] = coerced
     return 0
+
+
+# --------------------------------------------------------------------------- #
+# 后置确定性页码重绑定
+# --------------------------------------------------------------------------- #
+# **为什么需要这一步（实测根因）**：多页产物的 `source_ref` 页码会被**复制**。
+# 自回归解码时，同一份 JSON 里重复出现的 `"4.1.3, p.71"` 会互相强化，实测一份 6 页课件
+# 6 次全部写 `p.71`，而它的内容全部来自 `4.1.3`（真实页码 `p.76-77`）。这是**确定性的
+# 复制**而不是概率性编造，所以加提示词规则治不了（实测 91.4% → 93.3%，已回退）。
+# 能用确定性手段修正的错误，不该继续交给概率手段 —— 本段就是那个确定性手段。
+#
+# **判据是「页码真实性」，不是「页码分散度」**：
+# - 单节聚焦（6 页内容都来自同一节）→ 重绑定后 6 页**仍然全部**是 `p.76-77`。那是**正确**
+#   的，因为内容确实同源。为了「让页码看起来分散」而塞次优页码，是把对的改错。
+# - 跨节概览（各页讲不同子节）→ 各页分别落到各自的切片。
+# 重绑定前 `p.71` 是**假的**（它甚至不在核心命中切片里），重绑定后是**真的**。
+#
+# **算法两阶段**：
+# 1. 内容页（`layout` 不在 `_NON_CONTENT_LAYOUTS`）用实词重叠打分，过置信度门槛的页
+#    绑定命中切片的 `page_start~page_end`；
+# 2. 兜底页（`title_hero` / `quiz` / 未达门槛的内容页）绑定**第一阶段命中切片的页码并集
+#    跨度**。刻意**不**用「全部召回切片的跨度」：检索池里常含上一节的开头页（如 `4.1` 的
+#    `p.71`），那样兜底会退化成 `p.70-77`，比现状更差。仅当所有内容页都未达门槛时，
+#    才退化为召回切片全集跨度。
+#
+# 实词抽取一律走 `text_signals.content_words()`，**不要**在这里另写 n-gram 提取器：
+# 那个函数已处理中文 bigram、虚词过滤、马来文词、双字套话剔除，是踩过坑调出来的。
+_REBIND_MIN_HITS = 3
+_REBIND_MIN_COVERAGE = 0.20
+# 这两类页天生不含课本正文：`title_hero` 是概括标题，`quiz` 是自造题干。它们的实词量少
+# 且与正文弱相关，进第一阶段只会产生噪声匹配，所以直接走兜底。
+_NON_CONTENT_LAYOUTS = frozenset({"title_hero", "quiz"})
+
+
+def _page_ref(section_code: str, page_start: int, page_end: int) -> str:
+    """拼 `source_ref`，沿用既有格式：单页 `4.1.3, p.76`，区间 `4.1.3, p.76-77`。
+
+    `page_start <= 0` 视为「没有可信页码」，只写章节号 —— 与契约里
+    「没有可用页码时 source_ref 只写章节号」一致，绝不返回空串（空串在 UI 上等于
+    「有出处字段却什么都不显示」）。
+    """
+    code = (section_code or "").strip() or _FALLBACK_SOURCE_REF
+    if page_start <= 0:
+        return code
+    if page_end <= page_start:
+        return f"{code}, p.{page_start}"
+    return f"{code}, p.{page_start}-{page_end}"
+
+
+def _as_text_list(value: Any) -> list[str]:
+    """把「字符串 / 字符串数组 / None」统一成 `list[str]`（脏类型一律当空）。"""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, str)]
+    return []
+
+
+def _slide_semantic_text(slide: dict[str, Any]) -> str:
+    """一页幻灯片的**全部语义文本**，用于实词重叠打分。
+
+    刻意**不含** `quiz_questions`：题干是模型自造的，混进来会把 quiz 页拉向
+    「看起来最像的正文」—— 而 quiz 页本来就该走兜底。
+    """
+    parts: list[str] = []
+    parts.extend(_as_text_list(slide.get("title")))
+    parts.extend(_as_text_list(slide.get("subtitle")))
+    parts.extend(_as_text_list(slide.get("bullets")))
+    parts.extend(_as_text_list(slide.get("comparison_left")))
+    parts.extend(_as_text_list(slide.get("comparison_right")))
+    for item in slide.get("timeline_items") or []:
+        if isinstance(item, dict):
+            parts.extend(_node_semantic_text(item, ("year", "label", "detail")))
+    parts.extend(_as_text_list(slide.get("speaker_notes")))
+    return "\n".join(parts)
+
+
+def _node_semantic_text(node: dict[str, Any], keys: Sequence[str]) -> str:
+    """2D entity / 3D node / 时间轴条目的语义文本：把指定键的文字拼起来。"""
+    parts: list[str] = []
+    for key in keys:
+        parts.extend(_as_text_list(node.get(key)))
+    return "\n".join(parts)
+
+
+def _best_chunk(
+    words: frozenset[str], chunk_words: Sequence[frozenset[str]]
+) -> int | None:
+    """返回实词命中最多的切片下标；未达置信度门槛返回 `None`。
+
+    门槛是**双条件**，两个都要：
+    - 绝对命中数 `>= _REBIND_MIN_HITS`：挡住「短文本偶然重合」（`title_hero` 只有十几个
+      实词，两三个 bigram 撞上就算「命中」是噪声）；
+    - 覆盖率 `>= _REBIND_MIN_COVERAGE`：挡住「长文本里只碰到几个词」。
+    实测参考（真实 6 页课件，实词 / 命中 / 覆盖率）：P2 63→53→84%、P3 58→40→69%、
+    P4 58→49→84%、P5 28→21→75%，四个内容页全部过门槛；P1 12→3→25%（走兜底）、
+    P6 10→0→0%（走兜底）。只用一个条件都会误判 —— 若只看绝对命中数，P5 这种短页
+    会被长页压过去；若只看覆盖率，两三个词的小页会凭空「100% 命中」。
+    """
+    if not words:
+        return None
+    best_index: int | None = None
+    best_hit = 0
+    for index, candidate in enumerate(chunk_words):
+        hit = len(words & candidate)
+        # 严格大于：并列时保留**检索排序更靠前**的切片（`chunks` 已按分数降序）
+        if hit > best_hit:
+            best_hit = hit
+            best_index = index
+    if best_index is None:
+        return None
+    if best_hit < _REBIND_MIN_HITS:
+        return None
+    if best_hit / len(words) < _REBIND_MIN_COVERAGE:
+        return None
+    return best_index
+
+
+def _fallback_span(
+    matched: Sequence[tuple[int, int]], chunks: Sequence[RetrievedChunk]
+) -> tuple[int, int]:
+    """兜底页码跨度：第一阶段命中切片的并集 → 退化为召回切片全集跨度。
+
+    「并集」用 `min(page_start) ~ max(page_end)` 表示（见模块上方说明：刻意不用召回池
+    跨度，否则会含进上一节的开头页）。
+    """
+    if matched:
+        return min(start for start, _ in matched), max(end for _, end in matched)
+    if not chunks:
+        return 0, 0
+    return (
+        min(chunk.page_start for chunk in chunks),
+        max(chunk.page_end for chunk in chunks),
+    )
+
+
+def _ref_page_span(ref: Any) -> tuple[int, ...]:
+    """取出 `source_ref` 里的页码（`p.76` → `(76,)`，`p.76-77` → `(76, 77)`）。
+
+    无页码（只有章节号）或形态不是字符串时返回空元组。
+    """
+    if not isinstance(ref, str):
+        return ()
+    pages: list[int] = []
+    for match in _REF_PAGE_RE.finditer(ref):
+        pages.append(int(match.group(1)))
+        if match.group(2):
+            pages.append(int(match.group(2)))
+    return tuple(pages)
+
+
+def _ref_is_truthful(ref: Any, page_start: int, page_end: int) -> bool:
+    """既有 `source_ref` 的页码是否**全部**落在给定区间内。
+
+    落在里面就是**真话**（哪怕只是区间里的某一页，也比笼统的整段更精确），不必改。
+    重绑定的职责是修正**说错**的页码，不是把「精确且正确」重写成「笼统且正确」——
+    后者会让每一页都退化成整段区间，把模型的精度白白丢掉。
+    """
+    pages = _ref_page_span(ref)
+    if not pages:
+        return False
+    return all(page_start <= page <= page_end for page in pages)
+
+
+def _page_is_truthful(value: Any, page_start: int, page_end: int) -> bool:
+    """`source_page` 版本的同一条判断（脏类型先规范化，规范化不出来就算「不真」）。"""
+    page = _coerce_page(value)
+    if page is None:
+        return False
+    return page_start <= page <= page_end
+
+
+def _rebind_spec_source_pages(
+    spec: dict[str, Any],
+    chunks: Sequence[RetrievedChunk],
+    *,
+    section_code: str = "",
+) -> tuple[dict[str, Any], int]:
+    """按检索切片**重算** spec 里每个节点的页码，返回 `(新 spec, 改动处数)`。
+
+    纯函数（`copy.deepcopy` 后再改，不动入参），无随机、无状态、**幂等**：对已经正确的
+    spec 再跑一次结果完全不变 —— 幂等是硬要求，因为同一份 spec 在重试 / 回放路径上
+    可能被处理多次，不幂等就会「二次处理漂移」。
+
+    不改变任何字段类型（`source_ref` 仍是 `str`、`source_page` 仍是 `int | None`），
+    因此不会引入新的校验失败、不会触发 `contract_retry`。必须在
+    `parse_artifact_spec` + `_validate_spec_cardinality` **之后**、
+    `_clamp_spec_pages` **之前**调用：先校验再重绑定，钳制留到最后当兜底，
+    确保重绑定万一引入越界页码也会被剥掉。
+
+    `chunks` 为空时原样返回：没有切片就没有「真实页码」这个概念，绝不凭空造页码。
+
+    覆盖范围：ppt 的 `SlideNode.source_ref` + `TimelineItem.source_page`；
+    anim_2d 的 step `source_ref` + `Entity2D.source_page`；scene_3d 的
+    `Node3D.source_page`。`camera_tour` 是机位描述，没有页码字段，不处理。
+    """
+    if not chunks:
+        return spec, 0
+
+    chunk_words = tuple(
+        frozenset(content_words(chunk.content or chunk.snippet or "")) for chunk in chunks
+    )
+    default_code = (section_code or "").strip() or (chunks[0].section_code or "")
+    result = copy.deepcopy(spec)
+    spec_type = str(result.get("type") or "")
+    changed = 0
+
+    if spec_type == "ppt":
+        slides = [
+            slide for slide in (result.get("slides") or []) if isinstance(slide, dict)
+        ]
+        matches: dict[int, int] = {}
+        matched_pages: list[tuple[int, int]] = []
+        for index, slide in enumerate(slides):
+            if str(slide.get("layout") or "") in _NON_CONTENT_LAYOUTS:
+                continue
+            words = frozenset(content_words(_slide_semantic_text(slide)))
+            chunk_index = _best_chunk(words, chunk_words)
+            if chunk_index is None:
+                continue
+            matches[index] = chunk_index
+            chunk = chunks[chunk_index]
+            matched_pages.append((chunk.page_start, chunk.page_end))
+
+        fallback = _fallback_span(matched_pages, chunks)
+        for index, slide in enumerate(slides):
+            chunk_index = matches.get(index)
+            if chunk_index is None:
+                code, span = default_code, fallback
+            else:
+                chunk = chunks[chunk_index]
+                code = chunk.section_code or default_code
+                span = (chunk.page_start, chunk.page_end)
+            ref = _page_ref(code, span[0], span[1])
+            if not _ref_is_truthful(slide.get("source_ref"), span[0], span[1]):
+                slide["source_ref"] = ref
+                changed += 1
+            # 时间轴条目自带的 `source_page` 同样是模型编的（真实样本里出现 71/72/74
+            # 三个互不相邻的页码）。逐条按自己的文字打分，打不出置信度就用本页跨度起点。
+            for item in slide.get("timeline_items") or []:
+                if not isinstance(item, dict) or "source_page" not in item:
+                    continue
+                item_words = frozenset(
+                    content_words(_node_semantic_text(item, ("year", "label", "detail")))
+                )
+                item_index = _best_chunk(item_words, chunk_words)
+                page = (
+                    chunks[item_index].page_start if item_index is not None else span[0]
+                )
+                if not _page_is_truthful(item.get("source_page"), span[0], span[1]):
+                    item["source_page"] = page
+                    changed += 1
+
+    elif spec_type == "anim_2d":
+        steps = [step for step in (result.get("steps") or []) if isinstance(step, dict)]
+        matches: dict[int, int] = {}
+        matched_pages: list[tuple[int, int]] = []
+        for index, step in enumerate(steps):
+            words = frozenset(content_words(_node_semantic_text(step, ("narration",))))
+            chunk_index = _best_chunk(words, chunk_words)
+            if chunk_index is None:
+                continue
+            matches[index] = chunk_index
+            chunk = chunks[chunk_index]
+            matched_pages.append((chunk.page_start, chunk.page_end))
+
+        fallback = _fallback_span(matched_pages, chunks)
+        for index, step in enumerate(steps):
+            chunk_index = matches.get(index)
+            if chunk_index is None:
+                code, span = default_code, fallback
+            else:
+                chunk = chunks[chunk_index]
+                code = chunk.section_code or default_code
+                span = (chunk.page_start, chunk.page_end)
+            ref = _page_ref(code, span[0], span[1])
+            if not _ref_is_truthful(step.get("source_ref"), span[0], span[1]):
+                step["source_ref"] = ref
+                changed += 1
+            for entity in step.get("entities") or []:
+                if not isinstance(entity, dict) or "source_page" not in entity:
+                    continue
+                entity_words = frozenset(
+                    content_words(_node_semantic_text(entity, ("label", "details")))
+                )
+                entity_index = _best_chunk(entity_words, chunk_words)
+                page = (
+                    chunks[entity_index].page_start
+                    if entity_index is not None
+                    else span[0]
+                )
+                if not _page_is_truthful(entity.get("source_page"), span[0], span[1]):
+                    entity["source_page"] = page
+                    changed += 1
+
+    elif spec_type == "scene_3d":
+        nodes = [node for node in (result.get("nodes") or []) if isinstance(node, dict)]
+        matches: dict[int, int] = {}
+        matched_pages: list[tuple[int, int]] = []
+        for index, node in enumerate(nodes):
+            words = frozenset(
+                content_words(_node_semantic_text(node, ("label", "annotation_markdown")))
+            )
+            chunk_index = _best_chunk(words, chunk_words)
+            if chunk_index is None:
+                continue
+            matches[index] = chunk_index
+            chunk = chunks[chunk_index]
+            matched_pages.append((chunk.page_start, chunk.page_end))
+
+        fallback = _fallback_span(matched_pages, chunks)
+        for index, node in enumerate(nodes):
+            if "source_page" not in node:
+                continue
+            chunk_index = matches.get(index)
+            if chunk_index is None:
+                span = fallback
+            else:
+                chunk = chunks[chunk_index]
+                span = (chunk.page_start, chunk.page_end)
+            if not _page_is_truthful(node.get("source_page"), span[0], span[1]):
+                node["source_page"] = span[0]
+                changed += 1
+
+    return result, changed
 
 
 def _clamp_spec_pages(
@@ -703,7 +1030,12 @@ class AgentEngine:
         def _fork() -> "asyncio.Task[ArtifactWork]":
             return asyncio.create_task(
                 self._artifact_work(
-                    req, decision, context, action, defer_on_rate_limit=True
+                    req,
+                    decision,
+                    context,
+                    action,
+                    defer_on_rate_limit=True,
+                    chunks=result.chunks,
                 )
             )
 
@@ -761,7 +1093,7 @@ class AgentEngine:
                             artifact_event = event[1]
                 else:
                     work = await self._join_artifact_work(
-                        work_task, req, decision, context, action
+                        work_task, req, decision, context, action, chunks=result.chunks
                     )
                     # interim 的释放点固定在「正文结束之后、commit 之前」：与串行版逐条一致
                     # （串行版里这些 error 本来就发生在正文之后），事件内容/相对顺序/相对
@@ -1002,6 +1334,7 @@ class AgentEngine:
         action: str,
         *,
         defer_on_rate_limit: bool,
+        chunks: Sequence[RetrievedChunk] = (),
     ) -> ArtifactWork:
         """分支 B：把产物的**生成**部分一次跑完，返回纯数据。
 
@@ -1010,6 +1343,9 @@ class AgentEngine:
         `defer_on_rate_limit=True` 表示「正文还在流」，遇 429 立刻放弃并交回主路径 ——
         此刻重试只会拖长用户等待；主路径会在正文结束后用 `defer_on_rate_limit=False`
         再调一次，那时系统里只剩这一个请求，成功率最高。
+
+        `chunks` 原样透传给 create 分支的生成器，供后置页码重绑定使用
+        （patch 分支不需要：它不生成 spec，只生成 ops）。
         """
         kind: Literal["create", "patch"] = (
             "create" if action == "create_artifact" else "patch"
@@ -1017,7 +1353,7 @@ class AgentEngine:
         try:
             async with self._artifact_slot():
                 if kind == "create":
-                    return await self._work_create(req, decision, context)
+                    return await self._work_create(req, decision, context, chunks)
                 return await self._work_patch(req, context)
         except RateLimitedError as exc:
             log_event(
@@ -1031,11 +1367,15 @@ class AgentEngine:
             return self._rate_limit_fallback(kind, req, decision, context, exc)
 
     async def _work_create(
-        self, req: TurnRequest, decision: RouteDecision, context: MockContext
+        self,
+        req: TurnRequest,
+        decision: RouteDecision,
+        context: MockContext,
+        chunks: Sequence[RetrievedChunk] = (),
     ) -> ArtifactWork:
         """create 分支的生成段。`_drain_generation` 会把中间事件收集起来，异常照抛。"""
         spec, interim = await _drain_generation(
-            self._generate_spec_stream(req, decision, context)
+            self._generate_spec_stream(req, decision, context, chunks)
         )
         return ArtifactWork(kind="create", spec=spec, interim=interim)
 
@@ -1171,6 +1511,7 @@ class AgentEngine:
         decision: RouteDecision,
         context: MockContext,
         action: str,
+        chunks: Sequence[RetrievedChunk] = (),
     ) -> ArtifactWork:
         """等分支 B 结束，并把 429 转成「正文结束后串行重试」。
 
@@ -1216,7 +1557,12 @@ class AgentEngine:
             if not work.rate_limited:
                 break
             work = await self._artifact_work(
-                req, decision, context, action, defer_on_rate_limit=False
+                req,
+                decision,
+                context,
+                action,
+                defer_on_rate_limit=False,
+                chunks=chunks,
             )
         if work.rate_limited:
             # **这条不是死代码**：`ARTIFACT_RATE_LIMIT_RETRY=0`（关闭重试）时循环一次都不跑，
@@ -1308,7 +1654,12 @@ class AgentEngine:
         会让阶段表整行消失 —— 而且不会报错。
         """
         work = await self._artifact_work(
-            req, decision, context, "create_artifact", defer_on_rate_limit=False
+            req,
+            decision,
+            context,
+            "create_artifact",
+            defer_on_rate_limit=False,
+            chunks=result.chunks,
         )
         for event in work.interim:
             yield event
@@ -1316,9 +1667,19 @@ class AgentEngine:
             yield event
 
     async def _generate_spec_stream(
-        self, req: TurnRequest, decision: RouteDecision, context: MockContext
+        self,
+        req: TurnRequest,
+        decision: RouteDecision,
+        context: MockContext,
+        chunks: Sequence[RetrievedChunk] = (),
     ) -> AsyncIterator[Event]:
-        """产出 ("error"|"spec", payload)。LLM 路径带校验重试，全部失败降级 mock。"""
+        """产出 ("error"|"spec", payload)。LLM 路径带校验重试，全部失败降级 mock。
+
+        `chunks` 是本次检索命中的切片（`result.chunks`），只用于**后置页码重绑定**：
+        `source_ref` 的页码必须能落到某个真实切片上，而模型会因复制惯性把它写错。
+        缺省为空元组 —— 此时不重绑定（没有切片就没有「真实页码」可绑），
+        既保证历史调用点与测试无需改动，也避免「凭空造页码」。
+        """
         # 历史注释曾写「若需压总耗时，方向是分批下发或换更快档位」——
         # 两件都已了结：换档已落地（IMPL-NOTES E12，55.5s→10.1s），
         # 分批下发已被实测否掉（PRD §3），**不要再往那个方向做**。
@@ -1363,6 +1724,22 @@ class AgentEngine:
                 # 数量约束只能在这里补（见 `_validate_spec_cardinality` 的 docstring）。
                 # 抛 ValueError 会被下面的 except 接住，复用「重试 3 次 → 降级 mock」。
                 _validate_spec_cardinality(candidate, decision.artifact_type)
+                # 顺序不可调换：**校验 → 数量 → 重绑定 → 钳制**。
+                # 重绑定放在钳制之前，是因为它要把「假页码」换成「真页码」，而钳制只会
+                # 把越界页码剥成章节号 —— 先钳制就没东西可绑了。钳制留在最后当兜底，
+                # 确保重绑定万一引入越界页码也会被剥掉。
+                # 重绑定是确定性的（实词重叠），不抛异常、不改字段类型，所以不会触发重试。
+                # 开关默认开启；关掉后退回「只钳制不重绑定」的旧行为（见 config 里的说明）。
+                if self._settings.CITATION_REBIND_ENABLED:
+                    candidate, rebound = _rebind_spec_source_pages(
+                        candidate, chunks, section_code=context.section_code
+                    )
+                    if rebound:
+                        log_event(
+                            "citation_rebound",
+                            count=rebound,
+                            artifact_type=decision.artifact_type,
+                        )
                 # 契约已通过，再做一次**确定性**页码钳制：把落在检索命中页之外的
                 # 页码剥掉。放在校验之后、且不改变字段类型，所以不会触发重试
                 # （见 `_clamp_spec_pages` 的 docstring：编造页码重试三次还是编）。
