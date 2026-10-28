@@ -358,15 +358,12 @@ async def test_toc_nodes_are_locatable_and_match_chunk_pages(
 async def test_no_match_turn_never_emits_page_marker_anywhere(
     client: Any, small_pdf_path: Path
 ) -> None:
-    """P0-05④：无命中时，用户可见的每一处（正文 / citations / artifact）都不许出现 `p.N`。
+    """P0-05④：无命中时，**用户可见的每一处**都不许出现页码 —— 正文、citations、retrieval.chunks。
 
-    只检查正文是不够的：`citations` 里带 `page_start/page_end`，只要它非空，
-    前端 `CitationList` 就会把「p.10」画到用户脸上。
-
-    关于 `retrieval.chunks`：`NO_MATCH` 时后端仍会下发低分候选片段（grader 判的是
-    「覆盖度」，候选集是另一回事）。当前前端只渲染 `citations`，因此这些候选不会
-    露出页码 —— 本用例据此只对「用户可见字段」下红线，并把候选片段列为遗留风险，
-    而不是把它当成违规来断言（否则会为了通过测试去改实现，方向反了）。
+    只检查正文是不够的：`citations` 带 `page_start/page_end`、`retrieval.chunks` 也带，
+    前端 `CitationList` 会把它们渲染成「p.1-4」引用 chip，与「课本未覆盖」的正文自相矛盾。
+    因此 `NO_MATCH` 回合这三处必须同时清空（`grader_status`/`section_scope`/`top_score`
+    仍保留，供诊断与判定矩阵使用 —— 只清用户可见的页码载体）。
     """
     seeded = await seed_workspace_with_pdf(client, small_pdf_path)
     events = await sse_events(
@@ -375,16 +372,19 @@ async def test_no_match_turn_never_emits_page_marker_anywhere(
 
     retrieval = first_event(events, "retrieval")
     assert retrieval["grader_status"] == "NO_MATCH"
+    assert retrieval["chunks"] == [], (
+        "NO_MATCH 却下发了候选片段（含 page_start/page_end），"
+        "任何「显示相关片段」的 UI 都会把页码画在「课本未覆盖」旁边（P0-05④）"
+    )
     assert first_event(events, "modality_decision")["action"] == "none"
     assert first_event(events, "citations")["citations"] == [], (
         "NO_MATCH 却下发了引用条目，前端会直接渲染出页码（P0-05④）"
     )
     assert not [name for name, _ in events if name == "artifact"]
 
-    # 用户可见字段：正文 + citations + 所有非 retrieval 事件体
-    visible = [payload for name, payload in events if name != "retrieval"]
+    # 兜底：任何事件体的字符串里都不许出现 `p.N`
     hits: list[tuple[str, str]] = []
-    for payload in visible:
+    for payload in (payload for _name, payload in events):
         hits.extend(scan_page_markers(payload, path="$"))
     assert not hits, f"未覆盖的回合里出现了页码痕迹（P0-05④ 红线）：{hits}"
 
@@ -631,6 +631,18 @@ async def test_error_event_is_followed_by_turn_end(
     error = first_event(events, "error")
     assert error["code"] == "ARTIFACT_NOT_FOUND"
     assert error["retryable"] is False
+    # `stage` 必须指向真正出错的环节（这里是 patch），不能一律兜底成 generate ——
+    # 前端按 stage 提示「哪一步失败」，stage 错就等于提示错。
+    assert error["stage"] == "patch", f"锚点失效发生在 patch 阶段，实际 stage={error['stage']!r}"
+
+    # 兜底 turn_end 的耗时必须是真实值：填 0 会让所有失败回合在监控上表现为「0ms 瞬间完成」，
+    # 失败延迟彻底不可观测。
+    turn_end = first_event(events, "turn_end")
+    assert turn_end["duration_ms"] > 0, "兜底 turn_end 的 duration_ms 不能填 0"
+    assert 0 < turn_end["ttft_ms"] <= turn_end["duration_ms"], (
+        f"ttft_ms({turn_end['ttft_ms']}) 必须是「开始→首 token」的真实耗时且不超过总耗时"
+        f"（duration_ms={turn_end['duration_ms']}）"
+    )
 
 
 async def test_client_disconnect_does_not_leak_background_task() -> None:

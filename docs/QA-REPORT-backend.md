@@ -11,9 +11,9 @@
 ## 0. 一句话结论
 
 **后端 P0-01 ~ P0-12 的「可自动化验收部分」全部通过（366 passed / 0 failed / 0 skipped）。**
-本轮共发现 **4 个真实缺陷**（1 个 P0 阻塞、3 个 P1 严重），均已由 bugfix-engineer 修复并有回归用例锁定；
-另有 **1 个我自己的测试缺陷**（曾误报 P0-11③）已修正并撤回该缺陷结论；
-**4 个 P2 一般问题**待 team-lead 决策是否本轮处理。
+本轮共发现 **5 个真实缺陷**（1 个 P0 阻塞、3 个 P1 严重、1 个 P2 一般），均已由 bugfix-engineer 修复并有回归用例锁定；
+另有 **3 个 P2 一般问题**（B7~B9）也已修复并补上断言；
+**1 个我自己的测试缺陷**（曾误报 P0-11③）已修正并撤回该缺陷结论。
 
 > 注意：本报告**不含**前端交互与性能类验收（P0-07③ / P0-08①④ / P0-09①③④ / P0-10③），
 > 那部分属前端工程师的职责，见 `docs/QA-REPORT-frontend.md`（如有）。
@@ -71,7 +71,7 @@
 | **P0-06②** | 用户显式说「用 3D」100% 遵循 | **通过** | `test_explicit_artifact_type_override_is_respected[3]`（`scene_3d`/`anim_2d`/`ppt` 三种 override 端到端走完 SSE，`modality_decision.user_override=true` 且产物类型一致）<br>`test_explicit_override_detected`、`test_explicit_request_param_wins_over_keywords` |
 | **P0-06③** | UI 展示「为什么选这个形态」一句话理由 | **通过** | `test_reason_is_human_readable`；端到端断言 `modality_decision.reason` 非空且含中文说明 |
 | **P0-07①** | 6 种布局各至少渲染一次 | **部分通过** | 后端：`test_ppt_covers_all_six_layouts`、`test_ppt_spec_is_valid_and_markup_free`（6 种布局全覆盖）<br>※ 实际渲染属前端 |
-| **P0-07②** | 单次生成 ≥5 页 + 过 Pydantic 校验 + 不含 HTML/JS | **通过** | `test_ppt_spec_is_valid_and_markup_free`（≥5 页、6 布局、`parse_artifact_spec` 通过、递归扫描 15 种注入标记零命中）<br>`test_all_artifact_types_are_markup_free[3]`（2D/3D 也扫，不只 PPT） |
+| **P0-07②** | 单次生成 ≥5 页 + 过 Pydantic 校验 + 不含 HTML/JS | **通过** | `test_ppt_spec_is_valid_and_markup_free`（≥5 页、6 布局、`parse_artifact_spec` 通过、递归扫描 15 种注入标记零命中）<br>`test_all_artifact_types_are_markup_free[3]`（2D/3D 也扫，不只 PPT）<br>※ 生成路径另有数量后校验（ppt 5~8 页 / anim_2d 2~5 帧 / scene_3d 3~8 节点，`IMPL-NOTES E12 ⑦.3`），越界走「重试 3 次 → 降级 mock」，见工程师的 `test_spec_cardinality.py` |
 | **P0-07③** | 渲染器对缺字段/超长文本优雅降级 | **未覆盖** | 前端职责（后端契约层已用 `extra=forbid` + 长度约束挡住非法输入） |
 | **P0-08①** | 动画播放/暂停/拖拽/逐帧 | **未覆盖** | 前端职责 |
 | **P0-08②** | ≥3 类语义（疆域/航线/受力） | **部分通过** | 后端：`test_anim2d_has_steps_and_entities`（≥2 关键帧、每帧 ≥2 元素、坐标/调色板合法）；语义分类由 mock 生成器按 query 关键词决定 |
@@ -119,14 +119,14 @@
 |---|---|---|
 | **B5** | 上轮报的「P0-11③ 历史版本被后续 patch 改写」是**假阳性**。真因：我的断言把「SSE 下发的 spec（`canonical_json`，键序排序）」与「`GET ?version=1` 返回的 spec（库内插入序）」做了**保序**字节比对，内容相同、键序不同 → 误判。用 `git worktree` 检出修复前代码实测：`sort_keys` 归一后 `v1 == SSE` 为 `True`，v1 的 `speaker_notes` 仍是原文 | **已修正测试**：字节级断言两端统一从 `GET` 取（同一出口），另加一条 `sort_keys` 比对专门验证「SSE 与 GET 只存在键序差异、无内容差异」。修正后在**修复前代码上 8/8 全绿**，证明源码从未有此缺陷。已同步给 bugfix-engineer 撤回该缺陷<br>**裁定结果**（交付总监，见 `IMPL-NOTES §E8`）：`canonical_tree` 统一出口序列化保留，定位为**协议加固**而非缺陷修复；`repository` 三处 `deepcopy` 保留，定位为**防御性加固**（工程师用对象身份断言 `version_row.spec_json is not artifact.spec_json` 锁死）。两者都不计入缺陷清单 |
 
-### P2 一般（未修，待 team-lead 决策）
+### P2 一般（本轮已全部修复）
 
-| # | 问题 | 影响 | 建议 |
+| # | 问题 | 影响 | 状态与证据 |
 |---|---|---|---|
-| **B6** | **「头合法、正文损坏」的 PDF 会留下无主孤儿文件**（P2）。原实现「先落盘 → 体检 → 失败则 `unlink`」，而 `pymupdf.open` 失败时留下的 OS 句柄**绑在异常 traceback 的帧上**，只要错误分支里的 `AppError` 还活着就释放不了 → `unlink` 必抛 `WinError 32`，文件成孤儿。（我最初判断为「取决于 GC 时机、不稳定」；工程师做了四组对照实验后给出确定机制，我的判断被修正 —— 记录在此以免后人重犯） | 磁盘缓慢泄漏；5xx 污染监控告警 | **已派工程师修复（`871453e`，结构性消除）**：`upload_document` 改为**先对内存字节体检、通过后才落盘**（`inspect_pdf(bytes)` 走 PyMuPDF stream 模式）。「体检失败」与「磁盘上出现文件」在时序上互斥，孤儿文件**不可能产生**，不再依赖「删除一定成功」。我的用例随之从「可观测性契约」收紧为确定性强断言：`test_broken_pdf_never_touches_disk`（`assert not leftovers`）—— 将来谁把 `inspect_pdf` 改回传路径，这条立刻红 |
-| **B7** | **`error` 事件的 `stage` 报 `"generate"`，实际发生在 patch 阶段**。`_patch_artifact_stream` 抛的 `AppError` 一路冒泡到 `chat_stream._event_stream` 的兜底 `except AppError`，stage 被硬编码成 `"generate"` | 前端按 stage 提示「哪一步失败」会指错环节；日志排查也会被误导 | 在 `_patch_artifact_stream` / `_create_artifact_stream` 内部捕获并标注 `stage="patch"` / `"validate"` |
-| **B8** | **NO_MATCH 时 `retrieval.chunks` 仍下发 8 个候选片段（含 `page_start/page_end`）**。当前前端只渲染 `citations`，所以用户看不到页码；但任何未来「显示相关片段」的 UI 都会立刻把页码暴露在「课本未覆盖」旁边 | 潜在泄漏面，非当前缺陷 | 二选一：NO_MATCH 时 `chunks=[]`；或在事件契约里注明「NO_MATCH 时 chunks 仅供调试，前端不得渲染」 |
-| **B9** | **兜底 `turn_end` 的 `duration_ms`/`ttft_ms` 恒为 0**（`_fallback_end`）。异常路径的耗时统计全部失真 | 可观测性失真：无法统计「失败回合」的 TTFT/总耗时 | 兜底时用 `time.perf_counter()` 差值填真实值（turn_id 已有，能对上日志） |
+| **B6** | **「头合法、正文损坏」的 PDF 会留下无主孤儿文件**。原实现「先落盘 → 体检 → 失败则 `unlink`」，而 `pymupdf.open` 失败时留下的 OS 句柄**绑在异常 traceback 的帧上**，只要错误分支里的 `AppError` 还活着就释放不了 → `unlink` 必抛 `WinError 32`，文件成孤儿。（我最初判断为「取决于 GC 时机、不稳定」；工程师做了四组对照实验后给出确定机制，我的判断被修正 —— 记录在此以免后人重犯） | 磁盘缓慢泄漏 | **已修（`871453e`，结构性消除）**：`upload_document` 改为**先对内存字节体检、通过后才落盘**（`inspect_pdf(bytes)` 走 PyMuPDF stream 模式），「体检失败」与「磁盘上出现文件」时序互斥，孤儿文件**不可能产生**。用例：`test_broken_pdf_never_touches_disk`（确定性强断言 `assert not leftovers`）—— 谁把 `inspect_pdf` 改回传路径，这条立刻红 |
+| **B7** | **`error` 事件的 `stage` 一律兜底成 `"generate"`**，patch 阶段的错误也被标成 generate | 前端按 stage 提示「哪一步失败」会指错环节 | **已修**：锚点指向已删除产物时现在报 `stage="patch"`。用例：`test_error_event_is_followed_by_turn_end` 断言 `error["stage"] == "patch"` |
+| **B8** | **`NO_MATCH` 时 `retrieval.chunks` 仍下发 8 个候选片段（含 `page_start/page_end`）** | 任何「显示相关片段」的 UI 都会把页码暴露在「课本未覆盖」旁边 | **已修**：`NO_MATCH` 时只清 `chunks`，保留 `grader_status`/`section_scope`/`top_score` 供诊断。用例：`test_no_match_turn_never_emits_page_marker_anywhere` 断言 `retrieval["chunks"] == []` |
+| **B9** | **兜底 `turn_end` 的 `duration_ms`/`ttft_ms` 恒为 0** | 失败回合的耗时统计全部失真，无法回答「超时集中在哪个阶段」 | **已修**：`_fallback_end` 改为填真实耗时（实测 error 回合 `duration_ms=68ms / ttft_ms=65ms`）。用例：`test_error_event_is_followed_by_turn_end` 断言 `duration_ms > 0` 且 `0 < ttft_ms <= duration_ms` |
 
 ---
 
@@ -136,14 +136,10 @@
 
 理由：
 
-1. 全量 **237 passed / 0 failed**，没有任何红用例指向源码缺陷。
-2. 本轮发现的 4 个真实缺陷（B1~B4）已全部由 bugfix-engineer 修复，且都有回归用例锁定
-   （我的 3 条 + 工程师的 `test_regression_grader_and_versions.py` 5 条）。
+1. 全量 **366 passed / 0 failed**，没有任何红用例指向源码缺陷。
+2. 本轮发现的 8 个问题（B1~B4、B6~B9）已全部由 bugfix-engineer 修复，且都有回归用例锁定。
 3. B5 是我自己的测试缺陷，已自行修正，不计入源码缺陷。
-4. B6~B9 是 P2 一般问题：**不阻塞 P0 验收**，其中 B6 的不确定性已在测试里以
-   「可观测性契约」而非 flaky 断言表达。
-   建议 team-lead 决定是否本轮处理；若处理，路由到 **Engineer**（bugfix-engineer），
-   我这边有现成用例可直接验证。
+4. 没有需要路由给 Engineer 的未决项；也没有需要我自己继续修的红用例。
 
 ### 回归复跑方式（工程师改完后）
 
@@ -161,7 +157,7 @@ cd backend && ./.venv/Scripts/python.exe -m pytest tests -q
 | **R2** | **PostgreSQL + pgvector 模式未验证** | 全部用例跑在 SQLite。`PgVectorStore` 与 `vector(1536)` 镜像列没有自动化覆盖；`UniqueConstraint`/`CASCADE` 行为在 PG 下语义一致但未实测。缓解：`test_vector_store.py` 有 DSN 解析与实现选择的单测。 |
 | **R3** | **P0-06① 只有单元级证据** | 端到端逐条验证会把「路由准确率」与「检索覆盖度」混在一起：问句「桥梁受力各方向的力如何分布」在历史教材里必然 NO_MATCH，`modality_decision.artifact_type` 会被置为 `none`，于是路由判对也算错。故 P0-06① 在路由 seam 上验（10/10），端到端只验 P0-06②（显式 override，3/3）。若验收方要求端到端口径，需要先约定「NO_MATCH 回合不计入路由准确率」。 |
 | **R4** | **grader 阈值是在固定样本上标的** | 新阈值（实词命中率 ≥0.45、窗口 3）依据是「18 条无关最高 0.40 / 16 条相关最低 0.50」。我已加 12 条留出集 + 4 条反向用例防过拟合，但样本仍是同一本教材。换教材（英文/马来文为主、或非历史学科）时需重新标定。 |
-| **R5** | **取消/断连的时序仍有窗口** | 取消测试用「慢速假解析器」把窗口放大到 5s 才稳定；真实 113 页解析仅 0.38s，用户点取消时大概率已经 ready（此时接口幂等返回 ready，属正确行为）。断连测试直接驱动 `_event_stream` 生成器（`ASGITransport` 无法模拟读一半断开）。**未被覆盖**：真实 uvicorn 下的 TCP 断连、SSE 保活 `: ping` 的实际下发（15s 间隔，测试不会等那么久）。 |
+| **R5** | **取消/断连的时序仍有窗口** | 取消测试用「慢速假解析器」把窗口放大到 5s 才稳定；真实 113 页解析约 0.4~0.5s，用户点取消时大概率已经 ready（此时接口幂等返回 ready，属正确行为）。断连测试直接驱动 `_event_stream` 生成器（`ASGITransport` 无法模拟读一半断开）。**未被覆盖**：真实 uvicorn 下的 TCP 断连、SSE 保活 `: ping` 的实际下发（15s 间隔，测试不会等那么久）。 |
 | **R6** | **并发只验了「同 base_version 双请求」** | 未验：并发上传同一 PDF 到同一 workspace、并发删除 workspace 与正在跑的解析任务、并发 patch 不同 artifact。`tasks.start` 有「重复解析先取消旧任务」的逻辑但无并发用例。 |
 | **R7** | **版本保留窗口只在默认值 20 上验过一次** | `test_old_versions_beyond_keep_window_stay_readable_but_not_patchable` 已覆盖「推到 v22 后 v1 仍可读、`patchable=false`」。未覆盖：把 `ARTIFACT_VERSION_KEEP` 改成 1 或极大值时的边界行为（属调参场景，风险低）。 |
 | **R8** | **超长/异常文本的渲染降级未验** | P0-07③ 的「超长文本截断 + 提示」在后端只做了 `_clip`（正文 96 字、拓展 320 字），spec 层没有字段长度上限校验，超长内容能否落库/渲染依赖前端。 |
@@ -177,9 +173,9 @@ cd backend && ./.venv/Scripts/python.exe -m pytest tests -q
    patch 引擎，等于自己验自己。
 2. **走用户实际走的路**：数据全部经 HTTP 接口上传真实 PDF（`scripts/make_sample_pdf.py` 生成），
    不走任何内部捷径。少数例外（`compose_reply`、`_event_stream`）在文件头注明了理由。
-3. **失败的测试是资产**：本轮 4 个缺陷都是「测试先红、源码后修」，修复后同一批用例转绿即完成回归。
-   没有保留任何 `xfail` —— 不稳定行为（B6 的清理成败）改成断言「可观测性契约」，
-   而不是留一个时红时绿的用例。
+3. **失败的测试是资产**：本轮 8 个缺陷都是「测试先红、源码后修」，修复后同一批用例转绿即完成回归。
+   没有保留任何 `xfail` —— 曾短暂用 xfail 标注的 B6（孤儿文件）在工程师做完结构性修复后
+   已收紧为确定性断言。
 
 ### 几条「防作弊」设计（值得后续沿用）
 
