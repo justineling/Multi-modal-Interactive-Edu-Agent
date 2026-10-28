@@ -127,8 +127,16 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
 async def get_session() -> AsyncIterator[AsyncSession]:
     """FastAPI 依赖注入用的会话生成器。
 
-    请求级事务语义：正常返回即 commit，异常即 rollback。这样 API 层不需要写
-    try/commit/except/rollback 三件套，也不会漏 commit 导致「返回 200 但没存进去」。
+    请求级事务兜底：正常路径下 API 层已显式 commit，这里的 commit 是幂等的空操作。
+
+    **不要依赖它**——FastAPI ≥ 0.106 的 yield 依赖收尾在响应发出之后执行
+    （`fastapi/routing.py::request_response` 里 `await response(scope, receive, send)`
+    先跑，退出 `request_stack` 时才跑本函数 `yield` 之后的代码）。依赖它提交会导致
+    「返回 200 但客户端紧接着读不到」：客户端已经拿到新 id，下一个请求用新会话查却是
+    404 / 旧版本号。写接口必须自己 `await session.commit()`。
+
+    保留它作为兜底是为了两件事：① 只读请求里没有需要提交的东西，这里的 commit 是空操作；
+    ② 万一某个写接口漏了 commit，数据至少还在请求结束前落库（只是时序不对）。
     """
     factory = get_session_factory()
     async with factory() as session:

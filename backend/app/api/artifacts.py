@@ -137,7 +137,11 @@ async def patch_artifact(
             spec_json=outcome.spec,
             patch_ops=[op.model_dump(mode="json") for op in payload.ops],
         )
-        await session.flush()
+        # **一次 commit 收口两处写入**：`artifacts` 快照前移 + `artifact_versions` 追加。
+        # 不能拆成两次提交 —— 中途失败会留下「version=4 但 versions 表里没有第 4 版」的破洞
+        # （P0-11①）。也不能退化成 flush：FastAPI ≥ 0.106 的依赖收尾在响应之后才跑，
+        # 前端 patch 完立刻 GET 会读回旧版本号（表现为「改了没反应，刷新才对」）。
+        await session.commit()
     except IntegrityError as exc:
         # 「读版本 → 比版本 → 写版本」三步之间没有原子性：两个标签页同时基于 v1 提交时，
         # 两个请求都能通过 base_version 比较，第二个写版本行会撞 (artifact_id, version)
@@ -175,6 +179,10 @@ async def delete_artifact(
 ) -> ApiResponse[DeletedOut]:
     """删除整个产物（历史版本随之级联删除）。这是唯一允许历史版本消失的路径。"""
     await repository.delete_artifact(session, artifact_id)
+    # 显式提交。这里原来完全没有 flush/commit，删除动作挂在 `get_session` 的收尾 commit 上，
+    # 于是「删除成功」的响应先发出、级联删除后落库：客户端拿到 200 后立刻 GET 仍读到该产物，
+    # 刷新页面它又「活」了一次。与 patch 是同一类缺陷的删除方向。
+    await session.commit()
     return ApiResponse[DeletedOut].ok(DeletedOut(deleted=True), request_id=_request_id(request))
 
 

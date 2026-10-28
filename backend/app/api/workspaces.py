@@ -90,7 +90,10 @@ async def create_workspace(
     session: AsyncSession = Depends(get_session),
 ) -> ApiResponse[WorkspaceOut]:
     workspace = await repository.create_workspace(session, payload.title)
-    await session.flush()
+    # 显式提交，**不依赖** `get_session` 的收尾 commit：FastAPI ≥ 0.106 把 yield 依赖的
+    # 收尾放在响应发出之后，靠它提交就会出现「客户端拿到 200，紧接着的 GET 却 404」。
+    # 这里必须提交，因为前端建区后立刻加载文档列表是程序化操作，间隔可以小于 50ms。
+    await session.commit()
     return ApiResponse[WorkspaceOut].ok(workspace_out(workspace), request_id=_request_id(request))
 
 
@@ -123,7 +126,8 @@ async def rename_workspace(
     session: AsyncSession = Depends(get_session),
 ) -> ApiResponse[WorkspaceOut]:
     workspace = await repository.rename_workspace(session, workspace_id, payload.title)
-    await session.flush()
+    # 同上：写接口在 return 前显式提交（`expire_on_commit=False`，提交后仍可读属性）
+    await session.commit()
     return ApiResponse[WorkspaceOut].ok(workspace_out(workspace), request_id=_request_id(request))
 
 
@@ -149,7 +153,9 @@ async def delete_workspace(
         await store.delete_by_document(document.id)
 
     await session.delete(workspace)
-    await session.flush()
+    # 显式提交：切片/产物/消息的 CASCADE 也要跟着这次 commit 一起生效，
+    # 否则「删除成功」的响应发出后新会话仍能读到整个工作区。
+    await session.commit()
     return ApiResponse[DeletedOut].ok(DeletedOut(deleted=True), request_id=_request_id(request))
 
 
@@ -197,6 +203,10 @@ async def upload_document(
     document = await repository.create_document(
         session, workspace_id=workspace_id, filename=filename, page_count=0
     )
+    # 这里**保持 flush，不改成 commit**：上传是「建行 → 体检 → 落盘 → 回填页数」的多步写入，
+    # 必须要么全成要么全败。在此处提交会让体检失败的请求留下一条 pending 孤儿文档
+    # （下面 `except AppError` 分支只能回滚状态字段，回滚不掉已经提交的行）。
+    # 整个上传单元由函数末尾那一次 commit 统一收口。
     await session.flush()
 
     # 体检用**内存字节**，在落盘之前完成（`inspect_pdf(bytes)` 走 PyMuPDF 的 stream 模式）。
@@ -209,6 +219,8 @@ async def upload_document(
         document.status = "failed"
         document.error_code = exc.code.value
         document.error_message = exc.message
+        # 同样保持 flush：紧跟着的 `raise` 会让 `get_session` 回滚整个请求事务，
+        # 半成品文档不该入库（改成 commit 会把「被拒绝的上传」变成一条 failed 记录）。
         await session.flush()
         raise
 
@@ -225,9 +237,11 @@ async def upload_document(
 
     document.stored_path = str(target)
     document.page_count = page_count
-    await session.flush()
 
-    # 事务先提交，后台任务才能在自己的会话里看到这条 document
+    # 上传的**唯一事务边界**：建行 / 体检结果 / 落盘路径 / 页数 一次提交。
+    # 必须在这里提交，两个原因：
+    # ① 客户端拿到 200 后立刻轮询 `/status`，未提交会被读成 404；
+    # ② 后台解析任务用自己的会话读这条 document，不提交它根本看不见。
     await session.commit()
 
     get_task_manager().start(
@@ -316,7 +330,10 @@ async def cancel_document(
         error_code=ErrorCode.PARSE_TASK_CANCELLED.value,
         error_message=ErrorCode.PARSE_TASK_CANCELLED.default_message,
     )
-    await session.flush()
+    # 显式提交：`cancelled` 必须赶在响应之前落库，否则前端拿到 200 后立刻刷状态会读回旧值。
+    # `update_document_status` 走的是同一个 session 的 identity map，提交后 `document`
+    # 上的新值仍然可读（`expire_on_commit=False`）。
+    await session.commit()
     return ApiResponse[DocumentOut].ok(document_out(document), request_id=_request_id(request))
 
 
@@ -334,7 +351,9 @@ async def delete_document(
 
     stored_path = Path(document.stored_path) if document.stored_path else None
     await session.delete(document)
-    await session.flush()
+    # 显式提交放在删磁盘文件**之前**：先让「文档已不存在」对外可见，再清理文件。
+    # 反过来做的话，文件删掉了但事务回滚，库里会留下一条指向不存在文件的记录。
+    await session.commit()
 
     if stored_path is not None:
         stored_path.unlink(missing_ok=True)
