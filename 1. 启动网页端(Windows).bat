@@ -9,9 +9,11 @@ rem  makes it parse identically on every Windows regardless of locale.
 rem
 rem  All logic and all Chinese messages live in scripts\start-web.ps1,
 rem  which is saved as UTF-8 with BOM so PowerShell reads it correctly too.
+rem
+rem  %* forwards all arguments (-TargetUrl, -NoPause, -NoBrowser, -DryRun).
 rem ============================================================================
 setlocal
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start-web.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start-web.ps1" %*
 if errorlevel 1 (
     echo.
     echo Launcher exited with an error. See messages above.

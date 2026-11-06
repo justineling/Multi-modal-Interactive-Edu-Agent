@@ -26,7 +26,7 @@
   <div class="tip">
     <p><strong>只想看效果？别往下读。</strong>直接双击根目录的 <code>1. 启动网页端(Windows).bat</code>
     （Mac/Linux 用 <code>2. 启动网页端(Mac-Linux).sh</code>）。脚本会自动装依赖、建配置、生成样本教材、
-    开两个窗口启动前后端，然后打开浏览器。</p>
+    <strong>只保留这一个窗口</strong>（前后端隐藏后台运行），等两个端口真正就绪后自动打开浏览器。</p>
   </div>
 
   <div class="toc">
@@ -74,12 +74,18 @@
     <li><span class="st-title">准备前端依赖与样本教材</span>
       <p><code>node_modules</code> 不存在则 <code>npm install</code>（首次约 1-3 分钟）；样本 PDF 不存在则现场生成。</p></li>
     <li><span class="st-title">启动服务并打开浏览器</span>
-      <p>后端和前端各开<strong>一个独立窗口</strong>，标题分别标注端口。等就绪后自动打开 <code>http://localhost:5173</code>。</p></li>
+      <p>后端与前端以<strong>隐藏进程</strong>启动，不再各自弹一个窗口。脚本用 TCP 端口探测等两个服务真正就绪
+      （最多 90 秒），然后自动打开 <code>http://localhost:5173</code>。</p></li>
   </ol>
 
   <div class="note">
-    <p><strong>停止服务：关闭那两个命令行窗口。</strong>窗口标题是「智能助教 · 后端 :8000」和「智能助教 · 前端 :5173」，
-    关哪个停哪个，日志也各看各的——比把两路日志混在一个窗口里好排查得多。</p>
+    <p><strong>停止服务：在启动窗口里按回车。</strong>脚本会杀掉整棵进程树并清理 PID 文件。
+    前后端的输出分别写在 <code>backend/data/launcher/</code> 下的
+    <code>backend.out.log</code> / <code>backend.err.log</code> / <code>frontend.out.log</code> / <code>frontend.err.log</code>，
+    排错时按服务分开看，比两路日志混在一个窗口里更清楚。</p>
+    <p style="margin-top:8px"><strong>如果直接点 X 关掉窗口</strong>，再运行一次
+    <code>3. 停止网页端(Windows).bat</code> 兜底清理后台服务。
+    想让浏览器打开别的地址，可以给启动脚本传 <code>-TargetUrl &lt;链接&gt;</code>。</p>
   </div>
 
   <div class="warn">

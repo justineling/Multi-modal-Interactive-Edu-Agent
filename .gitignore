@@ -39,9 +39,12 @@ data/uploads/
 data/artifacts/
 # 样本教材由 scripts/make_sample_pdf.py 现场生成，不入库（§10 第 5 条）
 backend/data/*.pdf
-# scripts/profile_latency.py 的剖析专用目录（样本 PDF / 独立 SQLite / 探针原始输出），
+# 剖析专用目录（样本 PDF / 独立 SQLite / 探针原始输出），
 # 与正式 data/ 隔离，跑完可整个删掉，不入库
 backend/data/profile/
+# 一键启动器的运行时目录：4 个服务日志 + pids.json。
+# 日志由 `*.log` 覆盖，但 pids.json 不会 —— 不忽略会让每次启动都出现在 git status 里。
+backend/data/launcher/
 uploads/
 logs/
 *.log
