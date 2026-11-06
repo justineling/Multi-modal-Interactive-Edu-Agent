@@ -10,7 +10,7 @@
 >
 > 你该做的是：帮用户组织测试、记录结果、根据结果判断下一步。
 >
-> 更新：2026-10-28 15:30 · HEAD `ae3ae1a` · 后端 **404 passed**
+> 更新：2026-10-28 18:45 · HEAD `b010c9e` · 后端 **404 passed**
 
 ---
 
@@ -276,7 +276,7 @@ docs/index.html                ← 文档站入口（24 篇 HTML）
 docs/用户任务清单.html          ← 用户自己要测什么
 docs/学生试用观察清单.html      ← 学生试用怎么做
 docs/00-源文档/README.md        ← 源文档说明（PRD / ARCHITECTURE / IMPL-NOTES / QA 报告）
-docs/00-源文档/IMPL-NOTES.md    ← ★ 改代码前必读（E1~E12 踩坑与裁定）
+docs/00-源文档/IMPL-NOTES.md    ← ★ 改代码前必读（E1~E13 踩坑与裁定）
 docs/increments/               ← 单次迭代的过程记录（P1-03 的 PRD / 设计 / 实测数据）
 ```
 

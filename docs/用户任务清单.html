@@ -141,13 +141,16 @@
     <label class="ck">
       <input type="checkbox">
       <div class="body">
-        <div class="t"><span class="tag t-need">核心承诺</span>B-2 · 要不要修「逐页页码对应」？</div>
-        <div class="d"><strong>现状：</strong>实测 5 份课件里 4 份，<strong>所有 slide 共用同一条事实的页码</strong>
-          （<code>max_same_page_ratio</code> 91.4%）。G3 门禁判它"达标"（页码确实落在区间内），但语义上仍是编造。</div>
-        <div class="why"><strong>为什么难修：</strong>提示词加硬规则实测无效（91.4% → 93.3%，已回退）。
-          真修要让 slide 与 fact 建立<strong>结构对应</strong>（比如契约加 <code>fact_index</code> 字段），成本 1~2 天。<br>
-          <strong>不决策的后果：</strong>学生如果发现"每页都是 p.76"，会怀疑整个「严格按教材」的卖点。<br>
-          <strong>我的建议：</strong>先让真实用户用一次，如果他们没注意到，就先不修。</div>
+        <div class="t"><span class="tag t-done">已修一部分</span>B-2 · 逐页页码要不要做到「精确对应」？</div>
+        <div class="d"><strong>已修：</strong>「所有页抄同一个<em>假</em>页码」这个问题已由后置确定性页码重绑定解决（<code>8f1c7bb</code>）。
+          根因是 LLM 的<strong>自回归注意力惯性</strong>——它在复制前面出现过的 <code>"4.1.3, p.71"</code>，不是概率性编造，
+          所以加提示词无效（实测 91.4%→93.3%，已回退）。现在改成按内容实词匹配重新绑定。</div>
+        <div class="why"><strong>剩下的问题：</strong>「区间内但不精确」——如果所有页都写 <code>p.76</code>（真，但都相同），
+          算法认为"没错"不动它。<br>
+          <strong>架构师已裁定不改契约</strong>（不加 <code>fact_index</code>）：一本课本一小节本来只有 1~2 页，
+          给学生 <code>p.76-77</code> 在教学上已经足够严谨。<br>
+          <strong>需要你拍板的只剩：</strong>接受这个裁定（推荐），还是坚持做逐页精确对应（改契约，1~2 天，要兼容旧数据）。<br>
+          <strong>测试时请重点看：</strong>翻书核对，PPT 每页的页码对不对得上那一页的内容。</div>
       </div>
     </label>
 
@@ -166,14 +169,15 @@
     <label class="ck">
       <input type="checkbox">
       <div class="body">
-        <div class="t"><span class="tag t-block">真问题</span>B-4 · 多本教材的章节号会撞，要不要修？</div>
-        <div class="d"><strong>已验证的真缺陷：</strong>检索只按 <code>workspace_id + section_code</code> 过滤，
-          <strong>不带 <code>document_id</code></strong>。同一个工作区上传 Form 4 和 Form 5 两本历史课本（都有 <code>Bab 4 → 4.1</code>），
-          检索会把两本书的 4.1 混在一起召回。</div>
-        <div class="why"><strong>为什么不一定是问题：</strong>项目文档建议「一本教材一个文件」「按学期/科目分工作区」——
-          设计上假设一个工作区一本书。<strong>但如果你真的会传两本，这就是知识张冠李戴。</strong><br>
-          <strong>修法成本：</strong>1~2 天（前端加文档作用域切换 + 后端检索带 document_id + 引用标注书名）。<br>
-          <strong>我的建议：</strong>如果你确实会传多本，这个优先级高于 B-2。</div>
+        <div class="t"><span class="tag t-done">Level 1 已完成</span>B-4 · 多本教材章节号碰撞，要不要继续做 Level 2/3？</div>
+        <div class="d"><strong>已修（Level 1）：</strong>检索已支持 <code>document_id</code> 过滤，链路从 API 一路贯到
+          <code>search_similar</code>。点目录树时自动带上所属文档，端到端已验证（两本书 + 反向对照：
+          不带过滤时确实混召回 8 条，带过滤只回 4 条）。</div>
+        <div class="why"><strong>剩下的（Level 2/3）：</strong><br>
+          ② 会话惯性继承 —— 上一轮点了书 A，下一轮打字提问能不能自动锁书 A<br>
+          ③ 歧义短路 + 目录树高亮带 <code>documentId</code> —— 两本书都有 <code>4.1</code> 时目前两个节点会同时高亮<br>
+          <strong>触发条件：</strong>你经常传两本书，且<strong>打字提问时</strong>选错书（点目录树提问不受影响）。<br>
+          <strong>成本：</strong>Level 2 约 1 天，Level 3 约 1 天。<strong>建议：</strong>先测，真遇到再修。</div>
       </div>
     </label>
 
@@ -261,14 +265,14 @@
       <tr>
         <td>1</td>
         <td><strong>多教材章节号碰撞</strong></td>
-        <td>检索不带 <code>document_id</code>，两本书的 <code>4.1</code> 会混。已验证</td>
-        <td>1~2 天</td>
+        <td><strong>Level 1 已修</strong>（<code>document_id</code> 贯通检索链路，点目录树自动带所属文档）。剩余 Level 2/3：会话惯性继承、歧义短路 + 双高亮</td>
+        <td>各约 1 天</td>
       </tr>
       <tr>
         <td>2</td>
-        <td><strong>逐页页码共用</strong></td>
-        <td>91.4% 的课件所有页写同一个页码，语义上是编造</td>
-        <td>1~2 天</td>
+        <td><strong>逐页页码精确对应</strong></td>
+        <td>「所有页抄同一个<em>假</em>页码」已修（<code>8f1c7bb</code> 后置确定性重绑定）。剩余「区间内但不精确」，架构师裁定不改契约</td>
+        <td>1~2 天（改契约）</td>
       </tr>
       <tr>
         <td>3</td>
@@ -328,8 +332,9 @@
   </table>
 
   <div class="tip">
-    <p><strong>如果只能做一件事：</strong>先做 A 类第 2 条（真实教材跑一遍）。它会一次性暴露 B-4（章节碰撞）、B-2（页码共用）、
-    以及 grader 阈值是否要重标——比在会议室里讨论十个需求有用。</p>
+    <p><strong>如果只能做一件事：</strong>先做 A 类第 2 条（真实教材跑一遍）。它会一次性暴露
+    <strong>目录树识别准不准、grader 阈值要不要重标、页码质量、生成内容像不像课本</strong>——
+    这四件事里任何一件出问题，都会直接改变下一步该做什么，比在会议室里讨论十个需求有用。</p>
   </div>
 
   <div class="pager">
