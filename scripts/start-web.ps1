@@ -25,6 +25,10 @@
     只做环境/依赖/端口检查，打印「将要执行的动作」后正常退出。
     不启动服务、不开浏览器、不等待、不写日志目录与 PID 文件（QA 无副作用验证用）。
 
+.PARAMETER ForceJobFallback
+    纯测试开关：用于稳定复现 Job 能力探测的降级路径。T01 只预留参数、不改变默认行为；
+    逻辑在 T05 实现，与 -DryRun 组合时同样保持无副作用。
+
 .NOTES
     本文件必须以 UTF-8 with BOM 保存。存成「UTF-8 无 BOM」时 Windows PowerShell 5.1
     会按 ANSI 代码页解读，中文提示全变乱码；存成 GBK 则英文 Windows 上乱码。
@@ -33,7 +37,8 @@ param(
     [switch]$NoPause,
     [switch]$NoBrowser,
     [string]$TargetUrl = 'http://localhost:5173',
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$ForceJobFallback
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,11 +47,99 @@ $ErrorActionPreference = 'Stop'
 # 退出事件里必须据此跳过清理，否则自动化模式刚起来的服务会被自己杀掉。
 $script:KeepServicesOnExit = [bool]$NoPause
 
-# 控制台切到 UTF-8：让中文提示在非中文 Windows 上也能正常显示。
+# ---------- T01 基础设施：中英资源表 / Msg() / 探测框架 / 字段冻结 ----------
+
+# 所有用户可见文案集中在此，Msg() 按 $script:ConsoleCapability.MsgLang 取 zh / en。
+# 新增任何用户可见文案必须同时提供 zh / en 两条；en 分支必须纯 ASCII。
+$Messages = @{
+    zh = @{
+        'Banner.Title'        = '多模态沉浸式智能助教  ·  一键启动'
+        'Banner.DryRun'       = '[DryRun] 只检查，不启动、不写文件、不等待'
+        'DryRun.StatusHeader' = '---------- DryRun：四类状态输出 ----------'
+        'Env.PythonMissing'   = '未找到 Python。'
+        'Env.NodeMissing'     = '未找到 Node.js。'
+        'Step.StartServices'  = '[5/5] 启动服务（后台无窗口运行）...'
+        'Ready.Waiting'       = '等待服务就绪'
+        'Ready.Timeout'       = '服务未就绪（90 秒内两个端口没有同时可连）。'
+        'Done.Title'          = '启动完成（只保留这一个窗口）'
+        'Stop.PressEnter'     = '按回车键停止服务并关闭（会杀掉整棵进程树）'
+        'Stop.ReadHost'       = '按回车键停止服务并关闭'
+        'Stop.Done'           = '服务已停止，PID 文件已清理。'
+        'Fail.PressEnter'     = '按回车键关闭此窗口'
+    }
+    en = @{
+        'Banner.Title'        = 'Multimodal Interactive Edu Agent  -  One-click Launcher'
+        'Banner.DryRun'       = '[DryRun] Check only; no start, no writes, no wait'
+        'DryRun.StatusHeader' = '---------- DryRun: four status categories ----------'
+        'Env.PythonMissing'   = 'Python not found.'
+        'Env.NodeMissing'     = 'Node.js not found.'
+        'Step.StartServices'  = '[5/5] Starting services (hidden, no window)...'
+        'Ready.Waiting'       = 'Waiting for services'
+        'Ready.Timeout'       = 'Services not ready within 90s.'
+        'Done.Title'          = 'Started (this is the only window)'
+        'Stop.PressEnter'     = 'Press ENTER to stop all services and close'
+        'Stop.ReadHost'       = 'Press ENTER to stop and close'
+        'Stop.Done'           = 'Services stopped; PID file removed.'
+        'Fail.PressEnter'     = 'Press ENTER to close this window'
+    }
+}
+
+function Msg([string]$Key) {
+    # 按能力对象给出的语言取文案；缺键或缺语言时安全回退，绝不抛异常。
+    $lang = 'zh'
+    if ($null -ne $script:ConsoleCapability) { $lang = $script:ConsoleCapability.MsgLang }
+    if (-not $Messages.ContainsKey($lang)) { $lang = 'zh' }
+    $table = $Messages[$lang]
+    if (-not $table.ContainsKey($Key)) { return $Key }
+    return [string]$table[$Key]
+}
+
+function Get-ConsoleTextCapability {
+    # T01 骨架：返回能力对象初值，字段形状与 §5.1 一致。
+    # 初值取「保守不变」：DoChcp=true 保持既有 chcp 65001，MsgLang=zh 保持既有中文提示。
+    # 三处注册表只读（ACP/OEMCP、FaceName、FontLink\SystemLink）与六档分支在 T03 实现。
+    return [pscustomobject]@{
+        ACP             = 'unknown'
+        OEMCP           = 'unknown'
+        FaceName        = 'unknown'
+        HasFontLink     = $false
+        HasCjkCoverage  = $false
+        Branch          = 'skeleton (T03)'
+        DoChcp          = $true
+        OutputEncoding  = [System.Text.Encoding]::UTF8
+        MsgLang         = 'zh'
+    }
+}
+
+# 字段结构在此冻结（§3.3 十字段）；T05 只回填真实值，不改变调用点。
+$script:LauncherCapability = [pscustomobject]@{
+    AddTypeOk          = $false
+    InJob              = $false
+    ParentJobBreakaway = $false
+    ParentJobUnknown   = $false
+    CreateJobOk        = $false
+    KillFlagApplied    = $false
+    AssignProbeOk      = $false
+    KillOnClose        = $false
+    FallbackReason     = 'deferred (Job capability is implemented in T05)'
+    TrioEnabled        = $true
+}
+
+function Get-JobCapability {
+    # T01 占位：S1–S4 的真实能力探测在 T05 实现；此处只返回冻结的初值对象。
+    return $script:LauncherCapability
+}
+
+$script:ConsoleCapability = Get-ConsoleTextCapability
+$cap = $script:ConsoleCapability
+
+# 控制台代码页按能力对象条件化执行；T01 初值 DoChcp=true，行为与改动前一致。
 try {
-    chcp 65001 > $null
-    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-    $OutputEncoding = [System.Text.Encoding]::UTF8
+    if ($cap.DoChcp) {
+        chcp 65001 > $null
+    }
+    [Console]::OutputEncoding = $cap.OutputEncoding
+    $OutputEncoding = $cap.OutputEncoding
 } catch {
     # 极端情况下（旧版控制台）忽略即可，不影响启动
 }
@@ -308,6 +401,40 @@ Write-Host ''
 Write-Host " 端口检测：后端 $BackendPortOpen / 前端 $FrontendPortOpen" -ForegroundColor DarkGray
 
 if ($DryRun) {
+    Write-Host ''
+    Write-Host (' ' + (Msg 'DryRun.StatusHeader')) -ForegroundColor Yellow
+    $jc  = Get-JobCapability
+    $cap = $script:ConsoleCapability
+    Write-Host (" Job capability : AddType={0}; InJob={1}; ParentJobBreakaway={2}; ParentJobUnknown={3}; CreateJob={4}; KillFlag={5}; AssignProbe={6}; StructSize=deferred(T05); KillOnClose={7}; Fallback={8}; TrioEnabled={9}" -f @(
+        $(if ($jc.AddTypeOk) { 'OK' } else { 'deferred(T05)' }),
+        $(if ($jc.InJob) { 'yes' } else { 'no' }),
+        $(if ($jc.ParentJobBreakaway) { 'yes' } else { 'no' }),
+        $(if ($jc.ParentJobUnknown) { 'yes' } else { 'no' }),
+        $(if ($jc.CreateJobOk) { 'OK' } else { 'deferred(T05)' }),
+        $(if ($jc.KillFlagApplied) { 'applied' } else { 'deferred(T05)' }),
+        $(if ($jc.AssignProbeOk) { 'OK' } else { 'deferred(T05)' }),
+        $(if ($jc.KillOnClose) { 'yes' } else { 'no' }),
+        $jc.FallbackReason,
+        $(if ($jc.TrioEnabled) { 'yes' } else { 'no' })
+    )) -ForegroundColor Gray
+    Write-Host (" Console env    : ACP={0}; OEMCP={1}; FaceName={2}; HasFontLink={3}; HasCjkCoverage={4}; Branch={5}; DoChcp={6}; MsgLang={7}" -f @(
+        $cap.ACP,
+        $cap.OEMCP,
+        $cap.FaceName,
+        $(if ($cap.HasFontLink) { 'yes' } else { 'no' }),
+        $(if ($cap.HasCjkCoverage) { 'yes' } else { 'no' }),
+        $cap.Branch,
+        $(if ($cap.DoChcp) { 'yes' } else { 'no' }),
+        $cap.MsgLang
+    )) -ForegroundColor Gray
+    Write-Host (" Ports          : backend={0}; frontend={1}; TargetUrl={2}" -f @(
+        $BackendPort,
+        $FrontendPort,
+        $TargetUrl
+    )) -ForegroundColor Gray
+    Write-Host (" Legacy trio    : enabled={0}  (pids.json / stop-web.ps1 / PowerShell.Exiting / Enter-kill)" -f @(
+        $(if ($jc.TrioEnabled) { 'yes' } else { 'no' })
+    )) -ForegroundColor Gray
     Write-Host ''
     Write-Host ' ---------- DryRun：将要执行的动作 ----------' -ForegroundColor Yellow
     if (-not $BackendPortOpen) {
