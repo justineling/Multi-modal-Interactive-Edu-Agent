@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RHINE LAB / ARCHIVE OS · 非生产原型</title>
+<link rel="stylesheet" href="./rhine-lab.css">
+<link rel="stylesheet" href="./prototype.css">
+<script src="./rhine-lab.js" defer></script>
+<script src="./prototype.js" defer></script>
+</head>
+<body class="rl rl-atmosphere">
+
+<!--
+  三行骨架：.rl-shell 只含 <header> / <main> / <footer> 三个直接子元素。
+  行模板由 rhine-lab.css 提供 grid-template-rows: auto 1fr auto, 此处不覆盖。
+  模态框与遮罩放在 .rl-shell 之外，作为独立视图层。
+-->
+<div class="rl-shell">
+
+  <!-- ================= 第 1 行：品牌块 / kicker / 面包屑 ================= -->
+  <header class="proto-header">
+    <div class="proto-header__top">
+      <!-- 三行品牌块是纯排版，不绘制任何图形标识 -->
+      <div class="rl-brand">
+        <h1>RHINE LAB</h1>
+        <div>Synthesize Information Analysis</div>
+        <p><b>ARCHIVE</b><span>OS</span></p>
+      </div>
+      <div class="proto-header__right">
+        <p class="proto-warning">非生产原型 · 不可用于真人测试</p>
+        <p class="rl-note">字体已降级：MiSans 未打包，当前使用系统回退链（PingFang SC → Microsoft YaHei）</p>
+        <div class="proto-theme" role="group" aria-label="主题切换">
+          <button type="button" class="proto-theme-btn" data-theme-btn="light" aria-pressed="true">亮色 / LIGHT</button>
+          <button type="button" class="proto-theme-btn" data-theme-btn="dark" aria-pressed="false">暗色 / DARK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- kicker 四槽：工作区 / 文档编号 / SSE 检索状态 / 演示模式 -->
+    <div class="rl-kicker proto-kicker" aria-label="工作区真实状态">
+      <span>WORKSPACE / 自学工作区</span>
+      <span>DOC-001 / FILE X-003</span>
+      <span>SSE 检索 / STREAMING</span>
+      <span class="proto-demo">DEMO MODE / MOCK OUTPUT</span>
+    </div>
+
+    <nav aria-label="当前路径">
+      <ol class="rl-breadcrumb">
+        <li><a href="#">ARCHIVE</a></li>
+        <li><a href="#">DOC-001</a></li>
+        <li><a href="#">FILE X-003</a></li>
+        <li><span aria-current="page" data-page-readout>01/05</span></li>
+      </ol>
+    </nav>
+  </header>
+
+  <!-- ============ 第 2 行：三栏 220 / 1fr / 320px ============ -->
+  <main class="rl-split rl-split--three proto-main">
+
+    <!-- 栏 1：索引区（导航器，不是产品导航） -->
+    <nav class="proto-index" aria-label="卷宗索引">
+      <div>
+        <span class="rl-label">INDEX / 卷宗索引</span>
+        <hr class="rl-rule rl-rule--short" aria-hidden="true">
+      </div>
+
+      <div>
+        <span class="rl-tree__label" id="toc-tree-label">DOC-001 · 教材总目</span>
+        <ul class="rl-tree" role="tree" aria-labelledby="toc-tree-label" id="toc-tree">
+          <li role="none">
+            <ul role="group">
+              <li role="none">
+                <button type="button" role="treeitem" aria-selected="true" data-toc-node="4.1.3">
+                  <span class="proto-code">4.1.3</span> 导数与微分
+                </button>
+                <ul role="group">
+                  <li role="none">
+                    <button type="button" role="treeitem" aria-selected="false" data-toc-node="p.76-77">
+                      <span class="proto-code">p.76-77</span> 教材切片页
+                    </button>
+                  </li>
+                </ul>
+              </li>
+              <li role="none">
+                <button type="button" role="treeitem" aria-selected="false" data-toc-node="4.1.4">
+                  <span class="proto-code">4.1.4</span> 高阶导数
+                </button>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+
+      <hr class="rl-rule rl-rule--soft" aria-hidden="true">
+
+      <div>
+        <span class="rl-label">DOCUMENT META / 教材元信息</span>
+        <dl class="rl-meta proto-meta">
+          <dt>DOC ID</dt><dd>DOC-001</dd>
+          <dt>PAGES</dt><dd>312</dd>
+          <dt>SECTIONS</dt><dd>4.1–4.3</dd>
+          <dt>STATUS</dt><dd>INDEXED</dd>
+          <dt>SECTION</dt><dd id="toc-current">4.1.3</dd>
+        </dl>
+      </div>
+
+      <hr class="rl-rule rl-rule--soft" aria-hidden="true">
+
+      <div>
+        <span class="rl-label">FILE DRAWER / 文件抽屉</span>
+        <label class="rl-field proto-search">
+          <span class="rl-label">RETRIEVE</span>
+          <input type="search" aria-label="检索已归档教材" placeholder="输入 DOC 编号"
+                 data-filter="#file-drawer-list" data-filter-status="#drawer-status">
+        </label>
+        <p class="rl-note" id="drawer-status">输入以检索已归档条目。</p>
+        <ul class="rl-list" id="file-drawer-list">
+          <li><span>DOC-001 高等数学</span><small>DOC-001</small></li>
+          <li><span>DOC-002 线性代数</span><small>DOC-002</small></li>
+          <li><span>DOC-003 概率论</span><small>DOC-003</small></li>
+        </ul>
+        <button type="button" class="rl-btn rl-btn--sm" data-toast="原型不执行上传（无网络请求）">上传教材</button>
+      </div>
+    </nav>
+
+    <!-- 栏 2：卷宗页（画布升为主内容栏，布局反转的关键） -->
+    <section class="proto-folio" aria-label="卷宗页 · 主工作区">
+      <!-- 页框之外的页眉 -->
+      <div class="proto-page-head">
+        <span class="rl-label">FILE X-003</span>
+        <span class="rl-label">DOC-001</span>
+      </div>
+      <hr class="rl-rule rl-rule--soft" aria-hidden="true">
+
+      <!-- 形态切换：单根滑动指示细线，不用反相墨块 -->
+      <div class="rl-tabs" role="tablist" aria-label="产物形态">
+        <button type="button" role="tab" id="tab-ppt" aria-selected="true" aria-controls="panel-ppt" data-tab="0">PPT<span>01</span></button>
+        <button type="button" role="tab" id="tab-anim2d" aria-selected="false" aria-controls="panel-anim2d" data-tab="1">2D<span>02</span></button>
+        <button type="button" role="tab" id="tab-scene3d" aria-selected="false" aria-controls="panel-scene3d" data-tab="2">3D<span>03</span></button>
+        <i class="rl-tab-indicator" aria-hidden="true"></i>
+      </div>
+
+      <!-- 装裱层：1px 页框，直角，无投影，不铺灰底；内页保持中性占位 -->
+      <div class="rl-panel proto-frame">
+        <div class="proto-frame__inner">
+          <div class="rl-tab-panel" role="tabpanel" id="panel-ppt" aria-labelledby="tab-ppt" data-panel="0">
+            <p class="rl-label">ARTIFACT CONTENT LAYER / PPT</p>
+            <p class="rl-body">课件内页保持现有教学配色，本原型不渲染</p>
+            <p class="rl-note">此处由 SlideRenderer 的 6 种布局填入。装裱层只提供 1px 页框与框外页眉页脚，不进入画面、不改语义色。</p>
+          </div>
+          <div class="rl-tab-panel" role="tabpanel" id="panel-anim2d" aria-labelledby="tab-anim2d" data-panel="1" hidden>
+            <p class="rl-label">ARTIFACT CONTENT LAYER / 2D</p>
+            <p class="rl-body">课件内页保持现有教学配色，本原型不渲染</p>
+            <p class="rl-note">此处由 Anim2DRenderer 的时间轴与实体色块填入；装裱层只负责页码与出处。</p>
+          </div>
+          <div class="rl-tab-panel" role="tabpanel" id="panel-scene3d" aria-labelledby="tab-scene3d" data-panel="2" hidden>
+            <p class="rl-label">ARTIFACT CONTENT LAYER / 3D</p>
+            <p class="rl-body">课件内页保持现有教学配色，本原型不渲染</p>
+            <p class="rl-note">此处由 Scene3DRenderer 的场景与标注点填入；装裱层不进入三维画面。</p>
+          </div>
+        </div>
+      </div>
+
+      <hr class="rl-rule" aria-hidden="true">
+
+      <!-- 页框之外的页脚：出处脚注 + 页序 -->
+      <div class="proto-page-foot">
+        <dl class="rl-meta proto-meta">
+          <dt>SOURCE</dt><dd>[p.94]</dd>
+          <dt>SECTION</dt><dd>4.1.3</dd>
+        </dl>
+        <span class="rl-readout" data-page-readout>01/05</span>
+      </div>
+
+      <hr class="rl-rule rl-rule--short" aria-hidden="true">
+
+      <div class="proto-ticks-row">
+        <span class="rl-label">PAGE INDEX / <span data-page-readout>01/05</span></span>
+        <div class="rl-ticks" role="group" aria-label="卷宗页刻度轨">
+          <button type="button" aria-current="true" aria-label="第 1 页"></button>
+          <button type="button" aria-label="第 2 页"></button>
+          <button type="button" aria-label="第 3 页"></button>
+          <button type="button" aria-label="第 4 页"></button>
+          <button type="button" aria-label="第 5 页"></button>
+        </div>
+      </div>
+
+      <!-- 显著链接：并排对照「档案外壳 + 彩色课件内页」的观感 -->
+      <div class="proto-blink">
+        <span class="rl-label">观感对照 / B-LAYER REFERENCE</span>
+        <p class="rl-body">档案外壳负责第几份、第几页、出自哪里，彩色课件页负责这一页教什么；如同纸质卷宗里夹着一页彩色插图，装帧语言与原件内容各司其职，不互相染色。</p>
+        <a class="rl-action" href="../b-layer-reference.html">打开彩色课件内页对照（示意 · 非真实产物）</a>
+      </div>
+    </section>
+
+    <!-- 栏 3：调阅流水（对话与输入退到检视栏） -->
+    <aside class="proto-inspector" aria-label="调阅流水 · 检视栏">
+      <div class="rl-kicker"><span>RETRIEVAL LOG</span><span>FILE X-003</span></div>
+
+      <div>
+        <span class="rl-label">FLOW / 调阅流水</span>
+        <ul class="rl-list rl-list--selectable" role="listbox" aria-label="调阅流水消息" data-selectable>
+          <li role="option" aria-selected="true">
+            <span><span class="proto-turn">T-001</span> 生成 FILE X-003 第 01/05 页</span>
+            <small>DONE</small>
+          </li>
+          <li role="option" aria-selected="false">
+            <span><span class="proto-turn">T-002</span> 引用教材切片 [p.94]</span>
+            <small>CITED</small>
+          </li>
+          <li role="option" aria-selected="false">
+            <span><span class="proto-turn">T-003</span> 对锚点 A-03 发起定点修订</span>
+            <small>STREAMING</small>
+          </li>
+        </ul>
+      </div>
+
+      <hr class="rl-rule rl-rule--soft" aria-hidden="true">
+
+      <div>
+        <span class="rl-label">CITATION / 出处</span>
+        <dl class="rl-meta proto-meta">
+          <dt>SOURCE</dt><dd>[p.94]</dd>
+          <dt>SECTION</dt><dd>4.1.3</dd>
+          <dt>DOC</dt><dd>DOC-001</dd>
+        </dl>
+      </div>
+
+      <hr class="rl-rule rl-rule--soft" aria-hidden="true">
+
+      <div>
+        <span class="rl-label">ANCHOR / 锚点片</span>
+        <p><span class="rl-tag">A-03 · <span data-page-readout>01/05</span></span></p>
+      </div>
+
+      <hr class="rl-rule rl-rule--soft" aria-hidden="true">
+
+      <div class="proto-composer">
+        <span class="rl-label">COMPOSER / 发起调阅</span>
+        <label class="rl-field rl-field--area">
+          <span class="rl-label">就当前页与锚点写下调阅内容</span>
+          <textarea id="composer-input" rows="3" placeholder="例：把 A-03 的示意换成课本 [p.94] 的推导"
+                    aria-describedby="composer-hint"></textarea>
+        </label>
+        <p class="rl-note" id="composer-hint">原型仅在本页记录草稿，不发送任何网络请求。</p>
+        <button type="button" class="rl-btn rl-btn--solid" id="composer-submit">发起调阅</button>
+        <p class="rl-note" id="composer-status" aria-live="polite">尚未提交。</p>
+      </div>
+
+      <hr class="rl-rule rl-rule--soft" aria-hidden="true">
+
+      <div>
+        <span class="rl-label">REVISION / 版本修订</span>
+        <ul class="rl-list">
+          <li><span>REV-07 · update_node</span><small>01/05</small></li>
+          <li><span>REV-06 · add_node</span><small>01/05</small></li>
+        </ul>
+        <button type="button" class="rl-btn rl-btn--sm" data-modal-open="revision-modal">版本修订</button>
+      </div>
+
+      <hr class="rl-rule rl-rule--soft" aria-hidden="true">
+
+      <div class="proto-actions">
+        <span class="rl-label">ACTIONS / 次级操作</span>
+        <button type="button" class="rl-btn" data-toast="原型不执行导出（无网络请求）">导出 PDF</button>
+        <button type="button" class="rl-btn" data-toast="原型不执行安装（无网络请求）">PWA 安装</button>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ================= 第 3 行：页脚 ================= -->
+  <footer class="rl-footer proto-footer">
+    <div class="proto-footer__left">
+      <span>INDEX / ARCHIVE OS</span>
+      <span>STATE / IDLE</span>
+      <span>FILE X-003 · <span data-page-readout>01/05</span></span>
+    </div>
+    <div class="rl-ticks" role="group" aria-label="页序刻度轨">
+      <button type="button" aria-current="true" aria-label="第 1 页"></button>
+      <button type="button" aria-label="第 2 页"></button>
+      <button type="button" aria-label="第 3 页"></button>
+      <button type="button" aria-label="第 4 页"></button>
+      <button type="button" aria-label="第 5 页"></button>
+    </div>
+    <div class="proto-footer__right">
+      <span>RHINE LAB · INTERNAL ARCHIVE</span>
+      <span class="rl-status rl-status--live"><i></i>GENERATING</span>
+    </div>
+  </footer>
+</div>
+
+<!-- 独立视图层：模态框与遮罩（内部不使用反相墨块） -->
+<div class="rl-scrim" hidden></div>
+<div class="rl-modal" id="revision-modal" role="dialog" aria-modal="true"
+     aria-labelledby="revision-title" data-open="false" hidden>
+  <div class="rl-kicker"><span>REVISION RECORD</span><span>REV-07</span></div>
+  <hr class="rl-rule" aria-hidden="true">
+  <h2 class="rl-title" id="revision-title">版本修订</h2>
+  <p class="rl-body">一次修订只改动锚点所指向的那一处，其余页面字节级不变。此对话框仅演示开合，不改动任何产物。</p>
+  <hr class="rl-rule rl-rule--soft" aria-hidden="true">
+  <dl class="rl-meta proto-meta">
+    <dt>REV</dt><dd>REV-07</dd>
+    <dt>OP</dt><dd>update_node</dd>
+    <dt>PAGE</dt><dd>01/05</dd>
+    <dt>ANCHOR</dt><dd>A-03</dd>
+    <dt>DOC</dt><dd>DOC-001</dd>
+  </dl>
+  <hr class="rl-rule rl-rule--soft" aria-hidden="true">
+  <div class="proto-modal-actions">
+    <button type="button" class="rl-btn" data-modal-close>关闭</button>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,206 @@
+/* ==========================================================================
+   rhine-archive / prototype.css
+   装裱层补充样式。只复用 rhine-lab.css 的 --rl-* token，不引入任何新色值。
+   约束：全系统直角；无投影；无圆角做层级；分栏靠 72px 留白不画竖线；
+        动效交给 rhine-lab.css 的动效族，这里不新增过渡。
+   ========================================================================== */
+
+/* 铁律 4：7 类编号全部等宽数字，翻页时不横向抖动。
+   设在外壳与模态框两个根上，靠继承覆盖全部后代。 */
+.rl { font-variant-numeric: tabular-nums; }
+
+/* 铁律 2：直角。以下声明让「全局 border-radius: 0」在原型里显式可见。 */
+.proto-header,
+.proto-index,
+.proto-folio,
+.proto-inspector,
+.proto-frame,
+.proto-blink { border-radius: 0; }
+
+/* ---------- 第 1 行：外壳头部 ------------------------------------------- */
+
+.proto-header {
+  display: grid;
+  gap: var(--rl-space-4);
+}
+.proto-header__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--rl-space-6);
+}
+.proto-header__right {
+  display: grid;
+  gap: var(--rl-space-2);
+  justify-items: end;
+  text-align: right;
+  max-width: 460px;
+}
+
+/* 「非生产原型」醒目标注：靠字阶与一条墨色细线，不靠色块、不靠图标。 */
+.proto-warning {
+  font-size: var(--rl-fs-lead);
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--rl-ink);
+  border-bottom: 1px solid var(--rl-ink);
+  padding-bottom: var(--rl-space-2);
+}
+
+/* 主题切换：不用 .rl-tag（其 aria-pressed 会占用暖杏金预算），改墨色细线。 */
+.proto-theme {
+  display: flex;
+  gap: var(--rl-space-2);
+}
+.proto-theme-btn {
+  font-size: var(--rl-fs-label);
+  letter-spacing: var(--rl-track-wide);
+  text-transform: uppercase;
+  color: var(--rl-muted-text);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--rl-line-soft);
+  padding: 0 var(--rl-space-3);
+  min-height: var(--rl-touch);
+}
+.proto-theme-btn[aria-pressed="true"] {
+  color: var(--rl-ink);
+  font-weight: 600;
+  border-bottom-color: var(--rl-ink);
+}
+
+/* kicker 第 4 槽是常驻演示模式黄标。反写 skill 对末项的降权，让它足够显眼。
+   暖杏金预算第 1 处：下面这条 1px 琥珀细线（横向，不新增竖线）。 */
+.rl-kicker.proto-kicker > span:last-child {
+  font-size: var(--rl-fs-kicker);
+  letter-spacing: var(--rl-track-wide);
+  color: var(--rl-ink);
+  font-weight: 700;
+}
+.proto-demo {
+  border-bottom: 1px solid var(--rl-accent);
+  padding-bottom: 2px;
+}
+
+/* ---------- 第 2 行：三栏 ------------------------------------------------ */
+
+/* 220 / 1fr / 320px 由 rhine-lab.css 的 .rl-split--three 提供。
+   这里只把分栏留白设为 --rl-space-8 (72px)，并且绝不画任何 1px 竖线：
+   竖线仅目录树缩进脊线与 .rl-ticks 两处例外。 */
+.proto-main { column-gap: var(--rl-space-8); }
+
+.proto-index,
+.proto-folio,
+.proto-inspector {
+  display: grid;
+  align-content: start;
+  gap: var(--rl-space-4);
+}
+/* 组内细线交给 grid 的 gap，避免 hr 自带 22px 上下边距造成双倍留白。 */
+.proto-index > hr,
+.proto-folio > hr,
+.proto-inspector > hr { margin: 0; }
+
+.proto-code {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--rl-track);
+  text-transform: uppercase;
+}
+.proto-turn {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--rl-track);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.proto-meta { margin-top: var(--rl-space-3); }
+.proto-search { margin-top: var(--rl-space-3); }
+
+/* ---------- 卷宗页：装裱层 ---------------------------------------------- */
+
+.proto-page-head,
+.proto-page-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--rl-space-4);
+}
+.proto-page-head { padding-bottom: var(--rl-space-3); }
+.proto-page-foot { padding-top: var(--rl-space-3); }
+.proto-page-foot .rl-meta { margin-top: 0; }
+
+/* 规格 4.2：页框是 A 层，不是 B 层卡片。
+   1px --rl-line 细线、直角、无投影、不铺灰底；框内留白 16px 与画面分隔。 */
+.proto-frame {
+  border: 1px solid var(--rl-line);
+  background: transparent;
+  padding: var(--rl-space-4);
+  min-height: 300px;
+  aspect-ratio: 16 / 9;
+  display: grid;
+  align-content: start;
+}
+.proto-frame__inner {
+  display: grid;
+  gap: var(--rl-space-4);
+  align-content: start;
+}
+.proto-frame .rl-body,
+.proto-frame .rl-note { max-width: 62ch; }
+
+.proto-ticks-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--rl-space-4);
+  padding: var(--rl-space-2) 0;
+}
+
+/* 指向 B 层对照页的显著链接。 */
+.proto-blink {
+  border-top: 1px solid var(--rl-line);
+  padding-top: var(--rl-space-4);
+  margin-top: var(--rl-space-2);
+  display: grid;
+  gap: var(--rl-space-3);
+  justify-items: start;
+}
+.proto-blink .rl-body { max-width: 66ch; }
+.proto-blink .rl-action { font-weight: 600; }
+
+/* ---------- 检视栏 ------------------------------------------------------ */
+
+.proto-composer,
+.proto-actions {
+  display: grid;
+  gap: var(--rl-space-3);
+  justify-items: start;
+}
+.proto-composer .rl-btn--solid { width: 100%; justify-content: center; }
+.proto-modal-actions { display: flex; justify-content: flex-end; }
+
+/* ---------- 第 3 行：页脚 ------------------------------------------------ */
+
+.proto-footer__left,
+.proto-footer__right {
+  display: flex;
+  align-items: center;
+  gap: var(--rl-space-4);
+}
+
+/* ---------- 窄屏：保持正文 15px / 触控 44px，只收标题与留白 ------------- */
+
+@media (max-width: 1100px) {
+  .proto-main { column-gap: var(--rl-space-6); }
+}
+@media (max-width: 900px) {
+  .proto-header__top { flex-direction: column; }
+  .proto-header__right { justify-items: start; text-align: left; max-width: none; }
+  .proto-frame { aspect-ratio: auto; min-height: 260px; }
+}
+@media (max-width: 560px) {
+  .proto-page-head,
+  .proto-page-foot,
+  .proto-ticks-row { flex-wrap: wrap; }
+  .proto-footer__left,
+  .proto-footer__right { flex-wrap: wrap; }
+}

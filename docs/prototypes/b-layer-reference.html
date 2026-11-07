@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B 层对照 · 彩色课件内页（示意 · 非真实产物）</title>
+<style>
+/* ==========================================================================
+   B 层对照页：单文件、内联样式、零外部依赖，file:// 双击可开。
+   本文件刻意不进 audit --strict 目录，原因见 docs/prototypes/README.md。
+   这里的 8 个色值逐字抄自 frontend/src/lib/theme.ts::PALETTE，
+   与 backend/app/schemas/artifacts.py::PALETTE 相同；它们属于 (B) 产物内容层
+   的 AST 契约色，不是 (A) 外壳主题色。蓝 / 语义红绿在此出现是预期事实。
+   ========================================================================== */
+
+:root {
+  --paper: #eae5e1;
+  --panel: #edebe4;
+  --ink: #080a08;
+  --line: #aaa59a;
+  --line-soft: #c9c1b2;
+  --muted: #635f56;
+
+  /* PALETTE，8 色，顺序与语义同名于 theme.ts */
+  --p0: #2563EB; /* 主蓝 */
+  --p1: #0EA5E9; /* 次蓝 */
+  --p2: #F59E0B; /* 高亮橙 */
+  --p3: #EF4444; /* 警示红 */
+  --p4: #10B981; /* 成功绿 */
+  --p5: #6366F1; /* 紫 */
+  --p6: #64748B; /* 中性灰 */
+  --p7: #E2E8F0; /* 浅底 */
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 48px 59px 72px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+}
+.wrap { max-width: 1180px; }
+h1 { margin: 0 0 8px; font-size: 32px; font-weight: 600; letter-spacing: 0; }
+h2 { margin: 0 0 12px; font-size: 22px; font-weight: 600; }
+p { margin: 0 0 12px; }
+.label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.flag {
+  display: inline-block;
+  margin: 0 0 20px;
+  padding: 6px 12px;
+  border: 1px solid var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+.notice {
+  margin: 0 0 32px;
+  padding: 12px 16px;
+  border-left: 3px solid var(--ink);
+  background: var(--panel);
+  max-width: 84ch;
+}
+.notice p:last-child { margin-bottom: 0; }
+
+hr { height: 1px; border: 0; background: var(--line); margin: 28px 0; }
+section { margin-bottom: 40px; }
+.lead { max-width: 80ch; }
+small { font-variant-numeric: tabular-nums; }
+
+/* 色卡 */
+.swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line-soft); border: 1px solid var(--line-soft); }
+.swatch { background: var(--panel); padding: 0 0 14px; }
+.swatch i { display: block; height: 72px; }
+.swatch .label { padding: 12px 14px 2px; }
+.swatch .name { padding: 0 14px; font-size: 13px; font-weight: 600; }
+.swatch .hex { padding: 0 14px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+
+/* 装裱并置示意：外层档案页框 + 内层彩色课件页 */
+.juxtapose { border: 1px solid var(--line); padding: 18px; }
+.jx-head, .jx-foot { display: flex; justify-content: space-between; gap: 16px; }
+.jx-head { padding-bottom: 12px; }
+.jx-foot { padding-top: 12px; }
+.jx-rule { height: 1px; background: var(--line-soft); }
+.folio { margin: 14px 0; border: 1px solid var(--line); padding: 16px; }
+
+/* 纯 CSS 抽象几何：不渲染任何真实课件内容，只表达「彩色内页」的观感 */
+.slide {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--p7);
+  overflow: hidden;
+}
+.slide .bar { position: absolute; left: 0; top: 0; height: 16%; width: 100%; background: var(--p0); }
+.slide .bar span { display: block; width: 34%; height: 6px; margin: 5% 0 0 5%; background: var(--p7); }
+.slide .col-a { position: absolute; left: 5%; top: 26%; width: 40%; height: 60%; background: var(--p1); }
+.slide .col-b { position: absolute; left: 50%; top: 26%; width: 45%; height: 26%; background: var(--p5); }
+.slide .col-c { position: absolute; left: 50%; top: 58%; width: 21%; height: 28%; background: var(--p4); }
+.slide .col-d { position: absolute; left: 74%; top: 58%; width: 21%; height: 28%; background: var(--p3); }
+.slide .chip { position: absolute; left: 5%; top: 90%; width: 18%; height: 5%; background: var(--p2); }
+.slide .grid { position: absolute; left: 28%; top: 90%; width: 44%; height: 5%; background: var(--p6); }
+.slide .edge { position: absolute; right: 5%; top: 90%; width: 18%; height: 5%; background: var(--p7); border: 1px solid var(--p6); }
+
+/* 6 种布局：仅名称与抽象骨架，非真实渲染 */
+.layouts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.layout { border: 1px solid var(--line-soft); padding: 12px; }
+.layout .label { margin-bottom: 8px; }
+.mini { height: 92px; background: var(--p7); display: grid; gap: 6px; padding: 10px; }
+.mini i { display: block; }
+.m1 { grid-template-columns: 1fr; }
+.m1 i:nth-child(1) { height: 22px; background: var(--p0); }
+.m1 i:nth-child(2) { height: 10px; background: var(--p6); }
+.m1 i:nth-child(3) { height: 10px; background: var(--p6); }
+.m2 { grid-template-columns: 1fr 1fr; }
+.m2 i:nth-child(1) { background: var(--p1); }
+.m2 i:nth-child(2) { background: var(--p5); }
+.m3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.m3 i:nth-child(1) { background: var(--p4); }
+.m3 i:nth-child(2) { background: var(--p3); }
+.m3 i:nth-child(3) { background: var(--p2); }
+.m3 i:nth-child(4) { background: var(--p6); }
+.m4 { grid-template-columns: repeat(4, 1fr); align-items: end; }
+.m4 i:nth-child(1) { height: 40%; background: var(--p1); }
+.m4 i:nth-child(2) { height: 70%; background: var(--p0); }
+.m4 i:nth-child(3) { height: 55%; background: var(--p5); }
+.m4 i:nth-child(4) { height: 85%; background: var(--p2); }
+.m5 { grid-template-columns: 1fr; }
+.m5 i:nth-child(1) { height: 14px; background: var(--p0); }
+.m5 i:nth-child(2) { height: 10px; background: var(--p1); }
+.m5 i:nth-child(3) { height: 10px; background: var(--p6); }
+.m6 { grid-template-columns: repeat(3, 1fr); }
+.m6 i:nth-child(1) { background: var(--p3); }
+.m6 i:nth-child(2) { background: var(--p2); }
+.m6 i:nth-child(3) { background: var(--p4); }
+
+a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--ink); }
+a:hover { color: var(--muted); }
+footer { border-top: 1px solid var(--line); padding-top: 16px; font-size: 12px; color: var(--muted); }
+
+@media (max-width: 900px) {
+  body { padding: 24px; }
+  .swatches { grid-template-columns: repeat(2, 1fr); }
+  .layouts { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .swatches, .layouts { grid-template-columns: 1fr; }
+  h1 { font-size: 26px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <span class="flag">非生产原型 · 不可用于真人测试</span>
+  <span class="label" style="display:inline-block;margin-left:12px">示意 · 非真实产物</span>
+
+  <header>
+    <h1>B 层对照：彩色课件内页</h1>
+    <p class="label">B-LAYER REFERENCE / PALETTE &amp; ABSTRACT GEOMETRY ONLY</p>
+  </header>
+
+  <div class="notice">
+    <p><strong>本页是色卡与抽象几何色块示意，不是真实渲染器，也不代表任何一页真实课件。</strong></p>
+    <p>8 个色值逐字取自 <code>frontend/src/lib/theme.ts::PALETTE</code>，且必须与
+       <code>backend/app/schemas/artifacts.py::PALETTE</code> 逐字一致，属 (B) 产物内容层的 AST 契约色。
+       蓝、青、语义红绿出现在本页是<strong>预期事实</strong>，与 <code>SKILL.md</code> 铁律 1 的冲突
+       已经用户 2026-11-07 对 Q-1 的「外壳 + 装裱层」拍板接受，不是待修违规。</p>
+    <p>本页<strong>不进</strong> <code>audit --strict</code> 扫描目录，豁免已在
+       <a href="./README.md">docs/prototypes/README.md</a> 逐文件显式登记。</p>
+  </div>
+
+  <section>
+    <h2>01 / 8 色 PALETTE 色卡</h2>
+    <p class="lead">这些颜色承担教学语义编码：主蓝为标题主体、橙为高亮、红绿为对错反馈、紫与次蓝为分类。
+       它们由 LLM 填进 JSON AST，前端确定性渲染，Konva / Three 不认 CSS 变量，因此 hex 是有意的双份。</p>
+    <div class="swatches">
+      <div class="swatch"><i style="background:var(--p0)"></i><span class="label">P0 / ACCENT</span><div class="name">主蓝</div><div class="hex">#2563EB</div></div>
+      <div class="swatch"><i style="background:var(--p1)"></i><span class="label">P1 / INFO</span><div class="name">次蓝</div><div class="hex">#0EA5E9</div></div>
+      <div class="swatch"><i style="background:var(--p2)"></i><span class="label">P2 / WARNING</span><div class="name">高亮橙</div><div class="hex">#F59E0B</div></div>
+      <div class="swatch"><i style="background:var(--p3)"></i><span class="label">P3 / DANGER</span><div class="name">警示红</div><div class="hex">#EF4444</div></div>
+      <div class="swatch"><i style="background:var(--p4)"></i><span class="label">P4 / SUCCESS</span><div class="name">成功绿</div><div class="hex">#10B981</div></div>
+      <div class="swatch"><i style="background:var(--p5)"></i><span class="label">P5 / PURPLE</span><div class="name">紫</div><div class="hex">#6366F1</div></div>
+      <div class="swatch"><i style="background:var(--p6)"></i><span class="label">P6 / NEUTRAL</span><div class="name">中性灰</div><div class="hex">#64748B</div></div>
+      <div class="swatch"><i style="background:var(--p7)"></i><span class="label">P7 / SURFACE</span><div class="name">浅底</div><div class="hex">#E2E8F0</div></div>
+    </div>
+  </section>
+
+  <hr>
+
+  <section>
+    <h2>02 / 装裱并置示意</h2>
+    <p class="lead">下面这一幅正是本原型要回答的观感问题：外层是 A 层的细线档案页框与框外页眉页脚，
+       内层是一页抽象彩色课件。判断「档案外壳 + 彩色内页」是否成立，看这一幅即可。</p>
+
+    <div class="juxtapose">
+      <div class="jx-head">
+        <span class="label">FILE X-003</span>
+        <span class="label">DOC-001</span>
+      </div>
+      <div class="jx-rule"></div>
+
+      <div class="folio">
+        <div class="slide">
+          <div class="bar"><span></span></div>
+          <div class="col-a"></div>
+          <div class="col-b"></div>
+          <div class="col-c"></div>
+          <div class="col-d"></div>
+          <div class="chip"></div>
+          <div class="grid"></div>
+          <div class="edge"></div>
+        </div>
+      </div>
+
+      <div class="jx-rule"></div>
+      <div class="jx-foot">
+        <span class="label">SOURCE / [p.94]</span>
+        <span class="label">01/05</span>
+      </div>
+    </div>
+
+    <p class="lead" style="margin-top:16px">
+      <strong>档案外壳负责第几份、第几页、出自哪里，彩色课件页负责这一页教什么；
+      如同纸质卷宗里夹着一页彩色插图，装帧语言与原件内容各司其职，不互相染色。</strong>
+      统一感来自同一根 1px 细线、同一套编号、同一条对齐线，而不是同一套颜色。
+    </p>
+    <p class="lead"><strong>诚实提示（勿据此页低估真实反差）：</strong>本页内页底色用的是 PALETTE 的浅底
+      <code>#E2E8F0</code>，仅为抽象示意。真实 <code>SlideRenderer</code> 的画布底色是
+      <code>#F8FAFC</code>、布局卡片是 <code>#FFFFFF</code>（亮色）或 <code>#0B1220</code>（暗色），
+      即一页接近纯白的高饱和画面夹在暖灰纸 <code>#eae5e1</code> 里，接缝会比本页更明显。
+      此外本原型按 Q-5 默认亮色，而生产 <code>theme.ts</code> 当前以深色为主 —— 全量推进前需就
+      「深色外壳 + 白色课件页」再拍一次板。</p>
+  </section>
+
+  <hr>
+
+  <section>
+    <h2>03 / 6 种教学布局的抽象骨架</h2>
+    <p class="lead">仅用色块示意 6 种布局的画面结构差异，名称取自
+       <code>frontend/src/components/canvas/layouts/</code>；画面本身、语义色与标题字阶在 Q-1 拍板范围内不动。</p>
+    <div class="layouts">
+      <div class="layout"><span class="label">TITLE HERO</span><div class="mini m1"><i></i><i></i><i></i></div></div>
+      <div class="layout"><span class="label">BULLET POINTS</span><div class="mini m5"><i></i><i></i><i></i></div></div>
+      <div class="layout"><span class="label">COMPARISON</span><div class="mini m2"><i></i><i></i></div></div>
+      <div class="layout"><span class="label">CAUSE EFFECT</span><div class="mini m3"><i></i><i></i><i></i><i></i></div></div>
+      <div class="layout"><span class="label">TIMELINE</span><div class="mini m4"><i></i><i></i><i></i><i></i></div></div>
+      <div class="layout"><span class="label">QUIZ</span><div class="mini m6"><i></i><i></i><i></i></div></div>
+    </div>
+  </section>
+
+  <hr>
+
+  <section>
+    <h2>04 / 回到 A 层</h2>
+    <p class="lead">档案终端主原型在 <a href="./rhine-archive/index.html">docs/prototypes/rhine-archive/index.html</a>，
+       可双击打开，过 <code>audit --strict</code> 0 error 0 warning。两页并排比对，即可判断装裱语言与原件内容是否协调。</p>
+  </section>
+
+  <footer>
+    <p>字体已降级：MiSans 未打包，当前使用系统回退链（PingFang SC → Microsoft YaHei）。三行品牌块为纯排版，不是官方标识。</p>
+    <p>本页为莱茵生命风格 / 受 RhineLab 启发的档案终端对照示意，不是官方 UI，不含官方素材、标识、角色立绘或 AI 生图；无外部 CDN 引用。</p>
+    <p>非生产原型 · 不可用于真人测试 · 示意 · 非真实产物</p>
+  </footer>
+
+</div>
+</body>
+</html>
