@@ -5,7 +5,8 @@
 | 设计人 | 高见远（架构师） |
 | 唯一事实基础 | `docs/increments/launcher-optimization-review.md`（513 行评估，2026-11-07）。**本设计不重新推翻评估结论，直接引用其编号**（A / B / C1–C13 / D 方案 a–c / E 的 P0-1~P0-5、P1-1~P1-9、P2-1~P2-5 / F） |
 | 上游输入 | ① 用户 2026-11-07 **三项拍板** + 「P0 五项全做」；② 用户 2026-11-07 **对本文 §8 三点建议的全部拍板决议**（逻辑退场 / P1-3+P1-5 纳入 / 保留 `--reload`）；`scripts/start-web.ps1`、`scripts/stop-web.ps1`、两个 `.bat`、`frontend/vite.config.ts`、`SplitWorkspace.tsx:42`、`offline.html`、`backend/app/config.py`、`backend/app/main.py:87`、`2. 启动网页端(Mac-Linux).sh`、`README.md`、`NEXT-ACTION.md`、`docs/**/*.html`（均已只读核对） |
-| 日期 / 版本 | 2026-11-07 · **v1.1（修订版）**。v1.0 = 初版设计；v1.1 按上述 ② 的三项决议更新 §1 / §2 / §3.5 / §3.6 / §3.7 / §4.1 / §5.3 / §6 / §7 / §8，新增 **§2.5（P1-3 精确范围）/ §2.6（P1-5 范围与已知遗留）/ §6.2.1 / §6.2.2 / §6.4（可转交施工单摘要）/ §6.5（施工单逐条展开）/ §7.8 / §8.1 / §8.2**。§8 由「待拍板」改为「决议记录」，全文已无待确认项 |
+| 日期 / 版本 | 2026-11-07 · **v1.2（修订版）**。v1.0 = 初版设计；v1.1 按上述 ② 的三项决议更新 §1 / §2 / §3.5 / §3.6 / §3.7 / §4.1 / §5.3 / §6 / §7 / §8，新增 **§2.5（P1-3 精确范围）/ §2.6（P1-5 范围与已知遗留）/ §6.2.1 / §6.2.2 / §6.4（可转交施工单摘要）/ §6.5（施工单逐条展开）/ §7.8 / §8.1 / §8.2**；**v1.2 = 本修订**（按交付总监对 T01 上报规格冲突的裁定，只修口径，不改任何代码 / 脚本 / `.bat` / 前端 / 文档站 HTML，不提交 git；明细见下「变更记录 · v1.2」行）。§8 由「待拍板」改为「决议记录」，全文已无待确认项 |
+| 变更记录 · **v1.2**（本修订，2026-11-07） | **触发**：T01 已实现并提交（`f7884ea`），其新增的 `scripts/check-launcher-encoding.ps1` 中 `MSG-PAIR` 规则拦下 §5.3 `Job.NoPause` 的 `en` 值含非 ASCII 字节（内嵌中文 `.bat` 文件名），工程师判定为**设计层面的规格冲突**并上报，交付总监裁定后落实。**只改口径、不动代码**：① §5.3 `Job.NoPause` 的 `en` 改为纯 ASCII 的 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\stop-web.ps1`（与 `3. 停止网页端(Windows).bat` 底层同一个脚本）；② `zh` 值保持原样；③ 升格为 §6.1 **约定 11**：`en` 分支用户可见文案字节级全 ASCII、不得出现中文文件名 / 中文路径 / CJK 字符，需要指向项目内文件时一律给纯 ASCII `scripts\...` 路径与可执行命令；④ 逐条核 §5.3 全表 **23 键**：唯一把中文文件名嵌入用户可见 `en` 文案的键是 `Job.NoPause`，**无第二个违反该约定的键**；另把 `Port.FrontendBusy` 的 `en` 单元格中文占位说明 `…（见 §4.5 全文）` 改为纯 ASCII 标注（该说明是表内编辑标注、非输出文案，§4.5 实际英文降级文案本就纯 ASCII、无中文文件名）；⑤ 明确记为「**T01 实现前发现的规格缺陷**」（§5.3 表下），由工程师自检规则拦下并上报，**不是设计遗漏被静默吞掉**；⑥ §6.5 T01 验收补两句：`-DryRun` 余三行（`Job race`→T05 / `PidFile schema`→T02 / `Docs URL`→T04）由后续任务回填、**不算 T01 欠账**，能力字段刻意留 `deferred(T05)` / `unknown(T03)` 初值、保持现状行为，符合「不预实现」约束。**T01 验收结论不变、仍为已完成**；任务范围 / 依赖 / 验收清单均不变；T02 由工程师并行实现中，本修订未触碰 `scripts/**`、两个 `.bat` 与前端 |
 | 交付物 | **本文（本轮修订唯一落盘文件）** |
 | 纪律 | 未修改任何 `.bat` / `.ps1` / `.sh` / 前端源码 / 后端配置 / 文档站 HTML；**未执行任何会启停项目服务的命令**；未做 git 提交；未新建除本文外的任何文件 |
 | 阶段声明 | 项目当前处于 **「测试期」**（`NEXT-ACTION.md:3`「先停止写代码，先做真实测试」）。本版**全部改动都在启动脚本层**（`.bat` / `.ps1` / `.sh` / `vite.config.ts` 配置 / README），**不改产品代码（`frontend/src/**`、`backend/app/**`）与 UI**，因此**不影响 `docs/用户任务清单.html` 的 6 项真人测试**（导出 PDF、真实教材、真实 Key、PWA、真实 GPU、移动端）与 5 个学生试用任务；但会改变测试者的「停止方式」习惯，真人测试开跑前应先用 `-DryRun` 告知 |
@@ -615,8 +616,8 @@ function Get-ConsoleTextCapability {
 | `Stop.Done` | `服务已停止，PID 文件已清理。` | `Services stopped; PID file removed.` | 收尾 |
 | **`Job.Fallback`** | **`本次未启用自动清理（原因：<R>），请在本窗口按回车停止服务后再关闭。`** | **`Auto-cleanup NOT enabled this run (<R>). Press ENTER here to stop services before closing.`** | **§3.6 强制行** |
 | `Job.CloseStops` | `启动完成。直接关闭本窗口即会自动停止全部服务。` | `Started. Closing this window stops ALL services automatically.` | 正常路径 |
-| `Job.NoPause` | `-NoPause：服务常驻后台，请运行 3. 停止网页端(Windows).bat 停止。` | `-NoPause: services stay in background. Run 3. 停止网页端(Windows).bat to stop.` | `-NoPause` |
-| `Port.FrontendBusy` | `前端端口 5173 已被占用…（见 §4.5 全文）` | `Frontend port 5173 is already in use…（见 §4.5 全文）` | P1-7 |
+| `Job.NoPause` | `-NoPause：服务常驻后台，请运行 3. 停止网页端(Windows).bat 停止。` | `-NoPause: services stay in background. To stop them, run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\stop-web.ps1` | `-NoPause` |
+| `Port.FrontendBusy` | `前端端口 5173 已被占用…（见 §4.5 全文）` | `Frontend port 5173 is already in use... (see section 4.5 for full text)` | P1-7 |
 | `Port.HintNetstat` | `请执行：netstat -ano \| findstr :5173  找到占用者 PID` | `Run: netstat -ano \| findstr :5173` | P1-7 |
 | `Fail.PressEnter` | `按回车键关闭此窗口` | `Press ENTER to close this window` | `Fail()` |
 | `StopScript.NoPid` | `没有找到 pids.json —— 没有需要清理的后台服务。` | `No pids.json found - nothing to clean up.` | stop-web.ps1 |
@@ -627,6 +628,11 @@ function Get-ConsoleTextCapability {
 | **`Job.RaceNotice`**（v1.1 / 决议 6） | `已保留开发期热重载（--reload）；极端情况下早于首个进程加入任务前派生的孙进程可能残留，需实现后实测。` | `Dev hot-reload (--reload) kept; a grandchild forked before the first job assignment may rarely survive. Needs real-world verification.` | 完成页 + DryRun |
 
 > **v1.1 新增 4 条键**（`StopScript.Stale` / `Mismatch` / `Legacy` / `Job.RaceNotice`），均为 P1-3 / 决议 6 引入；按 §6.1 约定 3 必须 zh/en 成对，且 `en` 全为 ASCII（`netstat`/`findstr` 命令片段本身是 ASCII，无 CJK）。
+>
+> **【v1.2 · T01 实现前发现的规格缺陷】**（交付总监裁定，2026-11-07）：v1.1 把 `Job.NoPause` 的 `en` 写成 `Run 3. 停止网页端(Windows).bat to stop.`，**英文值内嵌中文文件名**，与 §6.1 约定 3「`en` 全为 ASCII」直接冲突。这不是设计遗漏被静默吞掉：**T01 工程师在 `scripts/check-launcher-encoding.ps1` 中实现的 `MSG-PAIR` 规则（拦「`en` 值含非 ASCII 字节」）在实现阶段就把该键挡下并上报为设计层面规格冲突**，因此 T01 未敢收录该键；T05 若照 v1.1 原表写会被同一自检直接拦下。
+> **根因（不可协商）**：「**无 CJK 字体覆盖**」正是触发英文降级的原因（§5.2 环境 ③），此时把中文文件名打给用户就是一串方块，**等于没告诉他怎么停服务**；`.bat` 文件名含中文，降级环境里不可用。而 `scripts\stop-web.ps1` 与 `3. 停止网页端(Windows).bat` 底层调的是**同一个脚本**，路径全 ASCII，在无 CJK 字体环境下**仍可读、可复制、可执行**。
+> **v1.2 处置**：① `Job.NoPause` 的 `en` 改为 `-NoPause: services stay in background. To stop them, run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\stop-web.ps1`；② `zh` **保持原样**（中文环境能正常显示中文文件名，双击 `.bat` 更符合用户习惯）；③ 口径升格为 **§6.1 约定 11**（跨任务通用约定）。
+> **逐条核 §5.3 全表（23 键）结论**：唯一把中文文件名 / 中文路径嵌入用户可见 `en` 文案的键就是 `Job.NoPause`，**无第二个违反该约定的键**；其余 22 键的 `en` 均为纯 ASCII（`netstat`/`findstr`、`pids.json`、`<R>` 占位符等都是 ASCII）。另有一处**表内编辑标注**：`Port.FrontendBusy` 的 `en` 单元格原写 `…（见 §4.5 全文）`，其中 `（见…全文）` 是**文档内的省略/交叉引用记号、不是要输出给用户的运行时文案**（该键真实 `en` 文案在 §4.5，本身纯 ASCII、无中文文件名）；为使全表 `en` 列**字节级可机检**、不被 `MSG-PAIR` 误拦，v1.2 顺带把它改成纯 ASCII 的 `(see section 4.5 for full text)`，并在文首变更记录中列出。
 
 > **评估未覆盖、本设计补充的一个真实问题**：项目根目录是 `D:\学习目标_笔记\2. 智\…`，**含大量中文**。降级英文时若照常打印 `$LauncherDir` / `$VenvPython` 等**绝对路径**，屏幕上仍会出现 CJK 字符 → 照样豆腐块。
 > **解法（零侵入）**：降级模式下所有路径类输出改为**相对 `$Root` 的相对路径**（`$p.Substring($Root.Length + 1)`）——项目内的 `backend\data\launcher\…`、`frontend\…`、日志文件名**全是 ASCII**，中文只出现在 `$Root` 前缀里，去掉即可彻底避开。实现 `Get-DisplayPath($p)`：正常路径显示全路径，`MsgLang=en` 时显示相对路径；若相对化后仍含非 ASCII，用 `-replace '[^\x20-\x7E]','?'` 兜底。
@@ -667,6 +673,7 @@ function Get-ConsoleTextCapability {
 8. `-ForceJobFallback`（T01 预留参数、T05 实现）是**纯测试开关**，用于稳定复现降级路径，不改变默认行为；**与 `-DryRun` 提前暴露 Add-Type 被拦共同构成本轮最高风险的缓解组合，两条都不得丢**（见 §6.2 风险映射表、§7.4）。
 9. **顺序不变量（不得违反）**：**T02 先把三件套修可靠（P0-1 + P1-3 身份校验），T05 才上 Job**。因为 T05 的失败降级要「完整退回」一个**可信**的清理机制；若三件套在 T02 未修好，降级路径本身就带 C8 覆写 + C4 误杀两个缺陷。P1-3 挂 T02 而非 T05 正是由此决定。
 10. **保留 `uvicorn --reload`**（决议 6）：`start-web.ps1:356` 的 `--reload` 参数不动；T05 的补挂扫描必须按「reloader+server 两层」实现，不得省略。
+11. **【v1.2 新增 · 跨任务通用约定】`en` 分支用户可见文案的纯 ASCII 约束**：所有走 `Msg(<Key>)` 的**英文降级文案（`en` 值）一律纯 ASCII**，**不得出现任何中文文件名、中文路径或 CJK 字符**（含全角标点）；需要指向项目内文件时，**一律给纯 ASCII 的 `scripts\...` 路径与可直接执行的命令**（如 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\stop-web.ps1`），**不得给出含中文的 `.bat` 文件名**。理由：「无 CJK 字体覆盖」正是触发英文降级的原因，中文文件名在降级环境下显示为一串方块、等于没给出可用指引；`scripts\stop-web.ps1` 与 `3. 停止网页端(Windows).bat` 底层是同一脚本且路径全 ASCII，可读可复制可执行。`zh` 分支不受此约束（中文环境双击 `.bat` 更符合习惯）。校验：T01 的 `scripts/check-launcher-encoding.ps1` 中 `MSG-PAIR` 规则拦「`en` 值含非 ASCII 字节」、T03 验收 ④ 复核全表；对照表见 §5.3，冲突由来见 §5.3 的【T01 实现前发现的规格缺陷】块。**此约定对 T01–T05 全部 `Msg()` 键生效，不限于 `Job.NoPause` 一个键**。
 
 ### 6.2 任务列表（5 条，每条一个 commit）
 
@@ -750,6 +757,10 @@ graph TD
 **T01 基础设施**
 `scripts/start-web.ps1`：`param`(32-37) 加 `[switch]$ForceJobFallback`；45-52 无条件 `chcp 65001` 包成 `if ($cap.DoChcp)`；顶部插 `$Messages`(zh/en，键见 §5.3)、`Msg()`、`Get-ConsoleTextCapability` 骨架；冻结 `$script:LauncherCapability` 十字段；`DryRun` 块(310-333) 追加四类输出。`scripts/stop-web.ps1`：20-25 `chcp` 同样条件化、`Write-Host`→`Msg()`、行尾 LF→CRLF。新增 `scripts/check-launcher-encoding.ps1`（ASCII / BOM / CRLF / ParseErrors 四检）。
 验：`PS> "scripts\start-web.ps1" -DryRun` → 打印 `Job capability:` / `Console env:` / `Ports:` / `Legacy trio:` 四行，且 `backend/data/launcher/` 无新文件；`PS> "scripts\check-launcher-encoding.ps1"` → 全 PASS、`ParseErrors=0`。
+
+> **【v1.2 补写 · T01 验收口径，两句】**
+> ① **T01 的 `-DryRun` 只输出四类状态**（`Job capability` / `Console env` / `Ports` / `Legacy trio`）。§7.1 完整输出块里的另外三行分属后续任务：`Job race` → **T05**（补挂扫描 / `--reload` 竞态）、`PidFile schema` → **T02**（P1-3 的 `processes` 字段）、`Docs URL` → **T04**（P1-5 三处 `/docs`→`/api/docs`）。工程师这个拆分是**正确的**，**余三行由后续任务回填，不算 T01 欠账**；T01 验收以「四类状态齐全 + 无副作用」为准，**T01 已是完成状态**。
+> ② T01 的能力字段**刻意留 `deferred(T05)` / `unknown(T03)` 初值**（如 `AssignProbe=deferred`、控制台 ACP / 字体待 T03 实现），**只冻结字段结构与调用点、保持现状行为、不提前实现后续任务的探测逻辑**，符合「不预实现 / 每个 commit 只做本任务」约束（§6.1 约定 2：T05 只填值、不改调用点）。这是刻意的初值设计，**不是能力缺失或 T01 未完成**。
 
 **T02 P0 五项 + P1-3（先把三件套修可靠）**
 `scripts/start-web.ps1`：305-306 端口检测拆三态（本项目已运行 / 外部占用 / 空闲）并在 354 前加 `/api/health` 校验（`HttpClientHandler{UseProxy=$false}`、`code=="OK"`）；366-369 前端参数改 `@('/c','npm','run','dev','--','--port',"$FrontendPort",'--strictPort')`；378-382 `pids.json` 改为「仅 `StartedPids.Count>0` 才写 + 原子写（临时文件→`Move-Item -Force`）+ 追加 `processes:[{pid,process_name,start_time}]`」（§2.5，**不写 `CommandLine`**）；149-166 `Wait-ServiceReady` 加 `$BackendProc/$FrontendProc.HasExited` + err.log `Traceback|ERROR` tail-20 早失败。`scripts/stop-web.ps1`：43-67 改四态（§2.5）——`processes` 存在且 `ProcessName`+`StartTime.ToString('o')` 全匹配才 `taskkill /PID /T /F`；`updated_at`>24h 或身份不匹配 → **只 `Remove-Item $PidFile`、不杀**；`processes` 缺失 → 旧行为不报错；加 `StopScript.Stale/Mismatch/Legacy` 三键。两个 `.bat`：16-21 / 12-14 加纯 ASCII `for %%A in (%*) do if /I "%%~A"=="-NoPause" set "EDU_NOPAUSE=1"`（`-DryRun` 同），`pause`→`if not defined EDU_NOPAUSE pause`。
@@ -921,4 +932,4 @@ Docs URL       : /api/docs (3 places updated; HTML left as registered legacy)
 
 ---
 
-*本文为设计交付物（**v1.1 修订版**），不含任何已实现代码；所有 Windows 内核 / 字体行为未经本机验证处均标注「需实现后实测」。本轮修订只改本文，未改任何代码 / 前端 / 文档站 HTML，未启停项目服务，未提交 git。*
+*本文为设计交付物（**v1.2 修订版**），不含任何已实现代码；所有 Windows 内核 / 字体行为未经本机验证处均标注「需实现后实测」。**v1.2 本轮修订只改本文口径**（§5.3 `Job.NoPause` 的 `en` 去中文文件名并升格 §6.1 通用约定、§6.5 补 T01 验收两句、文首变更记录），未改任何代码 / 脚本 / 两个 `.bat` / 前端 / 文档站 HTML，未启停项目服务，未提交 git；T01 已实现提交（`f7884ea`），T02 由工程师并行实现中。*
