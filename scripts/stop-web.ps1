@@ -60,19 +60,66 @@ function Msg([string]$Key) {
 }
 
 function Get-ConsoleTextCapability {
-    # T01 骨架：返回能力对象初值，字段形状与 §5.1 一致。
-    # 初值取「保守不变」：DoChcp=true 保持既有 chcp 65001，MsgLang=zh 保持既有中文提示。
-    # 三处注册表只读与六档分支在 T03 实现。
+    <# T03：与 start-web.ps1 同源的六档判定（设计 §5.1 / §5.2）。
+       只读三处注册表，不写 HKCU、不改字体。判据是「代码页 + 字体 CJK 覆盖」，
+       而不是系统语言 —— 本机就是 zh-CN 但 ACP=65001 + Consolas 零 CJK 回退。
+    #>
+    $acp = 'unknown'; $oem = 'unknown'; $face = 'unknown'
+    $hasFontLink = $false; $hasCjk = $false
+
+    try {
+        $nls = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Nls\CodePage' -ErrorAction Stop
+        $acp = [string]$nls.ACP
+        $oem = [string]$nls.OEMCP
+    } catch { }
+
+    try {
+        $face = [string](Get-ItemProperty 'HKCU:\Console' -ErrorAction Stop).FaceName
+    } catch { }
+    if ([string]::IsNullOrWhiteSpace($face)) { $face = 'Consolas' }
+
+    $cjkPattern = 'SimSun|NSimSun|MingLiU|MSMINCHO|MS Gothic|MS PMincho|Yu Gothic|Malgun|Batang|YaHei|宋体|新宋体|明体|黑体|Sarasa|Noto.*CJK|Source Han'
+    $faceIsCjk = $face -match $cjkPattern
+
+    try {
+        $link = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\FontLink\SystemLink' -ErrorAction Stop
+        $prop = $link.PSObject.Properties | Where-Object { $_.Name -eq $face } | Select-Object -First 1
+        if ($null -ne $prop) {
+            $hasFontLink = $true
+            $hasCjk = ([string]($prop.Value -join ' ')) -match $cjkPattern
+        }
+    } catch { }
+
+    $hasCjkCoverage = $faceIsCjk -or $hasCjk
+    $isCjkAcp = $acp -in @('936', '950', '932', '949')
+
+    if ($isCjkAcp) {
+        $branch = if ($hasCjkCoverage) { '1 CJK-ACP' } else { '1b CJK-ACP no-font' }
+        $doChcp = $false
+        $enc = [System.Text.Encoding]::GetEncoding([int]$acp)
+        $msgLang = 'zh'
+    } elseif ($acp -eq '65001') {
+        $branch = if ($hasCjkCoverage) { '3 UTF-8-Beta' } else { '3b UTF-8-Beta no-font' }
+        $doChcp = $false
+        $enc = [System.Text.Encoding]::UTF8
+        $msgLang = if ($hasCjkCoverage) { 'zh' } else { 'en' }
+    } else {
+        $branch = if ($hasCjkCoverage) { '2 Western cjk-font' } else { '2 Western' }
+        $doChcp = $true
+        $enc = [System.Text.Encoding]::UTF8
+        $msgLang = 'en'
+    }
+
     return [pscustomobject]@{
-        ACP             = 'unknown'
-        OEMCP           = 'unknown'
-        FaceName        = 'unknown'
-        HasFontLink     = $false
-        HasCjkCoverage  = $false
-        Branch          = 'skeleton (T03)'
-        DoChcp          = $true
-        OutputEncoding  = [System.Text.Encoding]::UTF8
-        MsgLang         = 'zh'
+        ACP            = $acp
+        OEMCP          = $oem
+        FaceName       = $face
+        HasFontLink    = $hasFontLink
+        HasCjkCoverage = $hasCjkCoverage
+        Branch         = $branch
+        DoChcp         = $doChcp
+        OutputEncoding = $enc
+        MsgLang        = $msgLang
     }
 }
 
@@ -89,6 +136,17 @@ try {
 }
 
 $Root = Split-Path -Parent $PSScriptRoot
+
+function Get-DisplayPath([string]$Path) {
+    # 与 start-web.ps1 同源：英文降级时把绝对路径相对化到项目根。
+    # 本项目根目录含中文，直接打印绝对路径会重新引入豆腐块。
+    if ($script:ConsoleCapability.MsgLang -ne 'en') { return $Path }
+    $rel = $Path
+    if ($Path.StartsWith($Root, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $rel = $Path.Substring($Root.Length).TrimStart('\', '/')
+    }
+    return ($rel -replace '[^\x20-\x7E]', '?')
+}
 $PidFile = Join-Path $Root 'backend\data\launcher\pids.json'
 
 Write-Host ''
@@ -99,7 +157,7 @@ Write-Host ''
 
 if (-not (Test-Path $PidFile)) {
     Write-Host (' ' + (Msg 'StopScript.NoPid')) -ForegroundColor Green
-    Write-Host (' ' + ((Msg 'StopScript.PidPath') -f $PidFile)) -ForegroundColor DarkGray
+    Write-Host (' ' + ((Msg 'StopScript.PidPath') -f (Get-DisplayPath $PidFile))) -ForegroundColor DarkGray
     exit 0
 }
 

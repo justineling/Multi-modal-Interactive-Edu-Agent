@@ -62,6 +62,69 @@ $script:KeepServicesOnExit = [bool]$NoPause
 # 新增任何用户可见文案必须同时提供 zh / en 两条；en 分支必须纯 ASCII。
 $Messages = @{
     zh = @{
+        'Env.PythonHint1'         = '请安装 Python 3.12+，安装时务必勾选 "Add python.exe to PATH"'
+        'Env.PythonHint2'         = '下载：https://www.python.org/downloads/'
+        'Env.NodeHint1'           = '请安装 Node.js 20 或更高版本'
+        'Env.NodeHint2'           = '下载：https://nodejs.org/'
+        'Fail.VenvCreate'         = '创建虚拟环境失败。'
+        'Fail.VenvHint1'          = '请确认 Python 版本 >= 3.12：python --version'
+        'Fail.VenvHint2'          = '如提示缺少 venv 模块，请重新安装 Python 并勾选全部组件'
+        'Fail.BackendDeps'        = '后端依赖安装失败。常见原因：'
+        'Fail.DepsHint1'          = '网络问题：& ''{0}'' -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r backend\requirements.txt'
+        'Fail.DepsHint2'          = '缺少编译工具：安装 Visual Studio Build Tools'
+        'Fail.DepsHint3'          = '公司代理：先设置 HTTP_PROXY / HTTPS_PROXY 环境变量'
+        'Fail.Npm'                = 'npm install 失败。'
+        'Fail.NpmHint1'           = '网络问题：npm config set registry https://registry.npmmirror.com'
+        'Fail.NpmHint2'           = '然后重新运行本脚本'
+        'Ready.ProcExited'        = '{0} 进程 (PID {1}) 已提前退出'
+        'Ready.FatalLog'          = '{0} 日志出现致命错误：{1}'
+        'Common.Failed'           = '失败'
+        'Common.Timeout'          = '超时'
+        'DryRun.ActionHeader'     = '---------- DryRun：将要执行的动作 ----------'
+        'DryRun.PortForeign'      = '端口三态  : 端口 {0} 被外部占用，正式流程将报错退出（DryRun 未执行）'
+        'DryRun.PortOurs'         = '端口三态  : 本项目服务已在运行，正式流程将提示后退出：不启动、不写 pids.json（DryRun 未执行）'
+        'DryRun.LaunchBackend'    = '启动后端  : {0} (隐藏窗口)'
+        'DryRun.LaunchFrontend'   = '启动前端  : {0} (隐藏窗口)'
+        'DryRun.ReadyCheck'       = '就绪检测  : TCP {0} + {1}，每 0.5s，最多 {2} s；进程早退 / err.log 致命错误立即失败'
+        'DryRun.NoBrowser'        = '打开浏览器: 否（-NoBrowser）'
+        'DryRun.Browser'          = '打开浏览器: {0}'
+        'DryRun.LogDir'           = '日志目录  : {0}'
+        'DryRun.Done'             = 'DryRun 结束：未启动任何服务、未开浏览器、未写任何文件。'
+        'Env.RealModelHint'       = '要接入真实模型：编辑该文件并填写 LLM_API_KEY'
+        'Step.BackendBusy'        = '后端端口状态非空闲，跳过启动'
+        'Step.FrontendBusy'       = '前端端口状态非空闲，跳过启动'
+        'Done.FrontendUrl'        = '前端界面   {0}'
+        'Done.ApiDocs'            = '接口文档   {0}'
+        'Done.Health'             = '健康检查   {0}'
+        'Done.LogDir'             = '日志目录   {0}'
+        'Done.InstallPwa'         = '安装为桌面应用：在 Chrome/Edge 地址栏右侧点「安装」图标'
+        'Stop.NoPause1'           = '-NoPause：不等待回车，且不会清理子进程。'
+        'Stop.NoPause2'           = '服务有意留在后台供自动化使用；关掉这个窗口不会停止服务。'
+        'Stop.NoPause3'           = '需要停止时请运行 3. 停止网页端(Windows).bat'
+        'Stop.CloseHint'          = '若直接点 X 关窗口，请再运行 3. 停止网页端(Windows).bat 兜底清理'
+        'Fail.LogFiles'           = '请先查看四个日志文件：'
+        'Fail.ErrTailHeader'      = '---- err.log 末尾 20 行 ----'
+        'Fail.CommonCauses'       = '常见原因：端口被别的程序占用 / 依赖没装全 / .env 配错。'
+        'Port.OursNoWrite'        = 'pids.json 未被改写；不会显示「启动完成」，也不会打开浏览器。'
+        'Step.EnvOk'              = '[0/5] Python / Node.js 检查通过'
+        'Step.VenvCreateDry'      = '[1/5] 将创建 Python 虚拟环境并安装后端依赖（DryRun 未执行）'
+        'Step.VenvCreate'         = '[1/5] 首次运行：创建 Python 虚拟环境...'
+        'Step.VenvInstall'        = '[1/5] 安装后端依赖（约 1-2 分钟，请耐心等待）...'
+        'Step.VenvDone'           = '[1/5] 后端依赖安装完成'
+        'Step.VenvReady'          = '[1/5] 后端虚拟环境已就绪'
+        'Step.EnvCreateDry'       = '[2/5] 将从 .env.example 创建 backend\.env（DryRun 未执行）'
+        'Step.EnvCreated'         = '[2/5] 已创建 backend\.env（当前为演示模式，未配置真实模型）'
+        'Step.EnvExists'          = '[2/5] backend\.env 已存在'
+        'Step.NpmInstallDry'      = '[3/5] 将安装前端依赖（DryRun 未执行）'
+        'Step.NpmInstall'         = '[3/5] 首次运行：安装前端依赖（约 1-3 分钟）...'
+        'Step.NpmDone'            = '[3/5] 前端依赖安装完成'
+        'Step.NpmReady'           = '[3/5] 前端依赖已就绪'
+        'Step.SampleDry'          = '[4/5] 将生成示例教材（DryRun 未执行）'
+        'Step.SampleGen'          = '[4/5] 生成示例教材（113 页）...'
+        'Step.SampleDone'         = '[4/5] 示例教材已生成'
+        'Step.SampleExists'       = '[4/5] 示例教材已存在'
+        'Step.BackendStarted'     = ' 后端已启动 (PID {0})'
+        'Step.FrontendStarted'    = ' 前端已启动 (PID {0})'
         'Banner.Title'        = '多模态沉浸式智能助教  ·  一键启动'
         'Banner.DryRun'       = '[DryRun] 只检查，不启动、不写文件、不等待'
         'DryRun.StatusHeader' = '---------- DryRun：四类状态输出 ----------'
@@ -84,6 +147,69 @@ $Messages = @{
         'PidFile.Skipped'     = '本轮没有启动任何服务：不写 pids.json，保留原有记录。'
     }
     en = @{
+        'Env.PythonHint1'         = 'Install Python 3.12+ and make sure "Add python.exe to PATH" is checked'
+        'Env.PythonHint2'         = 'Download: https://www.python.org/downloads/'
+        'Env.NodeHint1'           = 'Install Node.js 20 or newer'
+        'Env.NodeHint2'           = 'Download: https://nodejs.org/'
+        'Fail.VenvCreate'         = 'Failed to create the virtual environment.'
+        'Fail.VenvHint1'          = 'Check Python version >= 3.12: python --version'
+        'Fail.VenvHint2'          = 'If the venv module is missing, reinstall Python with all components'
+        'Fail.BackendDeps'        = 'Backend dependency install failed. Common causes:'
+        'Fail.DepsHint1'          = 'Network: & ''{0}'' -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r backend\requirements.txt'
+        'Fail.DepsHint2'          = 'Missing build tools: install Visual Studio Build Tools'
+        'Fail.DepsHint3'          = 'Corporate proxy: set HTTP_PROXY / HTTPS_PROXY first'
+        'Fail.Npm'                = 'npm install failed.'
+        'Fail.NpmHint1'           = 'Network: npm config set registry https://registry.npmmirror.com'
+        'Fail.NpmHint2'           = 'Then run this script again'
+        'Ready.ProcExited'        = '{0} process (PID {1}) exited early'
+        'Ready.FatalLog'          = '{0} log shows a fatal error: {1}'
+        'Common.Failed'           = 'failed'
+        'Common.Timeout'          = 'timed out'
+        'DryRun.ActionHeader'     = '---------- DryRun: planned actions ----------'
+        'DryRun.PortForeign'      = 'Port state : port {0} is held by an external process; the real run aborts with an error (DryRun made no change)'
+        'DryRun.PortOurs'         = 'Port state : project services already running; the real run exits after a notice - no start, no pids.json write (DryRun made no change)'
+        'DryRun.LaunchBackend'    = 'Start back : {0} (hidden window)'
+        'DryRun.LaunchFrontend'   = 'Start front: {0} (hidden window)'
+        'DryRun.ReadyCheck'       = 'Readiness  : TCP {0} + {1}, every 0.5s, up to {2}s; fail fast on early exit or fatal err.log'
+        'DryRun.NoBrowser'        = 'Open browser: no (-NoBrowser)'
+        'DryRun.Browser'          = 'Open browser: {0}'
+        'DryRun.LogDir'           = 'Log dir    : {0}'
+        'DryRun.Done'             = 'DryRun finished: no service started, no browser, no files written.'
+        'Env.RealModelHint'       = 'To use a real model, edit that file and set LLM_API_KEY'
+        'Step.BackendBusy'        = 'Backend port is not idle; skipping start'
+        'Step.FrontendBusy'       = 'Frontend port is not idle; skipping start'
+        'Done.FrontendUrl'        = 'Frontend   {0}'
+        'Done.ApiDocs'            = 'API docs   {0}'
+        'Done.Health'             = 'Health     {0}'
+        'Done.LogDir'             = 'Log dir    {0}'
+        'Done.InstallPwa'         = 'Install as desktop app: click the Install icon in the Chrome/Edge address bar'
+        'Stop.NoPause1'           = '-NoPause: no Enter prompt and NO child-process cleanup.'
+        'Stop.NoPause2'           = 'Services stay in background on purpose for automation; closing this window does NOT stop them.'
+        'Stop.NoPause3'           = 'To stop them run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\stop-web.ps1'
+        'Stop.CloseHint'          = 'If you close this window with X, run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\stop-web.ps1'
+        'Fail.LogFiles'           = 'Check these four log files first:'
+        'Fail.ErrTailHeader'      = '---- last 20 lines of err.log ----'
+        'Fail.CommonCauses'       = 'Common causes: port taken by another program / missing deps / wrong .env.'
+        'Port.OursNoWrite'        = 'pids.json left untouched; no Started banner and no browser will be opened.'
+        'Step.EnvOk'              = '[0/5] Python / Node.js OK'
+        'Step.VenvCreateDry'      = '[1/5] Would create venv and install backend deps (DryRun: skipped)'
+        'Step.VenvCreate'         = '[1/5] First run: creating Python venv...'
+        'Step.VenvInstall'        = '[1/5] Installing backend deps (~1-2 min, please wait)...'
+        'Step.VenvDone'           = '[1/5] Backend deps installed'
+        'Step.VenvReady'          = '[1/5] Backend venv ready'
+        'Step.EnvCreateDry'       = '[2/5] Would create backend\.env from .env.example (DryRun: skipped)'
+        'Step.EnvCreated'         = '[2/5] Created backend\.env (demo mode, no real model configured)'
+        'Step.EnvExists'          = '[2/5] backend\.env already exists'
+        'Step.NpmInstallDry'      = '[3/5] Would install frontend deps (DryRun: skipped)'
+        'Step.NpmInstall'         = '[3/5] First run: installing frontend deps (~1-3 min)...'
+        'Step.NpmDone'            = '[3/5] Frontend deps installed'
+        'Step.NpmReady'           = '[3/5] Frontend deps ready'
+        'Step.SampleDry'          = '[4/5] Would generate sample textbook (DryRun: skipped)'
+        'Step.SampleGen'          = '[4/5] Generating sample textbook (113 pages)...'
+        'Step.SampleDone'         = '[4/5] Sample textbook generated'
+        'Step.SampleExists'       = '[4/5] Sample textbook already exists'
+        'Step.BackendStarted'     = ' Backend started (PID {0})'
+        'Step.FrontendStarted'    = ' Frontend started (PID {0})'
         'Banner.Title'        = 'Multimodal Interactive Edu Agent  -  One-click Launcher'
         'Banner.DryRun'       = '[DryRun] Check only; no start, no writes, no wait'
         'DryRun.StatusHeader' = '---------- DryRun: four status categories ----------'
@@ -118,19 +244,75 @@ function Msg([string]$Key) {
 }
 
 function Get-ConsoleTextCapability {
-    # T01 骨架：返回能力对象初值，字段形状与 §5.1 一致。
-    # 初值取「保守不变」：DoChcp=true 保持既有 chcp 65001，MsgLang=zh 保持既有中文提示。
-    # 三处注册表只读（ACP/OEMCP、FaceName、FontLink\SystemLink）与六档分支在 T03 实现。
+    <# T03：按「ACP + 控制台字体 CJK 覆盖」判定六档环境（设计 §5.1 / §5.2）。
+
+       为什么不能只看系统语言：本机就是 zh-CN 但 ACP=65001、字体 Consolas 且
+       FontLink\SystemLink 无任何 CJK 回退——此时 chcp 65001 是空操作，瓶颈
+       100% 在字形缺失，中文必然显示为方块。所以判据必须是「代码页 + 字体覆盖」。
+
+       零侵入：只读三处注册表，不写 HKCU、不改控制台字体、不改系统默认终端。
+    #>
+    $acp = 'unknown'; $oem = 'unknown'; $face = 'unknown'
+    $hasFontLink = $false; $hasCjk = $false
+
+    try {
+        $nls = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Nls\CodePage' -ErrorAction Stop
+        $acp = [string]$nls.ACP
+        $oem = [string]$nls.OEMCP
+    } catch { }
+
+    try {
+        $face = [string](Get-ItemProperty 'HKCU:\Console' -ErrorAction Stop).FaceName
+    } catch { }
+    if ([string]::IsNullOrWhiteSpace($face)) { $face = 'Consolas' }   # 最常见的零 CJK 回退字体
+
+    $cjkPattern = 'SimSun|NSimSun|MingLiU|MSMINCHO|MS Gothic|MS PMincho|Yu Gothic|Malgun|Batang|YaHei|宋体|新宋体|明体|黑体|Sarasa|Noto.*CJK|Source Han'
+    $faceIsCjk = $face -match $cjkPattern
+
+    try {
+        $link = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\FontLink\SystemLink' -ErrorAction Stop
+        $prop = $link.PSObject.Properties | Where-Object { $_.Name -eq $face } | Select-Object -First 1
+        if ($null -ne $prop) {
+            $hasFontLink = $true
+            $hasCjk = ([string]($prop.Value -join ' ')) -match $cjkPattern
+        }
+    } catch { }
+
+    $hasCjkCoverage = $faceIsCjk -or $hasCjk
+
+    # ---- 六档分支（§5.2）----
+    $isCjkAcp = $acp -in @('936', '950', '932', '949')
+    if ($isCjkAcp) {
+        # ① / ①′：中文传统代码页。chcp 65001 会关掉 DBCS 渲染路径，反而不显示中文。
+        $branch = if ($hasCjkCoverage) { '1 CJK-ACP' } else { '1b CJK-ACP no-font' }
+        $doChcp = $false
+        $enc = [System.Text.Encoding]::GetEncoding([int]$acp)
+        $msgLang = 'zh'
+    } elseif ($acp -eq '65001') {
+        # ③ / ③′：已是 UTF-8（含 Windows「Beta: 使用 Unicode UTF-8」）。chcp 是空操作。
+        $branch = if ($hasCjkCoverage) { '3 UTF-8-Beta' } else { '3b UTF-8-Beta no-font' }
+        $doChcp = $false
+        $enc = [System.Text.Encoding]::UTF8
+        $msgLang = if ($hasCjkCoverage) { 'zh' } else { 'en' }
+    } else {
+        # ② / ②′：英文 / 西欧代码页。chcp 只解决「字节→码位」，字形仍需字体。
+        # 一律英文，不赌用户装了 CJK 等宽字体。
+        $branch = if ($hasCjkCoverage) { '2 Western cjk-font' } else { '2 Western' }
+        $doChcp = $true
+        $enc = [System.Text.Encoding]::UTF8
+        $msgLang = 'en'
+    }
+
     return [pscustomobject]@{
-        ACP             = 'unknown'
-        OEMCP           = 'unknown'
-        FaceName        = 'unknown'
-        HasFontLink     = $false
-        HasCjkCoverage  = $false
-        Branch          = 'skeleton (T03)'
-        DoChcp          = $true
-        OutputEncoding  = [System.Text.Encoding]::UTF8
-        MsgLang         = 'zh'
+        ACP            = $acp
+        OEMCP          = $oem
+        FaceName       = $face
+        HasFontLink    = $hasFontLink
+        HasCjkCoverage = $hasCjkCoverage
+        Branch         = $branch
+        DoChcp         = $doChcp
+        OutputEncoding = $enc
+        MsgLang        = $msgLang
     }
 }
 
@@ -201,6 +383,23 @@ $env:NO_PROXY = 'localhost,127.0.0.1'
 
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
+
+function Get-DisplayPath([string]$Path) {
+    <# 英文降级模式下把绝对路径相对化到项目根（设计 §5.1 末尾）。
+
+       本项目的根目录是 `D:\学习目标_笔记\...`，本身含大量中文。若在英文降级时
+       照常打印绝对路径，屏幕上仍会出现豆腐块 —— 文案全是 ASCII 也没用。
+       项目内的 backend\... / frontend\... / 日志文件名本身都是 ASCII，
+       去掉中文前缀即可；万一相对化后仍有非 ASCII，用 '?' 兜底而不是放任方块。
+       中文模式下原样返回，用户看到完整路径更好定位。
+    #>
+    if ($script:ConsoleCapability.MsgLang -ne 'en') { return $Path }
+    $rel = $Path
+    if ($Path.StartsWith($Root, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $rel = $Path.Substring($Root.Length).TrimStart('\', '/')
+    }
+    return ($rel -replace '[^\x20-\x7E]', '?')
+}
 
 $BackendDir = Join-Path $Root 'backend'
 $FrontendDir = Join-Path $Root 'frontend'
@@ -391,8 +590,8 @@ function Wait-ServiceReady {
             if ($null -ne $watch.Proc) {
                 try {
                     if ($watch.Proc.HasExited) {
-                        $script:ReadyFailureReason = "$($watch.Name) 进程 (PID $($watch.Proc.Id)) 已提前退出"
-                        Write-Host ' 失败' -ForegroundColor Red
+                        $script:ReadyFailureReason = ((Msg 'Ready.ProcExited') -f $watch.Name, $watch.Proc.Id)
+                        Write-Host (' ' + (Msg 'Common.Failed')) -ForegroundColor Red
                         return $false
                     }
                 } catch {
@@ -401,8 +600,8 @@ function Wait-ServiceReady {
             }
             $fatal = Get-FatalLogLine $watch.Log
             if ($null -ne $fatal) {
-                $script:ReadyFailureReason = "$($watch.Name) 日志出现致命错误：$fatal"
-                Write-Host ' 失败' -ForegroundColor Red
+                $script:ReadyFailureReason = ((Msg 'Ready.FatalLog') -f $watch.Name, $fatal)
+                Write-Host (' ' + (Msg 'Common.Failed')) -ForegroundColor Red
                 return $false
             }
         }
@@ -416,7 +615,7 @@ function Wait-ServiceReady {
         Start-Sleep -Milliseconds 500
     }
     $script:ReadyFailureReason = 'timeout'
-    Write-Host ' 超时' -ForegroundColor Red
+    Write-Host (' ' + (Msg 'Common.Timeout')) -ForegroundColor Red
     return $false
 }
 
@@ -503,105 +702,105 @@ Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action {
 
 Write-Host ''
 Write-Host ' ============================================================' -ForegroundColor DarkCyan
-Write-Host '   多模态沉浸式智能助教  ·  一键启动' -ForegroundColor White
+Write-Host ('   ' + (Msg 'Banner.Title')) -ForegroundColor White
 Write-Host ' ============================================================' -ForegroundColor DarkCyan
-if ($DryRun) { Write-Host '   [DryRun] 只检查，不启动、不写文件、不等待' -ForegroundColor Yellow }
+if ($DryRun) { Write-Host ('   ' + (Msg 'Banner.DryRun')) -ForegroundColor Yellow }
 Write-Host ''
 
 # ---------- 0. 环境检查 ----------
 if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
-    Fail '未找到 Python。' @(
-        '请安装 Python 3.12+，安装时务必勾选 "Add python.exe to PATH"',
-        '下载：https://www.python.org/downloads/'
+    Fail (Msg 'Env.PythonMissing') @(
+        (Msg 'Env.PythonHint1'),
+        (Msg 'Env.PythonHint2')
     )
 }
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-    Fail '未找到 Node.js。' @(
-        '请安装 Node.js 20 或更高版本',
-        '下载：https://nodejs.org/'
+    Fail (Msg 'Env.NodeMissing') @(
+        (Msg 'Env.NodeHint1'),
+        (Msg 'Env.NodeHint2')
     )
 }
-Write-Ok '[0/5] Python / Node.js 检查通过'
+Write-Ok (Msg 'Step.EnvOk')
 
 # ---------- 1. 后端运行环境 ----------
 if (-not (Test-Path $VenvPython)) {
     if ($DryRun) {
-        Write-Step '[1/5] 将创建 Python 虚拟环境并安装后端依赖（DryRun 未执行）'
+        Write-Step (Msg 'Step.VenvCreateDry')
     } else {
-        Write-Step '[1/5] 首次运行：创建 Python 虚拟环境...'
+        Write-Step (Msg 'Step.VenvCreate')
         python -m venv (Join-Path $BackendDir '.venv')
         if ($LASTEXITCODE -ne 0) {
-            Fail '创建虚拟环境失败。' @(
-                '请确认 Python 版本 >= 3.12：python --version',
-                '如提示缺少 venv 模块，请重新安装 Python 并勾选全部组件'
+            Fail (Msg 'Fail.VenvCreate') @(
+                (Msg 'Fail.VenvHint1'),
+                (Msg 'Fail.VenvHint2')
             )
         }
-        Write-Step '[1/5] 安装后端依赖（约 1-2 分钟，请耐心等待）...'
+        Write-Step (Msg 'Step.VenvInstall')
         & $VenvPython -m pip install -q --upgrade pip
         & $VenvPython -m pip install -q -r (Join-Path $BackendDir 'requirements.txt')
         if ($LASTEXITCODE -ne 0) {
-            Fail '后端依赖安装失败。常见原因：' @(
-                "网络问题：& '$VenvPython' -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r backend\requirements.txt",
-                '缺少编译工具：安装 Visual Studio Build Tools',
-                '公司代理：先设置 HTTP_PROXY / HTTPS_PROXY 环境变量'
+            Fail (Msg 'Fail.BackendDeps') @(
+                ((Msg 'Fail.DepsHint1') -f $VenvPython),
+                (Msg 'Fail.DepsHint2'),
+                (Msg 'Fail.DepsHint3')
             )
         }
-        Write-Ok '[1/5] 后端依赖安装完成'
+        Write-Ok (Msg 'Step.VenvDone')
     }
 } else {
-    Write-Ok '[1/5] 后端虚拟环境已就绪'
+    Write-Ok (Msg 'Step.VenvReady')
 }
 
 # ---------- 2. 配置文件 ----------
 $EnvFile = Join-Path $BackendDir '.env'
 if (-not (Test-Path $EnvFile)) {
     if ($DryRun) {
-        Write-Step '[2/5] 将从 .env.example 创建 backend\.env（DryRun 未执行）'
+        Write-Step (Msg 'Step.EnvCreateDry')
     } else {
         Copy-Item (Join-Path $BackendDir '.env.example') $EnvFile -ErrorAction SilentlyContinue
-        Write-Step '[2/5] 已创建 backend\.env（当前为演示模式，未配置真实模型）'
-        Write-Host '       要接入真实模型：编辑该文件并填写 LLM_API_KEY' -ForegroundColor DarkGray
+        Write-Step (Msg 'Step.EnvCreated')
+        Write-Host ('       ' + (Msg 'Env.RealModelHint')) -ForegroundColor DarkGray
     }
 } else {
-    Write-Ok '[2/5] backend\.env 已存在'
+    Write-Ok (Msg 'Step.EnvExists')
 }
 
 # ---------- 3. 前端依赖 ----------
 if (-not (Test-Path (Join-Path $FrontendDir 'node_modules'))) {
     if ($DryRun) {
-        Write-Step '[3/5] 将安装前端依赖（DryRun 未执行）'
+        Write-Step (Msg 'Step.NpmInstallDry')
     } else {
-        Write-Step '[3/5] 首次运行：安装前端依赖（约 1-3 分钟）...'
+        Write-Step (Msg 'Step.NpmInstall')
         Push-Location $FrontendDir
         npm install
         $npmExit = $LASTEXITCODE
         Pop-Location
         if ($npmExit -ne 0) {
-            Fail 'npm install 失败。' @(
-                '网络问题：npm config set registry https://registry.npmmirror.com',
-                '然后重新运行本脚本'
+            Fail (Msg 'Fail.Npm') @(
+                (Msg 'Fail.NpmHint1'),
+                (Msg 'Fail.NpmHint2')
             )
         }
-        Write-Ok '[3/5] 前端依赖安装完成'
+        Write-Ok (Msg 'Step.NpmDone')
     }
 } else {
-    Write-Ok '[3/5] 前端依赖已就绪'
+    Write-Ok (Msg 'Step.NpmReady')
 }
 
 # ---------- 4. 示例教材 ----------
 $SamplePdf = Join-Path $BackendDir 'data\sample_textbook.pdf'
 if (-not (Test-Path $SamplePdf)) {
     if ($DryRun) {
-        Write-Step '[4/5] 将生成示例教材（DryRun 未执行）'
+        Write-Step (Msg 'Step.SampleDry')
     } else {
-        Write-Step '[4/5] 生成示例教材（113 页）...'
+        Write-Step (Msg 'Step.SampleGen')
         Push-Location $BackendDir
         & $VenvPython 'scripts\make_sample_pdf.py' | Out-Null
         Pop-Location
-        Write-Ok '[4/5] 示例教材已生成'
+        Write-Ok (Msg 'Step.SampleDone')
     }
 } else {
-    Write-Ok '[4/5] 示例教材已存在'
+    Write-Ok (Msg 'Step.SampleExists')
 }
 
 # ---------- 端口三态（DryRun 与正式流程都检测） ----------
@@ -648,26 +847,26 @@ if ($DryRun) {
     # §7.1 的 PidFile schema 行归 T02；Job race 归 T05、Docs URL 归 T04，此处不预实现。
     Write-Host ' PidFile schema : v2 (pids/updated_at/target_url + optional processes[pid,process_name,start_time]); legacy=compat' -ForegroundColor Gray
     Write-Host ''
-    Write-Host ' ---------- DryRun：将要执行的动作 ----------' -ForegroundColor Yellow
+    Write-Host (' ' + (Msg 'DryRun.ActionHeader')) -ForegroundColor Yellow
     if ($BackendState -eq 'Foreign' -or $FrontendState -eq 'Foreign') {
         $badPort = $BackendPort
         if ($BackendState -ne 'Foreign') { $badPort = $FrontendPort }
-        Write-Host "  端口三态  : 端口 $badPort 被外部占用，正式流程将报错退出（DryRun 未执行）" -ForegroundColor Gray
+        Write-Host ('  ' + ((Msg 'DryRun.PortForeign') -f $badPort)) -ForegroundColor Gray
     } elseif ($BackendState -eq 'Ours' -or $FrontendState -eq 'Ours') {
-        Write-Host '  端口三态  : 本项目服务已在运行，正式流程将提示后退出：不启动、不写 pids.json（DryRun 未执行）' -ForegroundColor Gray
+        Write-Host ('  ' + (Msg 'DryRun.PortOurs')) -ForegroundColor Gray
     } else {
-        Write-Host "  启动后端  : $VenvPython -m uvicorn app.main:app --reload --port $BackendPort (隐藏窗口)" -ForegroundColor Gray
-        Write-Host "  启动前端  : cmd.exe /c npm run dev -- --port $FrontendPort --strictPort (隐藏窗口)" -ForegroundColor Gray
+        Write-Host ('  ' + ((Msg 'DryRun.LaunchBackend') -f ((Get-DisplayPath $VenvPython) + " -m uvicorn app.main:app --reload --port $BackendPort"))) -ForegroundColor Gray
+        Write-Host ('  ' + ((Msg 'DryRun.LaunchFrontend') -f "cmd.exe /c npm run dev -- --port $FrontendPort --strictPort")) -ForegroundColor Gray
     }
-    Write-Host "  就绪检测  : TCP 127.0.0.1:$BackendPort + 127.0.0.1:$FrontendPort，每 0.5s，最多 $ReadyTimeoutSec s；进程早退 / err.log 致命错误立即失败" -ForegroundColor Gray
+    Write-Host ('  ' + ((Msg 'DryRun.ReadyCheck') -f "127.0.0.1:$BackendPort", "127.0.0.1:$FrontendPort", $ReadyTimeoutSec)) -ForegroundColor Gray
     if ($NoBrowser) {
-        Write-Host '  打开浏览器: 否（-NoBrowser）' -ForegroundColor Gray
+        Write-Host ('  ' + (Msg 'DryRun.NoBrowser')) -ForegroundColor Gray
     } else {
-        Write-Host "  打开浏览器: $TargetUrl" -ForegroundColor Gray
+        Write-Host ('  ' + ((Msg 'DryRun.Browser') -f $TargetUrl)) -ForegroundColor Gray
     }
-    Write-Host "  日志目录  : $LauncherDir" -ForegroundColor Gray
+    Write-Host ('  ' + ((Msg 'DryRun.LogDir') -f (Get-DisplayPath $LauncherDir))) -ForegroundColor Gray
     Write-Host ''
-    Write-Host ' DryRun 结束：未启动任何服务、未开浏览器、未写任何文件。' -ForegroundColor Green
+    Write-Host (' ' + (Msg 'DryRun.Done')) -ForegroundColor Green
     exit 0
 }
 
@@ -695,13 +894,13 @@ if ($BackendState -eq 'Ours' -or $FrontendState -eq 'Ours') {
     # 新 pids.json 丢失旧服务的 PID，宁可提示用户先整体停止再重启。
     Write-Host ''
     Write-Host (' ' + (Msg 'Port.AlreadyRunning')) -ForegroundColor Yellow
-    Write-Host '   pids.json 未被改写；不会显示「启动完成」，也不会打开浏览器。' -ForegroundColor DarkGray
+    Write-Host (' ' + (Msg 'Port.OursNoWrite')) -ForegroundColor DarkGray
     exit 0
 }
 
 # ---------- 5. 启动前后端（单窗口，服务全部隐藏） ----------
 Write-Host ''
-Write-Step '[5/5] 启动服务（后台无窗口运行）...'
+Write-Step (Msg 'Step.StartServices')
 
 if (-not (Test-Path $LauncherDir)) {
     New-Item -ItemType Directory -Path $LauncherDir -Force | Out-Null
@@ -720,9 +919,9 @@ if ($BackendState -eq 'Free') {
         -WorkingDirectory $BackendDir -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput $BackendOut -RedirectStandardError $BackendErr
     $script:StartedPids += $script:BackendProc.Id
-    Write-Ok " 后端已启动 (PID $($script:BackendProc.Id))"
+    Write-Ok ((Msg 'Step.BackendStarted') -f $script:BackendProc.Id)
 } else {
-    Write-Host ' 后端端口状态非空闲，跳过启动' -ForegroundColor DarkGray
+    Write-Host (' ' + (Msg 'Step.BackendBusy')) -ForegroundColor DarkGray
 }
 
 if ($FrontendState -eq 'Free') {
@@ -733,9 +932,9 @@ if ($FrontendState -eq 'Free') {
         -WorkingDirectory $FrontendDir -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput $FrontendOut -RedirectStandardError $FrontendErr
     $script:StartedPids += $script:FrontendProc.Id
-    Write-Ok " 前端已启动 (PID $($script:FrontendProc.Id))"
+    Write-Ok ((Msg 'Step.FrontendStarted') -f $script:FrontendProc.Id)
 } else {
-    Write-Host ' 前端端口状态非空闲，跳过启动' -ForegroundColor DarkGray
+    Write-Host (' ' + (Msg 'Step.FrontendBusy')) -ForegroundColor DarkGray
 }
 
 # 记录本脚本亲自启动的 PID。已在运行、非本脚本启动的服务绝不写进来，
@@ -751,11 +950,11 @@ if (-not (Wait-ServiceReady)) {
         Write-Host (' [X] ' + (Msg 'Ready.EarlyExit')) -ForegroundColor Red
         Write-Host "     $script:ReadyFailureReason" -ForegroundColor Red
     }
-    Write-Host '     请先查看四个日志文件：' -ForegroundColor Red
-    foreach ($LogFile in $LogFiles) { Write-Host "       $LogFile" -ForegroundColor DarkGray }
-    Write-Host '     ---- err.log 末尾 20 行 ----' -ForegroundColor Red
+    Write-Host (' ' + (Msg 'Fail.LogFiles')) -ForegroundColor Red
+    foreach ($LogFile in $LogFiles) { Write-Host ('       ' + (Get-DisplayPath $LogFile)) -ForegroundColor DarkGray }
+    Write-Host (' ' + (Msg 'Fail.ErrTailHeader')) -ForegroundColor Red
     foreach ($ErrLog in @($BackendErr, $FrontendErr)) { Write-ErrLogTail $ErrLog }
-    Write-Host '     常见原因：端口被别的程序占用 / 依赖没装全 / .env 配错。' -ForegroundColor DarkGray
+    Write-Host (' ' + (Msg 'Fail.CommonCauses')) -ForegroundColor DarkGray
     Stop-LaunchedServices
     exit 1
 }
@@ -766,28 +965,28 @@ if (-not $NoBrowser) {
 
 Write-Host ''
 Write-Host ' ============================================================' -ForegroundColor DarkCyan
-Write-Host '   启动完成（只保留这一个窗口）' -ForegroundColor White
+Write-Host (' ' + (Msg 'Done.Title')) -ForegroundColor White
 Write-Host ''
-Write-Host "   前端界面   $TargetUrl" -ForegroundColor Gray
-Write-Host "   接口文档   http://127.0.0.1:$BackendPort/api/docs" -ForegroundColor Gray
-Write-Host "   健康检查   http://127.0.0.1:$BackendPort/api/health" -ForegroundColor Gray
-Write-Host "   日志目录   $LauncherDir" -ForegroundColor Gray
+Write-Host ('  ' + ((Msg 'Done.FrontendUrl') -f $TargetUrl)) -ForegroundColor Gray
+Write-Host ('  ' + ((Msg 'Done.ApiDocs') -f "http://127.0.0.1:$BackendPort/api/docs")) -ForegroundColor Gray
+Write-Host ('  ' + ((Msg 'Done.Health') -f "http://127.0.0.1:$BackendPort/api/health")) -ForegroundColor Gray
+Write-Host ('  ' + ((Msg 'Done.LogDir') -f (Get-DisplayPath $LauncherDir))) -ForegroundColor Gray
 Write-Host '              backend.out.log / backend.err.log' -ForegroundColor DarkGray
 Write-Host '              frontend.out.log / frontend.err.log' -ForegroundColor DarkGray
-Write-Host '   安装为桌面应用：在 Chrome/Edge 地址栏右侧点「安装」图标' -ForegroundColor Gray
+Write-Host (' ' + (Msg 'Done.InstallPwa')) -ForegroundColor Gray
 Write-Host ' ============================================================' -ForegroundColor DarkCyan
 Write-Host ''
 
 if ($NoPause) {
-    Write-Host ' -NoPause：不等待回车，且**不会**清理子进程。' -ForegroundColor Yellow
-    Write-Host '   服务有意留在后台供自动化使用；关掉这个窗口不会停止服务。' -ForegroundColor Yellow
-    Write-Host '   需要停止时请运行 3. 停止网页端(Windows).bat' -ForegroundColor Yellow
+    Write-Host (' ' + (Msg 'Stop.NoPause1')) -ForegroundColor Yellow
+    Write-Host (' ' + (Msg 'Stop.NoPause2')) -ForegroundColor Yellow
+    Write-Host (' ' + (Msg 'Stop.NoPause3')) -ForegroundColor Yellow
     exit 0
 }
 
-Write-Host '   按回车键停止服务并关闭（会杀掉整棵进程树）' -ForegroundColor White
-Write-Host '   若直接点 X 关窗口，请再运行 3. 停止网页端(Windows).bat 兜底清理' -ForegroundColor DarkGray
+Write-Host (' ' + (Msg 'Stop.PressEnter')) -ForegroundColor White
+Write-Host (' ' + (Msg 'Stop.CloseHint')) -ForegroundColor DarkGray
 Write-Host ''
 Read-Host ' 按回车键停止服务并关闭' | Out-Null
 Stop-LaunchedServices
-Write-Ok ' 服务已停止，PID 文件已清理。'
+Write-Ok (Msg 'Stop.Done')
