@@ -31,6 +31,9 @@ $Messages = @{
         'StopScript.EmptyPids'   = 'pids.json 里没有本脚本启动的 PID（服务可能是外部启动的），不清理。'
         'StopScript.KillTree'    = '停止进程树 PID {0} ...'
         'StopScript.Cleaned'     = '已清理。若浏览器仍显示页面，刷新即可（服务已停止）。'
+        'StopScript.Stale'       = 'pids.json 已过期（超过 24 小时），为避免误杀已删除，未停止任何进程。请用 netstat -ano | findstr :8000,5173 定位。'
+        'StopScript.Mismatch'    = 'pids.json 中的进程身份不匹配（PID 可能已被复用），已删除，未停止任何进程。'
+        'StopScript.Legacy'      = 'pids.json 为旧格式（无进程身份字段），按兼容模式处理。'
     }
     en = @{
         'StopScript.Title'       = 'Stop background services (fallback cleanup)'
@@ -40,6 +43,9 @@ $Messages = @{
         'StopScript.EmptyPids'   = 'pids.json has no PIDs started by this script (services may be external); nothing cleaned.'
         'StopScript.KillTree'    = 'Stopping process tree PID {0} ...'
         'StopScript.Cleaned'     = 'Cleaned up. Refresh the browser if the page is still shown (services stopped).'
+        'StopScript.Stale'       = 'pids.json is stale (>24h); deleted without killing any process. Locate services with: netstat -ano | findstr :8000,5173'
+        'StopScript.Mismatch'    = 'Process identity in pids.json does not match (PID may have been reused); deleted without killing any process.'
+        'StopScript.Legacy'      = 'pids.json uses the legacy format (no identity fields); handling in compatibility mode.'
     }
 }
 
@@ -105,22 +111,85 @@ try {
     exit 1
 }
 
+# ---------- P1-3（C4）：四态判定（§2.5）----------
+# A 新格式且身份全匹配 → 才 taskkill；B 陈旧 >24h → 只删不杀；
+# C 身份不匹配 / 查不到进程 → 只删不杀（宁可漏停，不可误杀）；
+# D 旧格式（processes 缺失或为空）→ 按旧行为处理、不报错。
 # $PID 是 PowerShell 的只读自动变量，循环变量必须叫别的名字。
 $ProcIds = @($Data.pids)
-if ($ProcIds.Count -eq 0) {
-    Write-Host (' ' + (Msg 'StopScript.EmptyPids')) -ForegroundColor Green
+$Entries = @()
+if ($null -ne $Data.processes) { $Entries = @($Data.processes) }
+
+function Remove-PidFileAndExit([string]$MessageKey, [string]$Color) {
+    Write-Host (' ' + (Msg $MessageKey)) -ForegroundColor $Color
     Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
     exit 0
 }
 
-foreach ($ProcId in $ProcIds) {
-    if (-not $ProcId -or $ProcId -le 0) { continue }
+if ($ProcIds.Count -eq 0) {
+    Remove-PidFileAndExit 'StopScript.EmptyPids' 'Green'
+}
+
+# ---- 状态 B：陈旧（updated_at 距今 > 24 小时）----
+$Stale = $false
+if ($Data.updated_at) {
+    try {
+        $UpdatedAt = [datetime]::Parse(
+            [string]$Data.updated_at,
+            [System.Globalization.CultureInfo]::InvariantCulture,
+            [System.Globalization.DateTimeStyles]::RoundtripKind)
+        if (((Get-Date).ToUniversalTime() - $UpdatedAt.ToUniversalTime()).TotalHours -gt 24) {
+            $Stale = $true
+        }
+    } catch {
+        # 时间戳解析失败不当作陈旧：交给后面的身份校验决定，避免误判后放弃停止
+    }
+}
+if ($Stale) { Remove-PidFileAndExit 'StopScript.Stale' 'Yellow' }
+
+# ---- 状态 D：旧格式（processes 缺失 / 为空）→ 旧行为，不报错 ----
+if ($Entries.Count -eq 0) {
+    Write-Host (' ' + (Msg 'StopScript.Legacy')) -ForegroundColor Yellow
+    foreach ($ProcId in $ProcIds) {
+        if (-not $ProcId -or $ProcId -le 0) { continue }
+        Write-Host (' ' + ((Msg 'StopScript.KillTree') -f $ProcId)) -ForegroundColor Gray
+        # /T 连同子进程一起杀：--reload 的 uvicorn 子进程、npm run dev 的 node 子进程
+        # 都会在只杀父进程时留下来继续占端口。
+        # 进程已退出时 taskkill 会写 stderr；$ErrorActionPreference='Stop' 下这会被当成
+        # 终止性错误，导致后面的 PID 不再处理、pids.json 也删不掉。
+        # 用 cmd.exe 在子进程内 >nul 2>&1 吞掉输出，再逐个 try/catch 保证循环走完。
+        try { & cmd.exe /c "taskkill /PID $ProcId /T /F >nul 2>&1" } catch { }
+    }
+    Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
+    Write-Host ''
+    Write-Host (' ' + (Msg 'StopScript.Cleaned')) -ForegroundColor Green
+    Write-Host ''
+    exit 0
+}
+
+# ---- 状态 A / C：逐个校验 ProcessName + StartTime ----
+# 任一 PID 查不到、进程名不符、启动时间不符 → 整体落入 C，一个都不杀。
+$Verified = @()
+$Mismatch = $false
+foreach ($Entry in $Entries) {
+    $EntryId = [int]$Entry.pid
+    if (-not $EntryId -or $EntryId -le 0) { $Mismatch = $true; break }
+    try {
+        $Proc = Get-Process -Id $EntryId -ErrorAction Stop
+        $NameOk = ([string]$Proc.ProcessName -eq [string]$Entry.process_name)
+        $StartOk = ($Proc.StartTime.ToString('o') -eq [string]$Entry.start_time)
+        if (-not ($NameOk -and $StartOk)) { $Mismatch = $true; break }
+        $Verified += $EntryId
+    } catch {
+        $Mismatch = $true
+        break
+    }
+}
+if ($Mismatch) { Remove-PidFileAndExit 'StopScript.Mismatch' 'Yellow' }
+
+# ---- 状态 A：全部匹配，才杀 ----
+foreach ($ProcId in $Verified) {
     Write-Host (' ' + ((Msg 'StopScript.KillTree') -f $ProcId)) -ForegroundColor Gray
-    # /T 连同子进程一起杀：--reload 的 uvicorn 子进程、npm run dev 的 node 子进程
-    # 都会在只杀父进程时留下来继续占端口。
-    # 进程已退出时 taskkill 会写 stderr；$ErrorActionPreference='Stop' 下这会被当成
-    # 终止性错误，导致后面的 PID 不再处理、pids.json 也删不掉。
-    # 用 cmd.exe 在子进程内 >nul 2>&1 吞掉输出，再逐个 try/catch 保证循环走完。
     try { & cmd.exe /c "taskkill /PID $ProcId /T /F >nul 2>&1" } catch { }
 }
 

@@ -13,10 +13,14 @@ rem
 rem  %* forwards all arguments (-TargetUrl, -NoPause, -NoBrowser, -DryRun).
 rem ============================================================================
 setlocal
+rem  Automation: suppress the error pause when -NoPause / -DryRun is passed.
+rem  Guard on %~1 because "for %%A in ()" is a syntax error when no argument is given.
+if not "%~1"=="" for %%A in (%*) do if /I "%%~A"=="-NoPause" set "EDU_NOPAUSE=1"
+if not "%~1"=="" for %%A in (%*) do if /I "%%~A"=="-DryRun" set "EDU_NOPAUSE=1"
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start-web.ps1" %*
 if errorlevel 1 (
     echo.
     echo Launcher exited with an error. See messages above.
-    pause
+    if not defined EDU_NOPAUSE pause
 )
 endlocal
