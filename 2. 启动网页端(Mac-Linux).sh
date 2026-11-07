@@ -78,7 +78,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-(cd "$ROOT/backend" && exec "$VENV/bin/python" -m uvicorn app.main:app --reload --port 8000) &
+(cd "$ROOT/backend" && exec "$VENV/bin/python" -m uvicorn app.main:app --reload --port "${EDU_BACKEND_PORT:-8000}") &
 BACK_PID=$!
 
 sleep 3
@@ -101,8 +101,8 @@ echo "============================================================"
 echo "  启动完成"
 echo ""
 echo "  前端界面   $URL"
-echo "  接口文档   http://127.0.0.1:8000/docs"
-echo "  健康检查   http://127.0.0.1:8000/api/health"
+echo "  接口文档   http://127.0.0.1:${EDU_BACKEND_PORT:-8000}/api/docs"
+echo "  健康检查   http://127.0.0.1:${EDU_BACKEND_PORT:-8000}/api/health"
 echo ""
 echo "  按 Ctrl+C 停止全部服务"
 echo "============================================================"

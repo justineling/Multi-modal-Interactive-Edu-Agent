@@ -213,7 +213,12 @@ $FrontendOut = Join-Path $LauncherDir 'frontend.out.log'
 $FrontendErr = Join-Path $LauncherDir 'frontend.err.log'
 $LogFiles = @($BackendOut, $BackendErr, $FrontendOut, $FrontendErr)
 
-$BackendPort = 8000
+# 后端端口可被外部注入（T04 / P1-6）：设了 EDU_BACKEND_PORT 就用它，
+# 否则保持 8000，行为与改造前完全一致。**前端端口不参与**——5173 是 PWA 的
+# origin 组成部分，一变已安装的快捷方式就失效，所以前端用 --strictPort 钉死。
+$BackendPort = if ($env:EDU_BACKEND_PORT) { [int]$env:EDU_BACKEND_PORT } else { 8000 }
+# 让子进程（vite）继承同一端口，proxy target 由 vite.config.ts 读取该变量拼出。
+$env:EDU_BACKEND_PORT = "$BackendPort"
 $FrontendPort = 5173
 $ReadyTimeoutSec = 90
 
@@ -764,8 +769,8 @@ Write-Host ' ============================================================' -Fore
 Write-Host '   启动完成（只保留这一个窗口）' -ForegroundColor White
 Write-Host ''
 Write-Host "   前端界面   $TargetUrl" -ForegroundColor Gray
-Write-Host '   接口文档   http://127.0.0.1:8000/docs' -ForegroundColor Gray
-Write-Host '   健康检查   http://127.0.0.1:8000/api/health' -ForegroundColor Gray
+Write-Host "   接口文档   http://127.0.0.1:$BackendPort/api/docs" -ForegroundColor Gray
+Write-Host "   健康检查   http://127.0.0.1:$BackendPort/api/health" -ForegroundColor Gray
 Write-Host "   日志目录   $LauncherDir" -ForegroundColor Gray
 Write-Host '              backend.out.log / backend.err.log' -ForegroundColor DarkGray
 Write-Host '              frontend.out.log / frontend.err.log' -ForegroundColor DarkGray

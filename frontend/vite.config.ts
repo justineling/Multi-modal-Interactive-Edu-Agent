@@ -15,9 +15,12 @@ import { defineConfig } from "vite";
  * （生产构建 + localhost 安全上下文）下做，如果 preview 没有代理，
  * 装成桌面应用后所有接口都会 404 —— 这正是「dev 能用、装完就废」的典型陷阱。
  */
+// 后端端口可由 EDU_BACKEND_PORT 注入；前端 5173 固定（PWA origin，变了快捷方式失效）。
+const backendPort = process.env.EDU_BACKEND_PORT || "8000";
+
 const apiProxy: Record<string, ProxyOptions> = {
   "/api": {
-    target: "http://127.0.0.1:8000",
+    target: `http://127.0.0.1:${backendPort}`,
     changeOrigin: true,
     ws: false,
     // SSE 场景下不要改写响应，保留原始 text/event-stream 头
