@@ -2,9 +2,10 @@
 rem ============================================================================
 rem  ASCII-only stop launcher. DO NOT put Chinese characters in this file.
 rem
-rem  Use this only if you closed the start window with the X button instead of
-rem  pressing Enter. The normal path (press Enter in the start window) already
-rem  kills the whole process tree and removes the PID file.
+rem  T05: this file is RETAINED on purpose. It is the manual stop entry point
+rem  for the degraded path (start window prints "Auto-cleanup NOT enabled") and
+rem  for -NoPause mode. On the normal path the start window prints the correct
+rem  stop instruction; follow that, or use this script as the fallback.
 rem
 rem  All logic and Chinese messages live in scripts\stop-web.ps1 (UTF-8 BOM).
 rem ============================================================================

@@ -16,6 +16,12 @@
     真的启动了进程时才原子写入，并追加进程身份明细（P1-3）；就绪轮询加入子进程
     早退与 err.log 致命错误检测，失败时 tail 日志而不是等满 90 秒。
 
+    T05：能力探测成功后用 Windows Job Object + KILL_ON_JOB_CLOSE 把前后端
+    （含 --reload 的 reloader+server 两层与 npm->node->esbuild 链）纳入同一 job，
+    启动器被强杀 / 点 X / 崩溃时由内核终止全部进程。任一步失败、-NoPause 或
+    -ForceJobFallback 都完整退回三件套（pids.json / 停止脚本 / 退出事件 / 按回车）。
+    降级前先清 LimitFlags 再 CloseHandle，绝不带着 KILL flag 直接关句柄。
+
 .PARAMETER NoPause
     不等待回车，且**不清理子进程** —— 服务有意留在后台供自动化使用。
     关掉窗口不会停止服务，需要手动跑「3. 停止网页端(Windows).bat」。
@@ -31,8 +37,9 @@
     不启动服务、不开浏览器、不等待、不写日志目录与 PID 文件（QA 无副作用验证用）。
 
 .PARAMETER ForceJobFallback
-    纯测试开关：用于稳定复现 Job 能力探测的降级路径。T01 只预留参数、不改变默认行为；
-    逻辑在 T05 实现，与 -DryRun 组合时同样保持无副作用。
+    纯测试开关：强制走 Job 能力探测的降级路径（三件套完整启用、服务照常可用），
+    用于不依赖真实机器策略地稳定复现验收。T05 实现：完全跳过 native 能力探测，
+    因此即便与 -DryRun 组合也零副作用。不改变默认行为。
 
 .NOTES
     本文件必须以 UTF-8 with BOM 保存。存成「UTF-8 无 BOM」时 Windows PowerShell 5.1
@@ -145,6 +152,10 @@ $Messages = @{
         'Ready.EarlyExit'     = '[X] 服务进程提前退出或日志出现致命错误，已停止等待。'
         'Ready.ErrTail'       = '----- {0} 最后 {1} 行 -----'
         'PidFile.Skipped'     = '本轮没有启动任何服务：不写 pids.json，保留原有记录。'
+        'Job.Fallback'        = '本次未启用自动清理（原因：<R>），请在本窗口按回车停止服务后再关闭。'
+        'Job.CloseStops'      = '启动完成。直接关闭本窗口即会自动停止全部服务。'
+        'Job.NoPause'         = '-NoPause：服务常驻后台，请运行 3. 停止网页端(Windows).bat 停止。'
+        'Job.RaceNotice'      = '已保留开发期热重载（--reload）；极端情况下早于首个进程加入任务前派生的孙进程可能残留，需实现后实测。'
     }
     en = @{
         'Env.PythonHint1'         = 'Install Python 3.12+ and make sure "Add python.exe to PATH" is checked'
@@ -230,6 +241,10 @@ $Messages = @{
         'Ready.EarlyExit'     = '[X] A service exited early or a fatal error appeared in its log; wait aborted.'
         'Ready.ErrTail'       = '----- {0} : last {1} lines -----'
         'PidFile.Skipped'     = 'No service started this run: pids.json not written, existing record preserved.'
+        'Job.Fallback'        = 'Auto-cleanup NOT enabled this run (<R>). Press ENTER here to stop services before closing.'
+        'Job.CloseStops'      = 'Started. Closing this window stops ALL services automatically.'
+        'Job.NoPause'         = '-NoPause: services stay in background. To stop them, run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\stop-web.ps1'
+        'Job.RaceNotice'      = 'Dev hot-reload (--reload) kept; a grandchild forked before the first job assignment may rarely survive. Needs real-world verification.'
     }
 }
 
@@ -331,8 +346,421 @@ $script:LauncherCapability = [pscustomobject]@{
 }
 
 function Get-JobCapability {
-    # T01 占位：S1–S4 的真实能力探测在 T05 实现；此处只返回冻结的初值对象。
+    # T01 冻结调用点；T05 只回填 $script:LauncherCapability 的真实值。
     return $script:LauncherCapability
+}
+
+# ---------- T05：Windows Job Object（决策 1 / P1-8，设计 §3.1 / §3.3） ----------
+# 所有 P/Invoke 集中在这一个 here-string 里：不新增二进制、不落盘 DLL。
+# 结构体必须 LayoutKind.Sequential + 平台默认 Pack（不要写 Pack=1，见 §3.2），
+# 编译后立刻断言 Marshal.SizeOf：x64=144 / x86=112，不等即降级，
+# 绝不带着错位结构继续调 SetInformationJobObject。
+$script:NativeJobSource = @'
+using System;
+using System.Runtime.InteropServices;
+
+namespace EduLauncher
+{
+    public static class JobConst
+    {
+        public const int  JobObjectBasicLimitInformation    = 2;
+        public const int  JobObjectExtendedLimitInformation = 9;
+        public const uint JOB_OBJECT_LIMIT_BREAKAWAY_OK        = 0x00000800;
+        public const uint JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK = 0x00001000;
+        public const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE   = 0x00002000;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct JOBOBJECT_BASIC_LIMIT_INFORMATION
+    {
+        public long    PerProcessUserTimeLimit;
+        public long    PerJobUserTimeLimit;
+        public uint    LimitFlags;
+        public UIntPtr MinimumWorkingSetSize;
+        public UIntPtr MaximumWorkingSetSize;
+        public uint    ActiveProcessLimit;
+        public UIntPtr Affinity;
+        public uint    PriorityClass;
+        public uint    SchedulingClass;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct IO_COUNTERS
+    {
+        public ulong ReadOperationCount;
+        public ulong WriteOperationCount;
+        public ulong OtherOperationCount;
+        public ulong ReadTransferCount;
+        public ulong WriteTransferCount;
+        public ulong OtherTransferCount;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct JOBOBJECT_EXTENDED_LIMIT_INFORMATION
+    {
+        public JOBOBJECT_BASIC_LIMIT_INFORMATION BasicLimitInformation;
+        public IO_COUNTERS  IoInfo;
+        public UIntPtr ProcessMemoryLimit;
+        public UIntPtr JobMemoryLimit;
+        public UIntPtr PeakProcessMemoryUsed;
+        public UIntPtr PeakJobMemoryUsed;
+    }
+
+    public static class NativeJob
+    {
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern IntPtr CreateJobObject(IntPtr lpJobAttributes, string lpName);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetInformationJobObject(
+            IntPtr hJob, int infoClass,
+            ref JOBOBJECT_EXTENDED_LIMIT_INFORMATION info, uint cbInfoLength);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool QueryInformationJobObject(
+            IntPtr hJob, int infoClass,
+            ref JOBOBJECT_BASIC_LIMIT_INFORMATION info, uint cbInfoLength,
+            out uint lpReturnLength);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool AssignProcessToJobObject(IntPtr hJob, IntPtr hProcess);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool IsProcessInJob(
+            IntPtr hProcess, IntPtr hJob,
+            [MarshalAs(UnmanagedType.Bool)] out bool Result);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool CloseHandle(IntPtr hObject);
+
+        [DllImport("kernel32.dll")]
+        public static extern IntPtr GetCurrentProcess();
+
+        // Three managed thin wrappers. Building the structs inside managed code
+        // avoids PowerShell side effects on boxed value types; the P/Invoke
+        // declarations above are verbatim from the design spec.
+        public static int ExtendedLimitInfoSize()
+        {
+            return Marshal.SizeOf(typeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
+        }
+
+        public static bool ApplyKillFlag(IntPtr hJob, bool enable)
+        {
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION info =
+                new JOBOBJECT_EXTENDED_LIMIT_INFORMATION();
+            info.BasicLimitInformation.LimitFlags = enable
+                ? JobConst.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE : 0U;
+            return SetInformationJobObject(
+                hJob,
+                JobConst.JobObjectExtendedLimitInformation,
+                ref info,
+                (uint)Marshal.SizeOf(typeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION)));
+        }
+
+        public static bool TryQueryParentJobLimitFlags(out uint limitFlags)
+        {
+            limitFlags = 0;
+            JOBOBJECT_BASIC_LIMIT_INFORMATION info =
+                new JOBOBJECT_BASIC_LIMIT_INFORMATION();
+            uint returned = 0;
+            bool ok = QueryInformationJobObject(
+                IntPtr.Zero,
+                JobConst.JobObjectBasicLimitInformation,
+                ref info,
+                (uint)Marshal.SizeOf(typeof(JOBOBJECT_BASIC_LIMIT_INFORMATION)),
+                out returned);
+            if (ok) { limitFlags = info.LimitFlags; }
+            return ok;
+        }
+    }
+}
+'@
+
+# $script:JobHandle 由启动器持有到进程结束；不得提前换成会被 GC 回收的 SafeHandle。
+$script:JobHandle = [IntPtr]::Zero
+$script:JobStructSize = 0
+$script:JobSizeAssert = 'skipped'
+$script:JobUsable = $false
+$script:TrioEnabled = $true
+$script:ExitCleanupRegistered = $false
+
+function Set-JobKillFlag([bool]$Enable) {
+    # 降级安全不变量的核心动作：把 LimitFlags 清零（或置 KILL_ON_JOB_CLOSE）。
+    # 这里绝不 CloseHandle —— job 内已 Assign 进程时那会立刻杀掉服务。
+    if ($script:JobHandle -eq [IntPtr]::Zero) { return $false }
+    try {
+        return [bool][EduLauncher.NativeJob]::ApplyKillFlag($script:JobHandle, $Enable)
+    } catch { return $false }
+}
+
+function Close-JobHandleSafely {
+    # 任何失败路径统一走这里：先 SetInformationJobObject 把 LimitFlags 清零，
+    # 再 CloseHandle。进程脱离 job 但继续运行，服务不丢（§3.3 降级安全不变量）。
+    # 不修改能力字段：DryRun 需要如实保留 S4 的探测结果。
+    if ($script:JobHandle -eq [IntPtr]::Zero) { return }
+    try { [void](Set-JobKillFlag $false) } catch { }
+    try { [void][EduLauncher.NativeJob]::CloseHandle($script:JobHandle) } catch { }
+    $script:JobHandle = [IntPtr]::Zero
+}
+
+function Register-ExitCleanup {
+    # 三件套之一：PowerShell.Exiting 尽力清理，由 $script:TrioEnabled 守卫。
+    # 正常路径（Job 生效）不注册；降级 / -NoPause 路径注册且只注册一次。
+    # DryRun 不注册：不启动任何服务，也不留进程内事件订阅。
+    if ($DryRun) { return }
+    if (-not $script:TrioEnabled) { return }
+    if ($script:ExitCleanupRegistered) { return }
+    try {
+        Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action {
+            if ($script:KeepServicesOnExit) { return }
+            foreach ($ProcId in @($script:StartedPids)) {
+                if ($ProcId -and $ProcId -gt 0) {
+                    try { & cmd.exe /c "taskkill /PID $ProcId /T /F >nul 2>&1" } catch { }
+                }
+            }
+        } | Out-Null
+        $script:ExitCleanupRegistered = $true
+    } catch { }
+}
+
+function Enable-LegacyTrio([string]$Reason) {
+    # 完整退回三件套：pids.json / 停止脚本 / PowerShell.Exiting / 按回车杀树。
+    # 代码从 T01 起一直存在，这里只把守卫翻回 true，不存在「先删后补」。
+    $script:LauncherCapability.FallbackReason = $Reason
+    $script:LauncherCapability.TrioEnabled = $true
+    $script:LauncherCapability.KillOnClose = $false
+    $script:LauncherCapability.KillFlagApplied = $false
+    $script:TrioEnabled = $true
+    $script:JobUsable = $false
+    Close-JobHandleSafely
+    Register-ExitCleanup
+}
+
+function Test-JobAssignProbe {
+    # S5：在启动真实服务之前起一个 1 秒存活的探针进程，Assign 后用
+    # IsProcessInJob 验证。失败时 job 内只有探针，降级零损失。
+    $probe = $null
+    try {
+        $probe = Start-Process -FilePath 'cmd.exe' `
+            -ArgumentList '/c ping -n 2 127.0.0.1 >nul' `
+            -WindowStyle Hidden -PassThru
+        if ($null -eq $probe) { return $false }
+        $handle = $probe.Handle
+        if (-not [EduLauncher.NativeJob]::AssignProcessToJobObject($script:JobHandle, $handle)) { return $false }
+        $verified = $false
+        $ok = [EduLauncher.NativeJob]::IsProcessInJob($handle, $script:JobHandle, [ref]$verified)
+        return [bool]($ok -and $verified)
+    } catch {
+        return $false
+    }
+}
+
+function Add-LaunchedProcessToJob([System.Diagnostics.Process]$Proc, [string]$Role) {
+    # S6 主路径：每个 Start-Process -PassThru 返回后**立即** Assign + 验证，
+    # 绝不等另一个服务、更不等就绪检测 / 写 pids.json 之后统一处理。
+    if (-not $script:JobUsable) { return }
+    if ($null -eq $Proc) { return }
+    if ($script:JobHandle -eq [IntPtr]::Zero) { return }
+    try {
+        if ($Proc.HasExited) { return }
+        $handle = $Proc.Handle
+        if (-not [EduLauncher.NativeJob]::AssignProcessToJobObject($script:JobHandle, $handle)) {
+            throw 'AssignProcessToJobObject returned false'
+        }
+        $verified = $false
+        $ok = [EduLauncher.NativeJob]::IsProcessInJob($handle, $script:JobHandle, [ref]$verified)
+        if (-not $ok -or -not $verified) { throw 'IsProcessInJob verification returned false' }
+    } catch {
+        Enable-LegacyTrio ("S6 immediate-Assign failed for {0} (err={1})" -f $Role, [Runtime.InteropServices.Marshal]::GetLastWin32Error())
+    }
+}
+
+function Invoke-DescendantRescan {
+    # 决议 6 的主缓解：--reload 保留，孙进程链是 reloader+server 两层 +
+    # cmd -> npm -> node -> esbuild。CreateProcess -> Assign 窗口内派生的孙进程
+    # 可能逃逸；用 Win32_Process 只读递归补挂 2 轮、间隔 200ms。不得省略、不得降为 1 轮。
+    if (-not $script:JobUsable) { return }
+    if ($script:JobHandle -eq [IntPtr]::Zero) { return }
+    for ($round = 1; $round -le 2; $round++) {
+        if ($round -gt 1) { Start-Sleep -Milliseconds 200 }
+        try { $snapshot = @(Get-CimInstance Win32_Process -ErrorAction Stop) } catch { return }
+        $pending = New-Object System.Collections.ArrayList
+        foreach ($rootId in @($script:StartedPids)) { [void]$pending.Add([int]$rootId) }
+        $seen = @{}
+        $descendants = @()
+        $cursor = 0
+        while ($cursor -lt $pending.Count) {
+            $parentId = [int]$pending[$cursor]
+            $cursor++
+            foreach ($entry in $snapshot) {
+                $childId = [int]$entry.ProcessId
+                $key = "$childId"
+                if (([int]$entry.ParentProcessId -eq $parentId) -and (-not $seen.ContainsKey($key))) {
+                    $seen[$key] = $true
+                    $descendants += $childId
+                    [void]$pending.Add($childId)
+                }
+            }
+        }
+        foreach ($childId in $descendants) {
+            try {
+                $childProc = Get-Process -Id $childId -ErrorAction Stop
+                $already = $false
+                $ok = [EduLauncher.NativeJob]::IsProcessInJob($childProc.Handle, $script:JobHandle, [ref]$already)
+                if ($ok -and -not $already) {
+                    [void][EduLauncher.NativeJob]::AssignProcessToJobObject($script:JobHandle, $childProc.Handle)
+                }
+            } catch { }
+        }
+    }
+}
+
+function Initialize-JobCapability {
+    <# S1–S4 能力探测（DryRun 与正式流程共用；§3.3 / §3.4） #>
+    $cap = $script:LauncherCapability
+    $cap.FallbackReason = 'none'
+    $script:JobUsable = $false
+    $script:JobSizeAssert = 'skipped'
+
+    # -ForceJobFallback：纯测试开关，跳过全部 native 调用，强制完整降级。
+    if ($ForceJobFallback) {
+        $cap.FallbackReason = 'forced by -ForceJobFallback (test switch); native probe skipped'
+        $script:TrioEnabled = $true
+        $cap.TrioEnabled = $true
+        Register-ExitCleanup
+        return
+    }
+
+    # ---- S1：编译 ----
+    $langMode = [string]$ExecutionContext.SessionState.LanguageMode
+    if ($langMode -eq 'ConstrainedLanguage') {
+        Enable-LegacyTrio 'Add-Type blocked (LanguageMode=ConstrainedLanguage)'
+        return
+    }
+    if (-not ('EduLauncher.NativeJob' -as [type])) {
+        try {
+            Add-Type -TypeDefinition $script:NativeJobSource -ErrorAction Stop
+        } catch {
+            Enable-LegacyTrio ("Add-Type blocked (LanguageMode={0}, err={1})" -f $langMode, [string]$_.Exception.Message)
+            return
+        }
+    }
+    $cap.AddTypeOk = $true
+
+    # 编译后立刻断言 x64 结构体布局（§3.1 第 2 条）：C# 侧
+    # Marshal.SizeOf(typeof(...)) 与 PS 侧 Marshal.SizeOf(Type) 必须一致且等于期望值。
+    $extType = 'EduLauncher.JOBOBJECT_EXTENDED_LIMIT_INFORMATION' -as [type]
+    if ($null -eq $extType) {
+        Enable-LegacyTrio 'struct type missing after compile'
+        return
+    }
+    try {
+        $script:JobStructSize = [int][EduLauncher.NativeJob]::ExtendedLimitInfoSize()
+        # PS 5.1 会把 SizeOf($typeVar) 绑定到 object 重载并抛异常，必须显式 [type] 转换。
+        $psSize = [int][Runtime.InteropServices.Marshal]::SizeOf([type]$extType)
+    } catch {
+        Enable-LegacyTrio 'Marshal.SizeOf probe failed'
+        return
+    }
+    $expectedSize = if ([IntPtr]::Size -eq 8) { 144 } else { 112 }
+    if (($script:JobStructSize -ne $expectedSize) -or ($psSize -ne $script:JobStructSize)) {
+        $script:JobSizeAssert = 'FAIL'
+        Enable-LegacyTrio ("struct size mismatch (got={0}/{1}, expected={2})" -f $script:JobStructSize, $psSize, $expectedSize)
+        return
+    }
+    $script:JobSizeAssert = 'PASS'
+
+    # ---- S2：宿主 job 判定 ----
+    try {
+        $inJob = $false
+        $self = [EduLauncher.NativeJob]::GetCurrentProcess()
+        $s2ok = [EduLauncher.NativeJob]::IsProcessInJob($self, [IntPtr]::Zero, [ref]$inJob)
+        if (-not $s2ok) { throw 'IsProcessInJob returned false' }
+        $cap.InJob = [bool]$inJob
+        if ($cap.InJob) {
+            # NULL 句柄语义在嵌套 Job 下需实测；查不到一律保守降级（§3.3 S2）。
+            $parentFlags = [uint32]0
+            $queried = $false
+            try { $queried = [bool][EduLauncher.NativeJob]::TryQueryParentJobLimitFlags([ref]$parentFlags) } catch { $queried = $false }
+            if (-not $queried) {
+                $cap.ParentJobUnknown = $true
+            } elseif ((($parentFlags -band 0x00001000) -ne 0) -or (($parentFlags -band 0x00000800) -ne 0)) {
+                $cap.ParentJobBreakaway = $true
+            }
+            if ($cap.ParentJobBreakaway -or $cap.ParentJobUnknown) {
+                Enable-LegacyTrio ("parent job breakaway/unknown (breakaway={0}, unknown={1})" -f $cap.ParentJobBreakaway, $cap.ParentJobUnknown)
+                return
+            }
+        }
+    } catch {
+        Enable-LegacyTrio ("IsProcessInJob probe failed (err={0})" -f [Runtime.InteropServices.Marshal]::GetLastWin32Error())
+        return
+    }
+
+    # ---- S3：CreateJobObject（未命名，句柄不继承给子进程） ----
+    try { $script:JobHandle = [EduLauncher.NativeJob]::CreateJobObject([IntPtr]::Zero, $null) }
+    catch { $script:JobHandle = [IntPtr]::Zero }
+    if ($script:JobHandle -eq [IntPtr]::Zero) {
+        Enable-LegacyTrio ("CreateJobObject failed (err={0})" -f [Runtime.InteropServices.Marshal]::GetLastWin32Error())
+        return
+    }
+    $cap.CreateJobOk = $true
+
+    # ---- S4：SetInformationJobObject ----
+    $applyKill = (-not $NoPause)
+    if (-not (Set-JobKillFlag $applyKill)) {
+        Enable-LegacyTrio ("SetInformationJobObject failed (err={0})" -f [Runtime.InteropServices.Marshal]::GetLastWin32Error())
+        return
+    }
+    $cap.KillFlagApplied = [bool]$applyKill
+    $cap.KillOnClose = [bool]$applyKill
+
+    # ---- DryRun：只做 S1–S4，句柄在同一进程内立即 CloseHandle；S5 不执行 ----
+    if ($DryRun) {
+        Close-JobHandleSafely
+        if ($NoPause) {
+            $cap.KillOnClose = $false
+            $cap.FallbackReason = '-NoPause (KILL_ON_JOB_CLOSE intentionally not set)'
+            $script:TrioEnabled = $true
+            $cap.TrioEnabled = $true
+        } else {
+            $script:TrioEnabled = $false
+            $cap.TrioEnabled = $false
+        }
+        return
+    }
+
+    if ($NoPause) {
+        # §3.4 / §3.5：Job 仍创建但 LimitFlags=0；pids.json + 停止脚本必须可用。
+        $cap.FallbackReason = '-NoPause (KILL_ON_JOB_CLOSE intentionally not set)'
+        $script:TrioEnabled = $true
+        $cap.TrioEnabled = $true
+        return
+    }
+
+    # 真实非 -NoPause 启动：乐观置为休眠；S5 失败会翻回 true 并补注册退出事件。
+    $script:TrioEnabled = $false
+    $cap.TrioEnabled = $false
+}
+
+function Confirm-JobAssignProbe {
+    # S5 放在「三态守卫通过之后、启动任何真实服务之前」，避免端口被占时白起探针。
+    if ($DryRun -or $NoPause -or $ForceJobFallback) { return }
+    if (-not $script:LauncherCapability.CreateJobOk) { return }
+    if ($script:JobHandle -eq [IntPtr]::Zero) { return }
+    if (-not (Test-JobAssignProbe)) {
+        Enable-LegacyTrio ("Assign probe failed (S5, err={0})" -f [Runtime.InteropServices.Marshal]::GetLastWin32Error())
+        return
+    }
+    $script:LauncherCapability.AssignProbeOk = $true
+    $script:JobUsable = $true
+    $script:TrioEnabled = $false
+    $script:LauncherCapability.TrioEnabled = $false
 }
 
 $script:ConsoleCapability = Get-ConsoleTextCapability
@@ -689,16 +1117,12 @@ function Write-PidFile {
     }
 }
 
-# 尽力清理：用户直接点 X 关窗口时，PowerShell 退出事件仍会触发一次。
-# 这是「尽力」而不是保证 —— 进程被强杀时不会触发，兜底靠 3. 停止网页端(Windows).bat。
-Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action {
-    if ($script:KeepServicesOnExit) { return }
-    foreach ($ProcId in @($script:StartedPids)) {
-        if ($ProcId -and $ProcId -gt 0) {
-            try { & cmd.exe /c "taskkill /PID $ProcId /T /F >nul 2>&1" } catch { }
-        }
-    }
-} | Out-Null
+# ---------- T05：能力探测 + 三件套守卫（§3.6） ----------
+# S1–S4 在这里做：DryRun 与正式流程共用，且必须早于完成页与 pids.json 判定。
+# 正常路径（Job 生效）三件套休眠；任何失败 / -NoPause / -ForceJobFallback
+# 都把 $script:TrioEnabled 翻回 true，完整启用退出事件与 PID 清单。
+Initialize-JobCapability
+Register-ExitCleanup
 
 Write-Host ''
 Write-Host ' ============================================================' -ForegroundColor DarkCyan
@@ -814,17 +1238,29 @@ if ($DryRun) {
     Write-Host (' ' + (Msg 'DryRun.StatusHeader')) -ForegroundColor Yellow
     $jc  = Get-JobCapability
     $cap = $script:ConsoleCapability
-    Write-Host (" Job capability : AddType={0}; InJob={1}; ParentJobBreakaway={2}; ParentJobUnknown={3}; CreateJob={4}; KillFlag={5}; AssignProbe={6}; StructSize=deferred(T05); KillOnClose={7}; Fallback={8}; TrioEnabled={9}" -f @(
-        $(if ($jc.AddTypeOk) { 'OK' } else { 'deferred(T05)' }),
+    # -ForceJobFallback 完全跳过 native 探测，标注 skipped 而不是伪报 FAIL。
+    $addTypeText   = if ($ForceJobFallback) { 'skipped(-ForceJobFallback)' } elseif ($jc.AddTypeOk) { 'OK' } else { 'FAIL' }
+    $createJobText = if ($ForceJobFallback) { 'skipped(-ForceJobFallback)' } elseif ($jc.CreateJobOk) { 'OK' } else { 'FAIL' }
+    $killFlagText  = if ($ForceJobFallback) { 'skipped(-ForceJobFallback)' } elseif ($NoPause) { 'skipped(-NoPause)' } elseif ($jc.KillFlagApplied) { 'applied' } else { 'not-applied' }
+    # S5 探针进程在 DryRun 下绝不启动（起了进程就不是「无副作用」）。
+    $assignProbeText = 'deferred (verified against first real child at launch)'
+    $structText = if ($script:JobStructSize -gt 0) { "$($script:JobStructSize)" } else { 'n/a (probe skipped)' }
+    Write-Host (" Job capability : AddType={0}; InJob={1}; ParentJobBreakaway={2}; ParentJobUnknown={3}; CreateJob={4}; KillFlag={5}; AssignProbe={6}; StructSize={7}; KillOnClose={8}; Fallback={9}; TrioEnabled={10}" -f @(
+        $addTypeText,
         $(if ($jc.InJob) { 'yes' } else { 'no' }),
         $(if ($jc.ParentJobBreakaway) { 'yes' } else { 'no' }),
         $(if ($jc.ParentJobUnknown) { 'yes' } else { 'no' }),
-        $(if ($jc.CreateJobOk) { 'OK' } else { 'deferred(T05)' }),
-        $(if ($jc.KillFlagApplied) { 'applied' } else { 'deferred(T05)' }),
-        $(if ($jc.AssignProbeOk) { 'OK' } else { 'deferred(T05)' }),
+        $createJobText,
+        $killFlagText,
+        $assignProbeText,
+        $structText,
         $(if ($jc.KillOnClose) { 'yes' } else { 'no' }),
         $jc.FallbackReason,
         $(if ($jc.TrioEnabled) { 'yes' } else { 'no' })
+    )) -ForegroundColor Gray
+    Write-Host (" Job struct     : Marshal.SizeOf(JOBOBJECT_EXTENDED_LIMIT_INFORMATION)={0}; expected x64=144 / x86=112; assertion={1}" -f @(
+        $structText,
+        $script:JobSizeAssert
     )) -ForegroundColor Gray
     Write-Host (" Console env    : ACP={0}; OEMCP={1}; FaceName={2}; HasFontLink={3}; HasCjkCoverage={4}; Branch={5}; DoChcp={6}; MsgLang={7}" -f @(
         $cap.ACP,
@@ -844,8 +1280,13 @@ if ($DryRun) {
     Write-Host (" Legacy trio    : enabled={0}  (pids.json / stop-web.ps1 / PowerShell.Exiting / Enter-kill)" -f @(
         $(if ($jc.TrioEnabled) { 'yes' } else { 'no' })
     )) -ForegroundColor Gray
-    # §7.1 的 PidFile schema 行归 T02；Job race 归 T05、Docs URL 归 T04，此处不预实现。
+    # §7.1 的 Job race 行由 T05 回填；PidFile schema 行来自 T02。
+    Write-Host ' Job race       : immediate-Assign + 2x descendant re-Assign scan (200ms); --reload KEPT' -ForegroundColor Gray
+    Write-Host '                 (2-level reloader+server chain); NO CREATE_SUSPENDED; residual risk:' -ForegroundColor Gray
+    Write-Host '                 a grandchild forked before the first Assign (or using CREATE_BREAKAWAY_FROM_JOB)' -ForegroundColor Gray
+    Write-Host '                 may escape. Status: needs real-world verification (not verified in this session).' -ForegroundColor Gray
     Write-Host ' PidFile schema : v2 (pids/updated_at/target_url + optional processes[pid,process_name,start_time]); legacy=compat' -ForegroundColor Gray
+    Write-Host ' Docs URL       : /api/docs (3 places updated; HTML left as registered legacy)' -ForegroundColor Gray
     Write-Host ''
     Write-Host (' ' + (Msg 'DryRun.ActionHeader')) -ForegroundColor Yellow
     if ($BackendState -eq 'Foreign' -or $FrontendState -eq 'Foreign') {
@@ -898,6 +1339,9 @@ if ($BackendState -eq 'Ours' -or $FrontendState -eq 'Ours') {
     exit 0
 }
 
+# ---------- T05 S5：真实服务启动之前的 Assign 探针（§3.3） ----------
+Confirm-JobAssignProbe
+
 # ---------- 5. 启动前后端（单窗口，服务全部隐藏） ----------
 Write-Host ''
 Write-Step (Msg 'Step.StartServices')
@@ -919,6 +1363,7 @@ if ($BackendState -eq 'Free') {
         -WorkingDirectory $BackendDir -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput $BackendOut -RedirectStandardError $BackendErr
     $script:StartedPids += $script:BackendProc.Id
+    Add-LaunchedProcessToJob $script:BackendProc 'backend'
     Write-Ok ((Msg 'Step.BackendStarted') -f $script:BackendProc.Id)
 } else {
     Write-Host (' ' + (Msg 'Step.BackendBusy')) -ForegroundColor DarkGray
@@ -932,14 +1377,23 @@ if ($FrontendState -eq 'Free') {
         -WorkingDirectory $FrontendDir -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput $FrontendOut -RedirectStandardError $FrontendErr
     $script:StartedPids += $script:FrontendProc.Id
+    Add-LaunchedProcessToJob $script:FrontendProc 'frontend'
     Write-Ok ((Msg 'Step.FrontendStarted') -f $script:FrontendProc.Id)
 } else {
     Write-Host (' ' + (Msg 'Step.FrontendBusy')) -ForegroundColor DarkGray
 }
 
+# T05 S6：决议 6 保留 --reload，补挂扫描是唯一能覆盖 reloader+server 两层
+# 竞态窗口的手段，不得省略、不得降为 1 轮。
+Invoke-DescendantRescan
+
 # 记录本脚本亲自启动的 PID。已在运行、非本脚本启动的服务绝不写进来，
 # 否则按回车 / 兜底脚本会把别人的服务一起杀掉。
-Write-PidFile
+# T05：三件套由 $script:TrioEnabled 守卫 —— 正常路径休眠、不写 pids.json；
+# 降级 / -NoPause / -ForceJobFallback 路径必须写，否则停止脚本无从定位 PID。
+if ($script:TrioEnabled) {
+    Write-PidFile
+}
 
 # ---------- 就绪检测（取代固定 Start-Sleep 10） ----------
 if (-not (Wait-ServiceReady)) {
@@ -977,7 +1431,27 @@ Write-Host (' ' + (Msg 'Done.InstallPwa')) -ForegroundColor Gray
 Write-Host ' ============================================================' -ForegroundColor DarkCyan
 Write-Host ''
 
+# ---------- T05：完成页的清理语义 / 用户认知防线（§3.6 / §7.4） ----------
+# 正常路径（Job 完全生效、非 -NoPause）才允许出现「关窗口即停」。
+# 其余任何情况都绝不出现该字样，必须明确「请按回车停止」+ 停止脚本兜底提示。
+$jobReason = [string]$script:LauncherCapability.FallbackReason
+$jobDegraded = [bool]$script:TrioEnabled
+$capFailed = ($jobReason -ne 'none') -and (-not $jobReason.StartsWith('-NoPause'))
+
+if (-not $jobDegraded) {
+    Write-Host (' ' + (Msg 'Job.CloseStops')) -ForegroundColor Green
+    Write-Host (' ' + (Msg 'Job.RaceNotice')) -ForegroundColor DarkGray
+} else {
+    if ($capFailed) {
+        $fallbackLine = (Msg 'Job.Fallback').Replace('<R>', $jobReason)
+        Write-Host (' ' + $fallbackLine) -ForegroundColor Yellow
+    }
+    Write-Host (' ' + (Msg 'Stop.CloseHint')) -ForegroundColor DarkGray
+}
+Write-Host ''
+
 if ($NoPause) {
+    Write-Host (' ' + (Msg 'Job.NoPause')) -ForegroundColor Yellow
     Write-Host (' ' + (Msg 'Stop.NoPause1')) -ForegroundColor Yellow
     Write-Host (' ' + (Msg 'Stop.NoPause2')) -ForegroundColor Yellow
     Write-Host (' ' + (Msg 'Stop.NoPause3')) -ForegroundColor Yellow
@@ -985,8 +1459,7 @@ if ($NoPause) {
 }
 
 Write-Host (' ' + (Msg 'Stop.PressEnter')) -ForegroundColor White
-Write-Host (' ' + (Msg 'Stop.CloseHint')) -ForegroundColor DarkGray
 Write-Host ''
-Read-Host ' 按回车键停止服务并关闭' | Out-Null
+Read-Host (' ' + (Msg 'Stop.ReadHost')) | Out-Null
 Stop-LaunchedServices
 Write-Ok (Msg 'Stop.Done')
