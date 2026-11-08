@@ -86,6 +86,7 @@ uvicorn app.main:app --reload --port 8001</code></pre>
   <pre><code>curl http://127.0.0.1:8000/api/documents/{doc_id}/status</code></pre>
 
   <p>返回 <code>progress: 0</code> 且长时间不变 → 任务没启动。检查 <code>tasks.py</code> 的日志。</p>
+  <p style="font-size:13px;color:var(--text-dim)">面向用户的「我该怎么办」说明见 <a href="../02-用户手册/4. 常见问题.html">02 · 常见问题</a>；本页只保留诊断命令与代码定位。</p>
 
   <h3>上传报 <code>PDF_NO_TEXT_LAYER</code></h3>
 
@@ -109,6 +110,7 @@ uvicorn app.main:app --reload --port 8001</code></pre>
     <li>用了罗马数字（<code>Chapter IV</code>）→ 正则需要扩展</li>
     <li>章节号在页眉/页脚，与标题分离 → 需要调整匹配策略</li>
   </ul>
+  <p style="font-size:13px;color:var(--text-dim)">面向用户的「我该怎么办」说明见 <a href="../02-用户手册/4. 常见问题.html">02 · 常见问题</a>；本页只保留诊断命令与代码定位。</p>
 
   <h2>对话类</h2>
 
@@ -151,6 +153,7 @@ uvicorn app.main:app --reload --port 8001</code></pre>
 
   <p><strong>如果阈值确实太高</strong>（新教材的实词分布不同），调低 <code>GRADER_CONTENT_HIT_MIN_RATIO</code>。
   但<strong>必须同时验证无关问题仍被拒绝</strong>，否则会打开误判的口子。</p>
+  <p style="font-size:13px;color:var(--text-dim)">面向用户的「我该怎么办」说明见 <a href="../02-用户手册/4. 常见问题.html">02 · 常见问题</a>；本页只保留诊断命令与代码定位。</p>
 
   <h3>无关问题也能得到回答</h3>
 
@@ -209,6 +212,7 @@ setAtPath(spec, op.node_path, { ...current, ...op.payload })</code></pre>
   <p><strong>确认版本：</strong><code>npm ls @react-three/fiber</code> 必须是 9.x。</p>
 
   <p><strong>确认 three 版本：</strong>必须是 0.186.x，与 fiber v9 配套。</p>
+  <p style="font-size:13px;color:var(--text-dim)">面向用户的「我该怎么办」说明见 <a href="../02-用户手册/4. 常见问题.html">02 · 常见问题</a>；本页只保留诊断命令与代码定位。</p>
 
   <h2>性能类</h2>
 
@@ -257,6 +261,7 @@ uvicorn app.main:app --app-dir backend</code></pre>
     <li>有数据但前端不显示 → <code>useWorkspaceSession</code> 的恢复逻辑有问题</li>
     <li>切到了别的工作区 → 看 localStorage 里的 <code>currentWorkspaceId</code></li>
   </ul>
+  <p style="font-size:13px;color:var(--text-dim)">面向用户的「我该怎么办」说明见 <a href="../02-用户手册/4. 常见问题.html">02 · 常见问题</a>；本页只保留诊断命令与代码定位。</p>
 
   <h3>版本历史里 v1 内容不对</h3>
 

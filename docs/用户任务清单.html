@@ -118,6 +118,35 @@
 
   </div>
 
+  <h2>A · 测试记录模板</h2>
+
+  <div class="note">
+    <p><strong>怎么用：</strong>每项 A 类测试跑完，就在下表<strong>就地记一行</strong>（A-1~A-6 对应上面 6 条）。
+    <strong>勾选框状态不会保存</strong>——这是静态 HTML，刷新页面就会还原；重要结论请复制走 / 另存到自己的笔记。
+    归因统一分三类：<strong>产品问题</strong>（功能确实有缺陷）／<strong>环境问题</strong>（本机、浏览器、模型服务）／
+    <strong>操作问题</strong>（步骤没走对）。判定填 <code>PASS</code> / <code>FAIL</code> / <code>待观察</code>。</p>
+  </div>
+
+  <div class="tip">
+    <p><strong>顺序不可跳（<code>NEXT-ACTION.md §2.3</code>）：</strong>先 <strong>A-2 用真实教材跑一遍</strong>，
+    再决定是否重标 grader 阈值，最后才找 1~2 个真实学生；<strong>学生试用不要教他们怎么用</strong>。</p>
+  </div>
+
+  <p style="color:var(--text-dim);font-size:14px;margin-bottom:12px">
+    下面是可整段复制的空表格模板。示例行只是<strong>占位文字</strong>，不是已发生的测试结果，用前请删掉或覆写。
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>日期</th><th>教材 / 环境</th><th>A-编号</th><th>现象</th><th>期望</th><th>实测</th><th>判定(PASS/FAIL/待观察)</th><th>证据路径</th><th>归因</th><th>下一步</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>YYYY-MM-DD</td><td>待填</td><td>A-2</td><td>待填</td><td>待填</td><td>待填</td><td>待观察</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td>YYYY-MM-DD</td><td>待填</td><td>A-1</td><td>待填</td><td>待填</td><td>待填</td><td>待观察</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td>YYYY-MM-DD</td><td>待填</td><td>A-3</td><td>待填</td><td>待填</td><td>待填</td><td>待观察</td><td>—</td><td>—</td><td>—</td></tr>
+    </tbody>
+  </table>
+
   <h2>B · 需要你拍板的产品决策</h2>
 
   <p style="color:var(--text-dim);font-size:14px;margin-bottom:16px">

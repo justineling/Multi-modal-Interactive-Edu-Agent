@@ -43,7 +43,7 @@
 | `docs/04-开发指南/`（5 篇） | 一次提问的旅程 / 前后端代码地图 / 改第一个功能 / 测试与调试 | 静态 | 允许 | 代码结构、模块划分、测试命令变化 | `backend/`、`frontend/src`、`scripts/` |
 | `docs/05-运维部署/`（2 篇） | 部署方案 / 故障排查 | 动态 | 允许 | 启动 / 停止方式、端口、降级行为变化 | 根目录 3 个启动停止脚本、`scripts/*.ps1` |
 | `docs/06-项目档案/`（2 篇） | 需求与验收标准 / 踩坑记录（**归档，历史数字即事实**） | 归档 | **禁止回溯修改** | 不更新；现状另写「当前状态」说明 | 源文档 + 当时报告 |
-| `docs/用户任务清单.html` | A/B/C/D 四类任务 + 7 个 B 决策（拍板依据） | 动态 | 允许 | B 决策拍板、A 类真人测试进度 | `NEXT-ACTION.md §2.5` |
+| `docs/用户任务清单.html` | A/B/C/D 四类任务 + 7 个 B 决策（拍板依据）**+ A 类测试记录模板** | 动态 | 允许 | B 决策拍板、A 类真人测试进度 | `NEXT-ACTION.md §2.5` |
 | `docs/学生试用观察清单.html` | 学生 5 任务 + 观察表 + 5 追问 | 动态 | 允许 | 跑完一轮真人测试记录观察 | `NEXT-ACTION.md §2.3` |
 | `docs/外部评审核对.html` | 外部评审核对清单 | 动态 | 允许 | 真人测试 / 评审结论产出 | `NEXT-ACTION.md §2.3` |
 | `docs/assets/` | `style.css` + `readme-hero.svg`（README 界面示意图） | 静态 | 允许 | 文档站改版、README 界面图变化 | — |
@@ -61,7 +61,7 @@
 | 2 | 改前端 UI（含未来全量重构） | `04-开发指南/3. 前端代码地图.html`、`02-用户手册/` 4 篇（交互 / 步骤变了）、`01-快速开始/1. 这个项目是什么.html`（功能变了） | `README.md` 功能段、`assets/readme-hero.svg`、`NEXT-ACTION.md §2.4`、UI PRD | **`docs/prototypes/`**：明确「非生产、不进 `frontend/src`」，是独立对照原型，顺手改会抹掉「当时原型长什么样」；见其 `README.md` 豁免登记。`increments/` 归档亦不动 | 确认 `frontend/src` 与 `prototypes/` 无交叉引用；用户手册步骤与当前 UI 一致；**本阶段测试期生产 `frontend/src` 零改动，若只迭代原型则生产侧文档全部不用改** |
 | 3 | 改启动脚本：根目录 `1. 启动网页端(Windows).bat` / `2. ...(Mac-Linux).sh` / `3. 停止网页端(Windows).bat`、`scripts/start-web.ps1` / `stop-web.ps1` / `check-launcher-encoding.ps1` | `01-快速开始/2. 环境搭建与运行.html`、`README.md §快速开始`、`HANDOVER.md`（启动段 + 坑条目）、`05-运维部署/2. 故障排查.html`、`NEXT-ACTION.md §1` 启动脚本行 + `§2.1` 补测 + `§3` 未验证项 | `05-运维部署/1. 部署方案.html` | **`docs/increments/launcher-optimization-review.md` / `-design.md` / `launcher-t05-acceptance.md` / `launcher-t05-verify-report.md` 属归档**：新改动应**新增增量文档**（如 `launcher-t06-*.md`），不回头改旧报告。**`scripts/*.py` / `*.mjs`（e2e_smoke / profile_latency / flash_quality / real_llm_check / print_pdf_check）是测试测量脚本，不属本条，走 #4** | `grep` 旧启动行为无残留；各文档表述与当前行为一致：**单窗口 + 隐藏后台进程 + Job Object 关窗口即停 + 失败降级**；真机按 `NEXT-ACTION.md §2.1` 四项补做 |
 | 4 | 改测试数量（后端 / 前端 / 冒烟条数） | **只在一处落值**：`HANDOVER.md §一 测试基线` 为唯一真源；`NEXT-ACTION.md §1` 只把「绿 / 未绿」状态词改对、**不写数字**；`docs/index.html` 状态表与 `README.md` 其余处一律改成**指针** | `HANDOVER.md` 待办段 | `increments/` 与 `06-项目档案/` 里的历史测试数（归档快照）；`NEXT-ACTION.md` 任何数字 | **「状态数字只准在一处写、其余用指针」**：跑 §3.2-B/C，确认活跃文档中数字只出现 1 处、其余全是指针或归档。原因：这次 404 / 158 / 篇数在三处复述直接导致大面积过时 |
-| 5 | 跑完一轮真人测试 | `docs/学生试用观察清单.html`（记观察）、`docs/外部评审核对.html`（核对结论）、`NEXT-ACTION.md §2.3` 打勾 + 结论移入 `§7` 归档 | `docs/用户任务清单.html` A 类进度、`NEXT-ACTION.md §2.5 / §4`（新暴露问题） | 测试基线数字（原型不进生产 → **不用重跑基线**，见 `NEXT-ACTION.md §2.3`）、归档报告 | 顺序不可跳：先 A-2 用真实教材跑一遍 → 再定阈值 → 再找 1~2 个真实学生；学生试用**不要教怎么用**；结论已落档不留空 |
+| 5 | 跑完一轮真人测试 | `docs/学生试用观察清单.html`（记观察）、`docs/外部评审核对.html`（核对结论）、**`docs/用户任务清单.html` 的「A · 测试记录模板」表**（记 A 类 6 项逐项结论）、`NEXT-ACTION.md §2.3` 打勾 + 结论移入 `§7` 归档 | `docs/用户任务清单.html` A 类进度、`NEXT-ACTION.md §2.5 / §4`（新暴露问题） | 测试基线数字（原型不进生产 → **不用重跑基线**，见 `NEXT-ACTION.md §2.3`）、归档报告 | 顺序不可跳：先 A-2 用真实教材跑一遍 → 再定阈值 → 再找 1~2 个真实学生；学生试用**不要教怎么用**；结论已落档不留空 |
 | 6 | 拍板一个 Q 或 B 决策 | Q → `increments/rhine-ui-rebuild-PRD.md`；B → `docs/用户任务清单.html`；两者都要改 `NEXT-ACTION.md §2.4`（Q）/ `§2.5`（B）对应行状态 + 归档到 `§7` | `03-架构设计/`（Q 触及契约时）、`HANDOVER.md` 关键决策记录 | `SPEC.md`（不可篡改）、归档报告里的历史决策记录 | `grep` 该 Q/B 编号，确认 PRD、任务清单、活文档三处状态一致，无「仍开放 / 已拍板」互相矛盾；**Q-1 边界未被越界**（外壳 + 装裱层，`PALETTE` 与 B 层产物画面不动） |
 | 7 | 完成一次 commit / push | `NEXT-ACTION.md` 头部三元组（日期 / HEAD / 阶段）+ `§1` Git 行 + `§5.3` 归档 | `HANDOVER.md` 最近一次改动、`README.md`（若阶段 / 数字变） | 所有归档、所有静态文档 | `git status -sb` 的 HEAD 与活文档头部一致；`grep -rn "b010c9e"` 活跃文档无残留 |
 | 8 | 新增 / 删除 / 重命名文档 | `docs/00-源文档/README.md`「新增文档该放哪」、`docs/index.html` 导航相对链接 + 状态表篇数、**`DOCS.md` 本文件 §1 表与 §2.8** | `README.md §文档地图`、`NEXT-ACTION.md §6` 事实指针 | `SPEC.md`、全部归档 | `docs/index.html` 每个相对链接可达；`§1` 表行数与实际文件一致；本文件 `§1` 已含新行 |
@@ -143,5 +143,6 @@ git status --short -- docs/increments docs/06-项目档案 docs/prototypes
 | **commit / push / 测试数字变化** | **不更新**（本文件不持有状态值；HEAD 与数字只在活文档） |
 | 2026-11-08 本次销账（历史留痕） | 已删 `§2.1` 10 条已收敛欠账、修 `§3.2-D` 误命中关键词 `独立窗口`、`§3.2` 判定顺序补活规格例外；后续不再重复登记 |
 | 2026-11-08 阶段 B 销账（历史留痕） | `§2.1` 唯一 1 行欠账（UI PRD 11 处旧章节号）已收敛，表格改为「当前无未收敛欠账」；`§3.2` 补【销账】【链接 + 口径】两条 checkbox |
+| 2026-11-08 · 新增 A 类测试记录模板（内嵌既有清单，不新建文件）、5 组问答加交叉指针 | 历史留痕：`docs/用户任务清单.html` 增「A · 测试记录模板」；`02-用户手册/4` 与 `05-运维部署/2` 各加 5 行单向指针、答案正文零改动；同步本文件 `§1` 用途列、`§2 #5` 必改列与 `NEXT-ACTION.md §2.3` 指针 |
 
 > 维护责任：**下一位接手的 AI**，与 `NEXT-ACTION.md §5.5` 同。改完顺手核一遍其他文档有没有因本文件而过时。
