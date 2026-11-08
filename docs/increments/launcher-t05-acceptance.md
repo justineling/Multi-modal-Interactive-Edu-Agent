@@ -63,11 +63,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\start-web.ps1" -Dry
 4. 等待 <= 5 秒后检查：
 
    ```
-   powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 8000,5173 -ErrorAction SilentlyContinue | Where-Object State -eq Listen"
+   powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue | Select-Object LocalPort,State,OwningProcess"
+   powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue | Select-Object LocalPort,State,OwningProcess"
    powershell -NoProfile -Command "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,CommandLine | Export-Csv -NoTypeInformation after.csv"
    ```
 
-   期望：无 `Listen` 项；`http://127.0.0.1:8000/api/health` 与 `http://localhost:5173` 均不可连；
+   > ⚠️ **判据修正（QA 真机实测 2026-11-08，见 `launcher-t05-verify-report.md` §1.2）**：
+   > 原文写的 `Get-NetTCPConnection -LocalPort 8000,5173 ... | Where-Object State -eq Listen`
+   > 在本机 **PowerShell 5.1 上恒返回空**——服务确实在监听、`health=200` 成功时仍无输出。
+   > 照抄会得出「端口从未监听」的**假绿结论**。修正为**单端口分别调用**，且必须再用
+   > 真实 TCP 建连（覆盖 `127.0.0.1:8000` / `127.0.0.1:5173` / `[::1]:5173`，vite 只绑 IPv6）
+   > 与 `http://127.0.0.1:8000/api/health`、`http://localhost:5173` 的 HTTP 请求交叉印证。
+   > **端口判据不能只看一个命令的输出**，尤其不能把「什么都没查到」当成「已停止」。
+
+   期望：单端口查询无 `Listen` 项、三个地址均无法建连、health 与前端均不可连；
    `before.csv` 里所有服务进程（**逐条对比孙进程**）在 `after.csv` 中全部消失；
    `backend\data\launcher\pids.json` **不应被新建**（三件套已退场）。
 
