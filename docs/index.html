@@ -10,7 +10,7 @@
 
 <div class="topbar">
   <div class="topbar-inner">
-    <div class="crumb"><span class="cur">文档中心</span></div>
+    <div class="crumb"><span class="cur">文档中心</span> · <a href="../DOCS.md">文档变更路由表 DOCS.md</a></div>
   </div>
 </div>
 
@@ -32,6 +32,8 @@
     六个必踩的坑、以及「下次开工第一件事」。</p>
     <p style="margin-top:8px">这份 HTML 文档站是<strong>深度参考</strong>；HANDOVER 是<strong>快速恢复上下文的入口</strong>。
     下班后重新开工，读 HANDOVER 比读这里快得多。</p>
+    <p style="margin-top:8px">改了代码该同步哪些文档，见根目录 <a href="../DOCS.md">DOCS.md</a>（文档变更路由表）；
+    「现在该做什么」见根目录 <a href="../NEXT-ACTION.md">NEXT-ACTION.md</a>。</p>
   </div>
 
   <h2>按身份选择阅读路径</h2>
@@ -92,7 +94,7 @@
   <h2>增量文档：真实模式耗时优化（P1-03）</h2>
 
   <div class="note">
-    <p>上面 21 篇是<strong>系统级文档</strong>，随代码长期有效。这一组是<strong>一次具体改造的过程记录</strong>——
+    <p>上面六类共 20 篇是<strong>系统级文档</strong>，随代码长期有效。这一组是<strong>一次具体改造的过程记录</strong>——
     包括需求、设计、实测数据、被数据否掉的方案、以及 QA 的独立验证。</p>
     <p style="margin-top:8px">它们回答的是<strong>「为什么现在是这个样子」</strong>：为什么产物用轻量模型、为什么不做分批下发、
     为什么 TTFT 的 fork 点放在首 token 之后。改性能相关代码前值得先读。</p>
@@ -210,6 +212,62 @@
     </a>
   </div>
 
+  <h2>增量文档与原型</h2>
+
+  <div class="note">
+    <p><strong>篇数口径</strong>：文档站收录 <strong>23 篇</strong> = 六类目录 20 篇 + 根目录 3 份清单。
+    本页 <code>index.html</code> 是入口、不计入；下列 <code>prototypes/</code> 的 2 篇是
+    <strong>非生产原型、审计豁免</strong>，同样不计入收录数。全库 HTML 共 26 个。</p>
+  </div>
+
+  <div class="cards">
+    <a class="card" href="increments/launcher-optimization-review.md">
+      <div class="k">增量 · 评审</div>
+      <div class="t">启动器优化评审</div>
+      <div class="d">一键启动脚本优化的方案评审结论与待解决问题清单。</div>
+    </a>
+    <a class="card" href="increments/launcher-optimization-design.md">
+      <div class="k">增量 · 设计</div>
+      <div class="t">启动器优化设计</div>
+      <div class="d">T01–T05 施工单、隐藏后台进程方案与验收判据。</div>
+    </a>
+    <a class="card" href="increments/launcher-t05-acceptance.md">
+      <div class="k">增量 · 验收</div>
+      <div class="t">T05 验收清单</div>
+      <div class="d">真机验收的判据与逐项核对表。</div>
+    </a>
+    <a class="card" href="increments/launcher-t05-verify-report.md">
+      <div class="k">增量 · 报告</div>
+      <div class="t">T05 验证报告</div>
+      <div class="d">三组 PASS / FAIL 0 的真机全过程与 6 类未验证项。</div>
+    </a>
+    <a class="card" href="increments/rhine-ui-rebuild-PRD.md">
+      <div class="k">增量 · PRD</div>
+      <div class="t">UI 重构 PRD v1.2</div>
+      <div class="d">外壳与装裱层重构范围、Q-1~Q-6 决策依据。</div>
+    </a>
+    <a class="card" href="prototypes/rhine-archive/index.html">
+      <div class="k">原型 · 非生产</div>
+      <div class="t">Rhine 档案单页原型</div>
+      <div class="d">UI 重构单页视觉原型。<strong>非生产原型 / 不进 frontend/src / 不可用于真人测试</strong>。</div>
+    </a>
+    <a class="card" href="prototypes/b-layer-reference.html">
+      <div class="k">原型 · 非生产</div>
+      <div class="t">B 层产物参考</div>
+      <div class="d">B 层画面与配色的静态参考页。<strong>非生产原型 / 不进 frontend/src / 不可用于真人测试</strong>。</div>
+    </a>
+    <a class="card" href="prototypes/README.md">
+      <div class="k">原型 · 说明</div>
+      <div class="t">原型目录说明</div>
+      <div class="d">原型文件清单与使用边界。<strong>非生产原型 / 不进 frontend/src / 不可用于真人测试</strong>。</div>
+    </a>
+    <a class="card" href="../NEXT-ACTION.md">
+      <div class="k">活文档 · 入口</div>
+      <div class="t">NEXT-ACTION · 下一步看板</div>
+      <div class="d">现在该做什么、状态快照与事实指针，接手先读这份。</div>
+    </a>
+  </div>
+
   <h2>项目一句话说明</h2>
 
   <p>
@@ -253,12 +311,16 @@
 
   <h2>当前状态</h2>
 
+  <div class="note">
+    <p><strong>测试基线条数以 <a href="../HANDOVER.md">HANDOVER.md §一</a> 为准</strong>（唯一真源）；下表只标状态词，不复述条数。</p>
+  </div>
+
   <table>
     <thead><tr><th>指标</th><th>数值</th><th>说明</th></tr></thead>
     <tbody>
-      <tr><td>后端测试</td><td><span class="badge ok">404 passed</span></td><td>含 P0 验收、回归用例、QA 独立不变量 38 条、事务时序、数量校验、页码重绑定、章节作用域。另有 1 条计时敏感用例标 <code>slow</code> 默认不跑（<code>pytest -m slow</code> 单独跑）</td></tr>
-      <tr><td>前端测试</td><td><span class="badge ok">158 passed</span></td><td>8 个文件，含 SSE 解析器 16 例、导出管线守卫 5 例</td></tr>
-      <tr><td>端到端</td><td><span class="badge ok">31 项全通过</span></td><td>真实 HTTP + SSE，非 mock 断言。事务竞态修复后连跑 3 次均全过</td></tr>
+      <tr><td>后端测试</td><td><span class="badge ok">全绿</span></td><td>含 P0 验收、回归用例、QA 独立不变量、事务时序、数量校验、页码重绑定、章节作用域。另有 1 条计时敏感用例标 <code>slow</code> 默认不跑（<code>pytest -m slow</code> 单独跑）；条数见 <a href="../HANDOVER.md">HANDOVER.md §一</a></td></tr>
+      <tr><td>前端测试</td><td><span class="badge ok">全绿</span></td><td>8 个文件，含 SSE 解析器、导出管线守卫等；条数见 <a href="../HANDOVER.md">HANDOVER.md §一</a></td></tr>
+      <tr><td>端到端</td><td><span class="badge ok">全绿</span></td><td>真实 HTTP + SSE，非 mock 断言。事务竞态修复后连跑 3 次均全过；条数见 <a href="../HANDOVER.md">HANDOVER.md §一</a></td></tr>
       <tr><td>113 页 PDF 解析</td><td>0.41 秒</td><td>验收预算是 60 秒</td></tr>
       <tr><td>首字节 TTFT（演示模式）</td><td>7 毫秒</td><td>内置确定性生成器</td></tr>
       <tr><td>首字节 TTFT（真实模型）</td><td><span class="badge ok">4.14 秒</span></td><td>DeepSeek 实测 P50（n=15），门禁 ≤ 5.08 秒</td></tr>

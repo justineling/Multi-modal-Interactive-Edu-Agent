@@ -228,7 +228,7 @@ python scripts/make_sample_pdf.py</code></pre>
     <thead><tr><th style="width:40px">#</th><th>检查项</th><th>预期</th></tr></thead>
     <tbody>
       <tr><td>1</td><td><code>GET /api/health</code></td><td><code>code: "OK"</code>，<code>demo_mode: true</code></td></tr>
-      <tr><td>2</td><td><code>GET /docs</code></td><td>看到 FastAPI 自动生成的 API 文档，21 个端点</td></tr>
+      <tr><td>2</td><td><code>GET /api/docs</code></td><td>看到 FastAPI 自动生成的 API 文档，21 个端点</td></tr>
       <tr><td>3</td><td>前端首页</td><td>左右双栏，右栏显示空态示例问句</td></tr>
       <tr><td>4</td><td>上传样本 PDF</td><td>进度条 → 几秒内变成目录树，可折叠</td></tr>
       <tr><td>5</td><td>点目录树「4.1」</td><td>输入框自动填入「学习 4.1」</td></tr>
@@ -240,11 +240,11 @@ python scripts/make_sample_pdf.py</code></pre>
 
   <h3>跑自动化测试（可选但推荐）</h3>
 
-  <pre><code><span class="cm"># 后端 240 个用例，约 30 秒</span>
+  <pre><code><span class="cm"># 后端全量测试，约 30 秒</span>
 cd backend
 .venv\Scripts\python.exe -m pytest tests -q
 
-<span class="cm"># 前端 153 个用例，约 3 秒</span>
+<span class="cm"># 前端全量测试，约 3 秒</span>
 cd frontend
 npm test
 

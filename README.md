@@ -13,7 +13,7 @@
 | | |
 |---|---|
 | **状态** | P0 全部交付，真实 DeepSeek 链路已实测 |
-| **测试** | 后端 356 · 前端 153 · 端到端冒烟 31 |
+| **测试** | 后端 / 前端 / 端到端冒烟三套全绿；当前基线条数见 [HANDOVER.md](HANDOVER.md) §一（唯一真源） |
 | **整轮耗时** | 66.3s → **18.13s**（P50，n=15） |
 | **技术栈** | Python 3.13 · FastAPI · React 19 · TypeScript · three.js |
 | **跑起来** | 双击 `1. 启动网页端(Windows).bat`，无需 API Key |
@@ -178,17 +178,19 @@ cd backend && python scripts/make_sample_pdf.py
 
 ## 测试与验收
 
+> 当前测试基线条数以 [HANDOVER.md](HANDOVER.md) §一 为唯一真源；本段只给命令，不复述数字。
+
 ```bash
-# 后端 356 个用例（约 35 秒）
+# 后端全量测试（约 35 秒）
 cd backend && ./.venv/Scripts/python.exe -m pytest tests -q
 
-# 前端 153 个用例
+# 前端全量测试
 cd frontend && npm test
 
 # 前端类型检查 + 构建
 cd frontend && npm run typecheck && npm run build
 
-# 端到端冒烟 31 项（需先起后端在 8123）
+# 端到端冒烟（需先起后端在 8123）
 cd backend && ./.venv/Scripts/python.exe -m uvicorn app.main:app --port 8123
 python scripts/e2e_smoke.py
 
@@ -231,14 +233,14 @@ cd backend && ./.venv/Scripts/python.exe ../scripts/real_llm_check.py
 │   │   ├── services/retriever.py   # 混合检索 + 三态评估
 │   │   ├── services/patch_engine.py# 增量补丁
 │   │   └── api/                    # workspaces / chat_stream / artifacts
-│   └── tests/                      # 356 个用例
+│   └── tests/                      # 后端测试
 ├── frontend/                   # React 19 · Vite 7 · TS
 │   └── src/
 │       ├── components/canvas/      # 三种渲染器 + 6 种 PPT 布局
 │       ├── hooks/useChatStream.ts  # SSE 流 + 事件归约
 │       └── lib/                    # jsonPointer / fingerprint / theme
 ├── docs/
-│   ├── index.html              # ★ 文档站入口（23 篇 HTML）
+│   ├── index.html              # ★ 文档站入口（收录 23 篇 = 6 类 20 篇 + 根 3 份清单）
 │   ├── 00-源文档/              # 项目级基线文档（SPEC/PRD/ARCHITECTURE/IMPL-NOTES/QA 报告 + 2 张 mermaid）
 │   ├── 01-快速开始/ … 06-项目档案/  # 按读者重组的 HTML 文档
 │   ├── increments/             # 单次迭代的过程记录（只增不改）
@@ -262,7 +264,7 @@ cd backend && ./.venv/Scripts/python.exe ../scripts/real_llm_check.py
 | **要改代码** | [`HANDOVER.md`](HANDOVER.md) → [`04-开发指南`](docs/04-开发指南/1.%20一次提问的完整旅程.html) |
 | **要理解设计** | [`03-架构设计`](docs/03-架构设计/1.%20系统总览.html) + [`docs/00-源文档/ARCHITECTURE.md`](docs/00-源文档/ARCHITECTURE.md) |
 | **要部署运维** | [`05-运维部署`](docs/05-运维部署/1.%20部署方案.html) |
-| **AI 接手开发** | `HANDOVER.md` → [`docs/00-源文档/IMPL-NOTES.md`](docs/00-源文档/IMPL-NOTES.md) → `docs/increments/` |
+| **AI 接手开发** | NEXT-ACTION.md（现在该做什么）→ DOCS.md（改动该同步哪些文档）→ HANDOVER.md → docs/00-源文档/IMPL-NOTES.md → docs/increments/ |
 
 **`docs/00-源文档/IMPL-NOTES.md` 是最该先读的一份** —— 它记的是「为什么这么写」，比「写了什么」更能防止你把已经修好的 bug 改回去。里面每条都是踩过的坑，带实测数据。
 
@@ -319,7 +321,7 @@ cd backend && ./.venv/Scripts/python.exe ../scripts/real_llm_check.py
 (cd frontend && npm test)
 ```
 
-> 当前基线：后端 **404 passed**（另有 1 条计时敏感用例默认不跑，见下）、前端 **158 passed**。
+> 当前基线条数见 [HANDOVER.md](HANDOVER.md) §一（唯一真源）；另有 1 条计时敏感用例默认不跑，见下。
 > **数字会随迭代增长，判断标准是 `0 failed`，不是「条数对不对」**；不是绿的先修基线。
 >
 > 两条容易踩的：
