@@ -16,7 +16,7 @@
 SPEC.md          ┐
 PRD.md           ├─→  docs/06-项目档案/1. 需求与验收标准.html
 ARCHITECTURE.md  ├─→  docs/03-架构设计/（5 篇）
-IMPL-NOTES.md    ├─→  docs/06-项目档案/2. 踩坑与裁定.html
+IMPL-NOTES.md    ├─→  docs/06-项目档案/2. 踩坑记录.html
 QA-REPORT-backend.md ─→ docs/06-项目档案/1. 需求与验收标准.html
 ```
 
@@ -53,7 +53,7 @@ QA-REPORT-backend.md ─→ docs/06-项目档案/1. 需求与验收标准.html
 
 ### IMPL-NOTES.md — 实施期踩坑与裁定（★ 最该先读）
 
-按编号记录（E1、E2…E12）每一次踩坑、每一个设计裁定、每一次"原方案被推翻"。
+按编号记录（E1、E2…E13）每一次踩坑、每一个设计裁定、每一次"原方案被推翻"。
 
 **它记的是「为什么这么写」，比「写了什么」更能防止你把已经修好的 bug 改回去。**
 
@@ -88,7 +88,7 @@ P0-01 ~ P0-12 逐条验收结论、8 个缺陷的复现与修复、遗留风险 
 | `SPEC.md` | 需求方原始规范，不可篡改 | 怀疑需求被理解偏了 |
 | `PRD.md` | 12 条 P0 + 可测试验收标准 | 判定"做完没有" |
 | `ARCHITECTURE.md` | 架构、模块、数据模型、任务分解 | 改架构 / 加模块 |
-| `IMPL-NOTES.md` | **踩坑与裁定记录（E1~E12）** | **改代码之前** |
+| `IMPL-NOTES.md` | **踩坑与裁定记录（E1~E13）** | **改代码之前** |
 | `QA-REPORT-backend.md` | P0 逐条验收 + 8 个缺陷 + 遗留风险 | 查"验过什么、漏了什么" |
 | `class-diagram.mermaid` | 数据模型类图 | 看表结构与契约关系 |
 | `sequence-diagram.mermaid` | 一次提问的时序图（含降级） | 看调用链与失败路径 |

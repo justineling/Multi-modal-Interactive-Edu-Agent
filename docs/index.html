@@ -164,7 +164,7 @@
       </tr>
       <tr>
         <td><a href="00-源文档/IMPL-NOTES.md"><code>IMPL-NOTES.md</code></a></td>
-        <td><strong>踩坑与裁定记录（E1~E12）</strong>，记的是「为什么这么写」</td>
+        <td><strong>IMPL-NOTES.md · E1~E13 踩坑与裁定</strong>，记的是「为什么这么写」</td>
         <td><strong>改代码之前</strong></td>
       </tr>
       <tr>
@@ -321,7 +321,7 @@
       <tr><td>后端测试</td><td><span class="badge ok">全绿</span></td><td>含 P0 验收、回归用例、QA 独立不变量、事务时序、数量校验、页码重绑定、章节作用域。另有 1 条计时敏感用例标 <code>slow</code> 默认不跑（<code>pytest -m slow</code> 单独跑）；条数见 <a href="../HANDOVER.md">HANDOVER.md §一</a></td></tr>
       <tr><td>前端测试</td><td><span class="badge ok">全绿</span></td><td>8 个文件，含 SSE 解析器、导出管线守卫等；条数见 <a href="../HANDOVER.md">HANDOVER.md §一</a></td></tr>
       <tr><td>端到端</td><td><span class="badge ok">全绿</span></td><td>真实 HTTP + SSE，非 mock 断言。事务竞态修复后连跑 3 次均全过；条数见 <a href="../HANDOVER.md">HANDOVER.md §一</a></td></tr>
-      <tr><td>113 页 PDF 解析</td><td>0.41 秒</td><td>验收预算是 60 秒</td></tr>
+      <tr><td>113 页 PDF 解析</td><td>0.37 秒</td><td>验收预算是 60 秒</td></tr>
       <tr><td>首字节 TTFT（演示模式）</td><td>7 毫秒</td><td>内置确定性生成器</td></tr>
       <tr><td>首字节 TTFT（真实模型）</td><td><span class="badge ok">4.14 秒</span></td><td>DeepSeek 实测 P50（n=15），门禁 ≤ 5.08 秒</td></tr>
       <tr><td>完整产物耗时（真实模型）</td><td><span class="badge ok">18.13 秒</span></td><td>P50（n=15）。P1-03 优化前 66.3 秒，降 73%；目标 18 秒，<strong>超 0.7%</strong>；P90 24.54 秒</td></tr>

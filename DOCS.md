@@ -60,7 +60,7 @@
 | 1 | 改后端代码 / 加接口 | `03-架构设计/1. 系统总览.html`、`4. 检索与路由.html`、`5. 增量补丁与 SSE.html`；动契约再加 `3. DSL 契约.html`；`04-开发指南/2. 后端代码地图.html`；确认 `/api/docs` 已列出新端点（**不要另建一份静态 API 清单 md**） | `00-源文档/ARCHITECTURE.md`、两张 mermaid、`IMPL-NOTES.md` 记一笔 | `README.md`（除非测试数字 / 阶段变）、`02-用户手册/`（除非交互变）、`increments/` 与 `06-项目档案/`（归档） | `grep -rn "<旧接口名>" docs/` 无残留；`/api/docs` 可见新端点；**测试数字不在本条改，走 #4 单一真源**；跑 §3.2 |
 | 2 | 改前端 UI（含未来全量重构） | `04-开发指南/3. 前端代码地图.html`、`02-用户手册/` 4 篇（交互 / 步骤变了）、`01-快速开始/1. 这个项目是什么.html`（功能变了） | `README.md` 功能段、`assets/readme-hero.svg`、`NEXT-ACTION.md §2.4`、UI PRD | **`docs/prototypes/`**：明确「非生产、不进 `frontend/src`」，是独立对照原型，顺手改会抹掉「当时原型长什么样」；见其 `README.md` 豁免登记。`increments/` 归档亦不动 | 确认 `frontend/src` 与 `prototypes/` 无交叉引用；用户手册步骤与当前 UI 一致；**本阶段测试期生产 `frontend/src` 零改动，若只迭代原型则生产侧文档全部不用改** |
 | 3 | 改启动脚本：根目录 `1. 启动网页端(Windows).bat` / `2. ...(Mac-Linux).sh` / `3. 停止网页端(Windows).bat`、`scripts/start-web.ps1` / `stop-web.ps1` / `check-launcher-encoding.ps1` | `01-快速开始/2. 环境搭建与运行.html`、`README.md §快速开始`、`HANDOVER.md`（启动段 + 坑条目）、`05-运维部署/2. 故障排查.html`、`NEXT-ACTION.md §1` 启动脚本行 + `§2.1` 补测 + `§3` 未验证项 | `05-运维部署/1. 部署方案.html` | **`docs/increments/launcher-optimization-review.md` / `-design.md` / `launcher-t05-acceptance.md` / `launcher-t05-verify-report.md` 属归档**：新改动应**新增增量文档**（如 `launcher-t06-*.md`），不回头改旧报告。**`scripts/*.py` / `*.mjs`（e2e_smoke / profile_latency / flash_quality / real_llm_check / print_pdf_check）是测试测量脚本，不属本条，走 #4** | `grep` 旧启动行为无残留；各文档表述与当前行为一致：**单窗口 + 隐藏后台进程 + Job Object 关窗口即停 + 失败降级**；真机按 `NEXT-ACTION.md §2.1` 四项补做 |
-| 4 | 改测试数量（后端 / 前端 / 冒烟条数） | **只在一处落值**：`HANDOVER.md §一 测试基线` 或 `README.md §开发约定` 择一为唯一真源（**需人工确认指定哪一处**，当前 `NEXT-ACTION.md §1` 同时指向这两处，须收敛为一处）；`NEXT-ACTION.md §1` 只把「绿 / 未绿」状态词改对、**不写数字**；`docs/index.html` 状态表与 `README.md` 其余处一律改成**指针** | `HANDOVER.md` 待办段 | `increments/` 与 `06-项目档案/` 里的历史测试数（归档快照）；`NEXT-ACTION.md` 任何数字 | **「状态数字只准在一处写、其余用指针」**：跑 §3.2-B/C，确认活跃文档中数字只出现 1 处、其余全是指针或归档。原因：这次 404 / 158 / 篇数在三处复述直接导致大面积过时 |
+| 4 | 改测试数量（后端 / 前端 / 冒烟条数） | **只在一处落值**：`HANDOVER.md §一 测试基线` 为唯一真源；`NEXT-ACTION.md §1` 只把「绿 / 未绿」状态词改对、**不写数字**；`docs/index.html` 状态表与 `README.md` 其余处一律改成**指针** | `HANDOVER.md` 待办段 | `increments/` 与 `06-项目档案/` 里的历史测试数（归档快照）；`NEXT-ACTION.md` 任何数字 | **「状态数字只准在一处写、其余用指针」**：跑 §3.2-B/C，确认活跃文档中数字只出现 1 处、其余全是指针或归档。原因：这次 404 / 158 / 篇数在三处复述直接导致大面积过时 |
 | 5 | 跑完一轮真人测试 | `docs/学生试用观察清单.html`（记观察）、`docs/外部评审核对.html`（核对结论）、`NEXT-ACTION.md §2.3` 打勾 + 结论移入 `§7` 归档 | `docs/用户任务清单.html` A 类进度、`NEXT-ACTION.md §2.5 / §4`（新暴露问题） | 测试基线数字（原型不进生产 → **不用重跑基线**，见 `NEXT-ACTION.md §2.3`）、归档报告 | 顺序不可跳：先 A-2 用真实教材跑一遍 → 再定阈值 → 再找 1~2 个真实学生；学生试用**不要教怎么用**；结论已落档不留空 |
 | 6 | 拍板一个 Q 或 B 决策 | Q → `increments/rhine-ui-rebuild-PRD.md`；B → `docs/用户任务清单.html`；两者都要改 `NEXT-ACTION.md §2.4`（Q）/ `§2.5`（B）对应行状态 + 归档到 `§7` | `03-架构设计/`（Q 触及契约时）、`HANDOVER.md` 关键决策记录 | `SPEC.md`（不可篡改）、归档报告里的历史决策记录 | `grep` 该 Q/B 编号，确认 PRD、任务清单、活文档三处状态一致，无「仍开放 / 已拍板」互相矛盾；**Q-1 边界未被越界**（外壳 + 装裱层，`PALETTE` 与 B 层产物画面不动） |
 | 7 | 完成一次 commit / push | `NEXT-ACTION.md` 头部三元组（日期 / HEAD / 阶段）+ `§1` Git 行 + `§5.3` 归档 | `HANDOVER.md` 最近一次改动、`README.md`（若阶段 / 数字变） | 所有归档、所有静态文档 | `git status -sb` 的 HEAD 与活文档头部一致；`grep -rn "b010c9e"` 活跃文档无残留 |
@@ -71,19 +71,7 @@
 
 > 这些是**已知的过时点，不是新引入的错误**。grep 命中时先对照本表：非「收敛文档」任务不要动手改，也不要当成新 bug 上报。处置统一走 §2 对应路由。
 
-| 位置 | 现状（过时值） | 应为 / 处置 | 关联路由 |
-|---|---|---|---|
-| `README.md:182` | 后端 356 个用例 | 404（以唯一真源为准，见 #4 需先指定） | #4 |
-| `README.md:185` | 前端 153 个 | 158 | #4 |
-| `README.md:241` | 23 篇 | 与 `docs/index.html` 状态表当前值对齐；**需人工确认口径** | #4 #8 |
-| `README.md:261` | 4 篇 | **需人工确认**指向哪一类计数 | #8 |
-| `HANDOVER.md:4` | HEAD `b010c9e` | `9bda725`（以 `git status -sb` 为准） | #7 |
-| `NEXT-ACTION.md` 旧版引用 | HEAD `b010c9e` | 已重写，以活文档头部为准 | #7 |
-| `HANDOVER.md:16` | 38 项 | **需人工确认 38 项原指什么**；当前端到端冒烟 31 项 | #4 |
-| `HANDOVER.md:123` / `:340` | 24 篇 | 与 `docs/index.html` 状态表当前值对齐；**需人工确认口径** | #4 #8 |
-| `HANDOVER.md`、UI PRD v1.2 | 引用 `NEXT-ACTION §0/§3/§5/§6/§8` | 活文档重写后 **§0/§3/§5/§6 仍存在但含义已变、§8 已删除**；按 `NEXT-ACTION.md §6` 事实指针逐条核，**需人工确认** | #7 |
-| `docs/index.html` 导航 | 缺入口 | 补 launcher 系列 4 篇、T05 验收 2 篇、UI PRD、原型 3 个、根目录 `NEXT-ACTION.md` | #8 |
-| 部分 HTML | 残留「两个独立窗口」「/docs」「38 项」 | **需人工确认**逐篇核对，按 #3 / #4 处置 | #3 #4 |
+> 当前无未收敛欠账（最后销账 2026-11-08）。新发现过时点时按 §3.2【销账】补一行，收敛后当场删除。
 
 > **篇数口径（2026-11-08 已裁定，后续按此执行）**：文档站**收录 23 篇** = 6 类目录 20 篇（2+4+5+5+2+2）+ `docs/` 根 3 份清单（用户任务清单 / 学生试用观察清单 / 外部评审核对）。**`index.html` 自身是入口、不计入收录数；`prototypes/` 2 篇是非生产原型、属审计豁免，也不计入。** 全库 HTML 共 **26** 个 = 23 + `index.html` 1 + 原型 2。`README.md` / `HANDOVER.md` / `docs/index.html` 三处一律写「收录 23 篇」并带括号口径，不再把 21 / 24 / 26 当作收录数。
 
@@ -104,6 +92,12 @@
 - [ ] 活文档头部三元组与 `git status -sb` 一致
 - [ ] `docs/index.html` 导航链接可达、状态表篇数与 `§1` 表一致
 - [ ] 跑下面 grep，命中项逐条判定「该改 / 归档 / 已知欠账」
+- [ ] 【销账】用 `git diff --name-only` 列出本次改动的文档，逐条对照 §2.1：
+      本次已收敛的欠账行 → 当场删除并注明日期；新引入的过时点 → 当场补一行。
+      （§3.4 已有此规则，此处是执行点；不做这一步 §2.1 会再次变成误导清单）
+- [ ] 【链接 + 口径】跑一次相对链接检查（md []() 与 html href/src，含空格文件名
+      不要按空格截断），并核对 README.md / HANDOVER.md / docs/index.html 三处
+      篇数口径与状态词一致。
 
 ```bash
 # 在项目根目录执行（Windows Git Bash / macOS 通用，终端需 UTF-8）。
@@ -114,15 +108,21 @@ grep -rnE "b010c9e|9bda725" --include="*.md" --include="*.html" .
 grep -rnE "356|153|404|158|244|passed" --include="*.md" --include="*.html" .
 # C. 过期篇数 / 项数
 grep -rnE "23 篇|24 篇|26 篇|4 篇|38 项|31 项" --include="*.md" --include="*.html" .
-# D. 旧启动行为 / 旧文档路径
-grep -rnE "两个独立窗口|两个窗口|独立窗口|/docs" --include="*.md" --include="*.html" .
+# D. 旧启动行为 / 旧文档路径（勿含「独立窗口」：PWA 正常表述会误命中）
+grep -rnE "两个独立窗口|两个窗口|/docs" --include="*.md" --include="*.html" .
 # E. 活文档旧章节号引用（§8 已删；§0/§3/§5/§6 含义已变）
 grep -rnE "NEXT-ACTION.*§|§8" --include="*.md" --include="*.html" .
-# F. 是否误碰归档 / 豁免区（应为空）
+# F. 归档区改动审查（不是「应为空」，三种情形合法）
 git status --short -- docs/increments docs/06-项目档案 docs/prototypes
 ```
 
-> **判定顺序**：命中在 `docs/increments/`、`docs/06-项目档案/`、`docs/prototypes/` → **归档 / 豁免，不动**；命中在 `§2.1` 表 → 已登记欠账，非本任务不修；其余活跃文档命中 → 按 `§2` 路由处理。`404` / `158` 等数字会误命中普通文本，只作线索。
+> **判定顺序**：命中在 `docs/increments/`、`docs/06-项目档案/`、`docs/prototypes/` → **归档 / 豁免，不动**；**例外：`docs/increments/rhine-ui-rebuild-PRD.md` 是活规格（动态），不是归档，命中它按 `§2 #6` 处理，不能一刀切「归档不动」**；命中在 `§2.1` 表 → 已登记欠账，非本任务不修；其余活跃文档命中 → 按 `§2` 路由处理。`404` / `158` 等数字会误命中普通文本，只作线索。
+>
+> **F 的三种合法改动（2026-11-08 实测补充，别把 `git status` 有输出就判为违规）**：
+> ① **只加「当前状态（截至日期）」注**、不改任何历史数字（如 `06-项目档案/1. 需求与验收标准.html` 验收表上方加注）；
+> ② **活规格 `rhine-ui-rebuild-PRD.md` 的操作指引类引用修正**（决策结论 / Q 状态 / `PALETTE` 论证 / 装裱层规格一律不动）；
+> ③ **新增增量文档**（如 `doc-governance-audit.md` / `doc-site-audit.md`）。
+> 除此之外，上述三个目录出现 `M` / `D` 一律视为**违反归档红线**，须回退并复核。验证方式：`git diff -- <path>` 逐行看，只增不改 / 只改引用即合法。
 
 ### 3.3 不确定时怎么办
 
@@ -141,5 +141,7 @@ git status --short -- docs/increments docs/06-项目档案 docs/prototypes
 | `§2.1` 欠账被收敛 / 新增过时点 | 删 / 补对应行，注明日期 |
 | grep 关键词失效（如启动行为又变） | 更新 `§3.2` 命令 |
 | **commit / push / 测试数字变化** | **不更新**（本文件不持有状态值；HEAD 与数字只在活文档） |
+| 2026-11-08 本次销账（历史留痕） | 已删 `§2.1` 10 条已收敛欠账、修 `§3.2-D` 误命中关键词 `独立窗口`、`§3.2` 判定顺序补活规格例外；后续不再重复登记 |
+| 2026-11-08 阶段 B 销账（历史留痕） | `§2.1` 唯一 1 行欠账（UI PRD 11 处旧章节号）已收敛，表格改为「当前无未收敛欠账」；`§3.2` 补【销账】【链接 + 口径】两条 checkbox |
 
 > 维护责任：**下一位接手的 AI**，与 `NEXT-ACTION.md §5.5` 同。改完顺手核一遍其他文档有没有因本文件而过时。

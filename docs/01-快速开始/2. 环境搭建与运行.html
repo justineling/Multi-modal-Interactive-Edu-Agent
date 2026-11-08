@@ -79,13 +79,19 @@
   </ol>
 
   <div class="note">
-    <p><strong>停止服务：在启动窗口里按回车。</strong>脚本会杀掉整棵进程树并清理 PID 文件。
-    前后端的输出分别写在 <code>backend/data/launcher/</code> 下的
+    <p><strong>停止服务：先看完成页提示，判断这次走的是哪条路径。</strong></p>
+    <ul>
+      <li><strong>正常路径</strong>（完成页写 <code>Started. Closing this window stops ALL services automatically.</code>）：
+      <strong>直接关掉这一个窗口即停</strong>。Job Object 会连带清掉后端 reloader / server 与前端 node / vite / esbuild 整棵进程树，
+      不需要按回车，也不需要跑停止脚本。</li>
+      <li><strong>降级路径</strong>（完成页出现 <code>Auto-cleanup NOT enabled this run (...)</code>）：
+      才需要在窗口里<strong>按回车</strong>停止；若已经点了 X，再运行 <code>3. 停止网页端(Windows).bat</code> 兜底清理。</li>
+      <li><strong><code>-NoPause</code></strong>：服务有意常驻后台（自动化用），关窗口<strong>不会</strong>停，必须跑停止脚本。</li>
+    </ul>
+    <p>前后端的输出分别写在 <code>backend/data/launcher/</code> 下的
     <code>backend.out.log</code> / <code>backend.err.log</code> / <code>frontend.out.log</code> / <code>frontend.err.log</code>，
     排错时按服务分开看，比两路日志混在一个窗口里更清楚。</p>
-    <p style="margin-top:8px"><strong>如果直接点 X 关掉窗口</strong>，再运行一次
-    <code>3. 停止网页端(Windows).bat</code> 兜底清理后台服务。
-    想让浏览器打开别的地址，可以给启动脚本传 <code>-TargetUrl &lt;链接&gt;</code>。</p>
+    <p style="margin-top:8px">想让浏览器打开别的地址，可以给启动脚本传 <code>-TargetUrl &lt;链接&gt;</code>。</p>
   </div>
 
   <div class="warn">
@@ -228,7 +234,7 @@ python scripts/make_sample_pdf.py</code></pre>
     <thead><tr><th style="width:40px">#</th><th>检查项</th><th>预期</th></tr></thead>
     <tbody>
       <tr><td>1</td><td><code>GET /api/health</code></td><td><code>code: "OK"</code>，<code>demo_mode: true</code></td></tr>
-      <tr><td>2</td><td><code>GET /api/docs</code></td><td>看到 FastAPI 自动生成的 API 文档，21 个端点</td></tr>
+      <tr><td>2</td><td><code>GET /api/docs</code></td><td>看到 FastAPI 自动生成的 API 文档，端点清单见 <code>/api/docs</code></td></tr>
       <tr><td>3</td><td>前端首页</td><td>左右双栏，右栏显示空态示例问句</td></tr>
       <tr><td>4</td><td>上传样本 PDF</td><td>进度条 → 几秒内变成目录树，可折叠</td></tr>
       <tr><td>5</td><td>点目录树「4.1」</td><td>输入框自动填入「学习 4.1」</td></tr>

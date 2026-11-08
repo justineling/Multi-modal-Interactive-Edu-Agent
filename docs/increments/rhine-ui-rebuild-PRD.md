@@ -4,11 +4,11 @@
 |---|---|
 | 产品名 | 多模态沉浸式智能助教 / 自适应生成式学习工作区（Edu-Spatial Workspace） |
 | 增量代号 | `rhine_ui_rebuild` |
-| 文档版本 | **v1.2**（增量 · Q-1 / Q-2 已拍板、Q-5 已裁定） |
+| 文档版本 | **v1.3**（增量 · Q-1 / Q-2 已拍板、Q-5 已裁定；2026-11-08 章节号引用对齐） |
 | 作者 | 许清楚（产品经理） |
 | Language | 中文 |
 | Programming Language | 沿用现有 Vite + React + MUI + Tailwind CSS 3.4（不更换技术栈） |
-| 变更性质 | **增量、且仅产品定义层**。本次交付只有本 PRD 的 v1.2 更新：**不改任何代码、不改前端文件、不提交 git、不创建原型** |
+| 变更性质 | **增量、且仅产品定义层**。本次交付只有本 PRD 的 v1.3 更新：**不改任何代码、不改前端文件、不提交 git、不创建原型** |
 | 上游依据 | `rhine-lab-ui/SKILL.md`（路由层，完整读过）· `references/depth-levels.md` · `references/layout.md` · `references/patterns.md` · `references/legal.md` · `references/quickref.md` · `NEXT-ACTION.md` · `docs/用户任务清单.html` · `frontend/src/lib/theme.ts` · `frontend/src/components/layout/TopBar.tsx` · `frontend/src/types/events.ts` · `docs/00-源文档/PRD.md`（P0-12③）· `docs/prototypes/README.md`（B 层冷暖接缝观察）· **用户拍板记录（2026-11-07，team-lead 转达）** · **交付总监裁定记录（2026-11-07，用户授权，team-lead 转达）** |
 | 前序版本 | v1.0（Q-1 / Q-2 待拍板，v1.1 已收口；原取舍表完整保留作为决策依据）；v1.1（Q-5 当时为开放澄清，v1.2 已裁定） |
 | 文档状态 | **Q-1 / Q-2 已于 2026-11-07 拍板**；**Q-5 已于 2026-11-07 由交付总监裁定（用户授权）：默认亮色暖灰纸 `--rl-paper #eae5e1`，暗色为用户主动切换的衍生主题，全量推进不再重新拍板**（裁定与依据见第 4.9 节）；装裱层正式规格见第 4 节；下一步为单页原型评审（原型任务不在本次交付内） |
@@ -41,6 +41,12 @@
 | 3 | §0.6 问题索引 Q-5 状态改为「已裁定 2026-11-07」；纪律声明第 1 条把 Q-5 移出开放清单；AC-V17 改为可验收条目（默认亮色、暗色仅主动切换）并注明 `theme.ts` 注释属全量推进待改项 | 状态一致性，清除全文中把 Q-5 描述为开放项的残留表述 |
 | 4 | §4 规格索引下方、头部版本 / 状态 / 上游依据 / 前序版本、§7.4 落地约束、文末声明同步口径；新增本段变更记录 | 全文交叉引用不悬空 |
 | 5 | Q-1 / Q-2 拍板结论、Q-3 / Q-4 / Q-6 开放状态、§2 新 IA、§4.2~4.7 六条规格、其余验收条目、附录依据索引**一律未改** | 本次只收口 Q-5，不夹带其它决策 |
+
+### v1.2 → v1.3（2026-11-08 · NEXT-ACTION 章节号对齐）
+
+| # | 变更 | 原因 |
+|---|---|---|
+| 1 | 2026-11-08 · 按重写后的 NEXT-ACTION 章节号修正 11 处操作指引类引用，所有决策结论 / Q 状态 / PALETTE 论证 / 装裱层规格不变；依据见 `doc-governance-audit.md §2.3` | 活文档重写后旧章节号悬空；其中「测试顺序」与「先按第 1 步」属操作指引，不改会误导执行顺序 |
 
 > **纪律声明**（写在最前，避免误读）
 > 1. **Q-1 / Q-2 已于 2026-11-07 由用户拍板**，本文据此收口；**Q-5 已于 2026-11-07 由交付总监裁定（用户授权）：默认亮色暖灰纸 `--rl-paper #eae5e1`，暗色为用户主动切换的衍生主题，全量推进不再重新拍板**（裁定与依据见第 4.9 节）；仍未拍板的 Q-3 / Q-6 与「全量方案待定」的 Q-4 继续写成开放澄清，不用假设偷偷填掉。
@@ -206,10 +212,10 @@ depth:        complex
 |---|---|---|---|
 | 当前工作区 | `WORKSPACE / <真实名称或 id>` | `workspace_id`、workspace 列表 | `useWorkspaceSession.ts` 拉列表 / 为空自动建；`useWorkspaceStore` |
 | 文档编号 | `DOC-001`（+ `FILE X-003` / `01/05` 于右端） | 目录树点选带 `document_id`、artifact id、当前页序 | NEXT-ACTION 第三轮 Level 1；`TocTree`；`SlideRenderer` |
-| 检索状态 | 文字枚举 `IDLE` / `RETRIEVING` / `NO MATCH` / `ANCHORED` / `STREAMING` | SSE 正常事件序列 `turn_start → … → citations → turn_end`，以及 `NO_MATCH` /「课本未覆盖」 | `types/events.ts` §正常事件顺序；NEXT-ACTION §0 严格锚定教材 |
+| 检索状态 | 文字枚举 `IDLE` / `RETRIEVING` / `NO MATCH` / `ANCHORED` / `STREAMING` | SSE 正常事件序列 `turn_start → … → citations → turn_end`，以及 `NO_MATCH` /「课本未覆盖」 | `types/events.ts` §正常事件顺序；`NEXT-ACTION.md` + `README.md` §它解决什么问题 |
 | 演示模式 | `DEMO MODE / MOCK OUTPUT`（常驻，见第 5 节特别处理） | `GET /api/health` 的 `demo_mode` + SSE `turn_start` / `turn_end` 双处携带（一致性校验） | `api.ts` / `events.ts` / `TopBar.tsx` P0-12③ |
 
-**明确禁止**：`LOAD 42%`、`CHANNEL 07`、`SYS/NOMINAL`、`ACCESS LEVEL 04` 这类无数据源的伪遥测 / 伪权限。本产品**没有登录体系**（`NEXT-ACTION` §8 已知问题 7、用户任务清单 B-6 / D-8），故 `patterns.md` §4 的「权限等级 `LEVEL ##`」在本产品**无对应真实对象，不编造**；kicker 左侧改用 `SCOPE / DOC-001`（章节作用域，Level 1 已实现的真实语义）承担同类位置职责。检索状态用**文字枚举 + 细线 / 琥珀**表达，不编数值百分比。
+**明确禁止**：`LOAD 42%`、`CHANNEL 07`、`SYS/NOMINAL`、`ACCESS LEVEL 04` 这类无数据源的伪遥测 / 伪权限。本产品**没有登录体系**（用户任务清单 B-6 / D-8；旧版 NEXT-ACTION §8 已删除，现见 `NEXT-ACTION.md` §4 已知限制），故 `patterns.md` §4 的「权限等级 `LEVEL ##`」在本产品**无对应真实对象，不编造**；kicker 左侧改用 `SCOPE / DOC-001`（章节作用域，Level 1 已实现的真实语义）承担同类位置职责。检索状态用**文字枚举 + 细线 / 琥珀**表达，不编数值百分比。
 
 ### 2.4 编号系统映射表（编号落到真实对象）
 
@@ -286,7 +292,7 @@ depth:        complex
 | **(A) 应用外壳层** | `TopBar`、对话流（`MessageBubble` / `CitationList` / `Composer` / `AnchorChip`）、`TocTree`、`DocumentCard` / `FileDrawer`、画布**容器**、`CanvasToolbar`、`VersionMenu`、状态 / 错误 / PWA / 演示黄标、`index.css`、`theme.ts` 中的 `DARK_COLORS` / `LIGHT_COLORS` / `RADIUS` / `SHADOW` / `FONT_SIZE` / `FONT_FAMILY` / `DURATION_MS` | 可重构，无外部契约绑定 |
 | **(B) 产物内容层** | `SlideRenderer` 的 **6 种教学布局**画面本身、`Anim2DRenderer` 的 2D 画面、`Scene3DRenderer` 的 3D 场景画面本身，以及 `theme.ts` 的 **`PALETTE`**（8 色） | **有硬契约**：`theme.ts` 注释明确 `PALETTE` 必须与后端 `backend/app/schemas/artifacts.py::PALETTE` **逐字一致**；`Entity2D.color` / `Node3D.color` 在 Pydantic 校验器里被检查；Konva / Three 不认 CSS 变量，故 hex 是**有意的双份** |
 
-> 这条区分不是审美偏好，是架构事实：`PALETTE` = `#2563EB` 主蓝 / `#0EA5E9` 次蓝 / `#F59E0B` 高亮橙 / `#EF4444` 警示红 / `#10B981` 成功绿 / `#6366F1` 紫 / `#64748B` 中性灰 / `#E2E8F0` 浅底。它属于「LLM 只填 JSON AST、前端确定性渲染」这条核心架构原则的一部分（`NEXT-ACTION` §0）。**A 层的 `DARK_COLORS / LIGHT_COLORS` 与 B 层的 `PALETTE` 是两个不同的东西，重构 A 不等于动 B。**
+> 这条区分不是审美偏好，是架构事实：`PALETTE` = `#2563EB` 主蓝 / `#0EA5E9` 次蓝 / `#F59E0B` 高亮橙 / `#EF4444` 警示红 / `#10B981` 成功绿 / `#6366F1` 紫 / `#64748B` 中性灰 / `#E2E8F0` 浅底。它属于「LLM 只填 JSON AST、前端确定性渲染」这条核心架构原则的一部分（`NEXT-ACTION.md` §0 现状 + `README.md` §核心设计）。**A 层的 `DARK_COLORS / LIGHT_COLORS` 与 B 层的 `PALETTE` 是两个不同的东西，重构 A 不等于动 B。**
 
 ### 方案 1 · 只重构 (A)（未采纳，保留为依据）
 
@@ -302,7 +308,7 @@ depth:        complex
 | 维度 | 内容 |
 |---|---|
 | 做法 | 把 6 种布局、2D 实体、3D 节点也改成暖灰纸 / 墨黑 / 细线 / 编号 / 单一暖杏金 |
-| 对「学生能不能读得懂课件」 | **有实质风险，且不只是审美**：<br>① **语义编码丢失**：`SKILL.md` 铁律 1 明令「语义红绿也不用，状态靠文字 + 细线 + 琥珀表达」。而 `PALETTE` 的红 / 绿 / 蓝 / 橙正承担教学区分——quiz 的对错反馈、2D 推演的阶段区分、3D 标注点的分类会失去颜色编码，学生扫读成本上升；6 种布局原本的大字号彩色标题层级需整体重做字阶（`patterns.md` §3 要求标题与标签相差 ≥12px）。<br>② **打印 / 长时间阅读**：学生打印 / 交作业是真实场景（`NEXT-ACTION` §6 明确「不要砍掉导出 PDF」），暖灰底大面积铺墨在打印与投影下的观感与「课件」预期不符；skill 的打印样式豁免只解决「纯白背景」审计项，不解决教学可读性。<br>③ **真人测试判据失效**：A-2「生成的 PPT 内容像不像课本」、A-3「6 种布局是否都用上」的观察基线会被换掉，需重标 |
+| 对「学生能不能读得懂课件」 | **有实质风险，且不只是审美**：<br>① **语义编码丢失**：`SKILL.md` 铁律 1 明令「语义红绿也不用，状态靠文字 + 细线 + 琥珀表达」。而 `PALETTE` 的红 / 绿 / 蓝 / 橙正承担教学区分——quiz 的对错反馈、2D 推演的阶段区分、3D 标注点的分类会失去颜色编码，学生扫读成本上升；6 种布局原本的大字号彩色标题层级需整体重做字阶（`patterns.md` §3 要求标题与标签相差 ≥12px）。<br>② **打印 / 长时间阅读**：学生打印 / 交作业是真实场景（依据 `docs/用户任务清单.html` 与本 PRD §4.6「不做什么」：不要砍掉导出 PDF），暖灰底大面积铺墨在打印与投影下的观感与「课件」预期不符；skill 的打印样式豁免只解决「纯白背景」审计项，不解决教学可读性。<br>③ **真人测试判据失效**：A-2「生成的 PPT 内容像不像课本」、A-3「6 种布局是否都用上」的观察基线会被换掉，需重标 |
 | 契约 / 工期 | **改 B = 同时改四处**：`AST schema`（`Entity2D.color` / `Node3D.color`）、后端 Pydantic validators、LLM 提示词里的颜色枚举、Konva / Three 确定性渲染器。直接触碰「LLM 只填 JSON、前端确定性渲染、零编译、100% 不崩」的核心原则；已生成的历史版本产物 / 旧数据颜色会失配。工期与回归面在三个方案中最大 |
 | 收益 | 整屏视觉语言统一，「彻底」程度最高 |
 
@@ -422,7 +428,7 @@ depth:        complex
 
 | # | 不做什么 | 理由 |
 |---|---|---|
-| 6 | 不改导出 PDF 的打印结果（6 页 / 16:9 / 纯矢量） | `NEXT-ACTION` §6 明确「不要砍掉导出 PDF」；学生打印 / 交作业是真实场景 |
+| 6 | 不改导出 PDF 的打印结果（6 页 / 16:9 / 纯矢量） | `docs/用户任务清单.html` + 本 PRD §4.6「不做什么」（不要砍掉导出 PDF）；学生打印 / 交作业是真实场景 |
 | 7 | 不改历史版本产物的颜色 | 避免已生成版本 / 旧数据颜色失配（方案 2 表已指明该风险） |
 
 > **澄清**：`frontend/src/lib/theme.ts` **文件本身可以改**（A 层的 `DARK_COLORS` / `LIGHT_COLORS` / `RADIUS` / `SHADOW` / `FONT_SIZE` / `FONT_FAMILY` / `DURATION_MS` 都属重构对象，见第 3 节 A 层清单），但其中 **`PALETTE` 常量逐字不动**。
@@ -507,7 +513,7 @@ Q-2 已拍板「先看单页原型」，原型**不进 `frontend/src`**。路径
 | 3 | 对话流 SSE | 检视栏 `.rl-list` + 底部 `.rl-status--live` | 每条消息一个细线行，行首 `T-###`，行尾 `.rl-meta` `STATE / …` | 正常序列 `turn_start → … → citations → turn_end`；**`error` 可插入任意位置且之后仍会补发 `turn_end`**；重试期间 `error{retryable:true}` **不中断流**（`types/events.ts` 明确「不能一遇 error 就关流」） | 气泡改细线行；流式状态由呼吸点表达，结束转静态墨点 |
 | 4 | 页码引用 `[p.94]` | 检视栏 `CitationList` + 卷宗页页脚 | `.rl-meta` / `.rl-table--compact`：`SOURCE / [p.94]`、`SECTION / 4.1.3`、`DOC / DOC-001` | 严格锚定教材；检索不到说「课本未覆盖」，**禁止编造页码**；后置确定性重绑定后的页码原样展示（不改数字） | 引用段落改 KEY/VALUE；页码用 `tabular-nums`；装裱层只搬位置（第 4.4 节） |
 | 5 | 锚点追问与增量补丁 | 检视栏 `AnchorChip` → `Composer` | `.rl-tag`（`A-03 · 01/05`）+ 锚点条 + 唯一 `.rl-btn--solid`「发起修订」 | 点画布任意元素携带锚点；**只改那一处，其余页面字节级不变**；`update_node` 声明错误页会被抓出；产物不存在给可读错误且不发网络请求 | 锚点片改 `.rl-tag`；修订结果在流水里以 `PATCHED / A-03` 落 `T-xxx` |
-| 6 | 课件导出 PDF | 检视栏 / `CanvasToolbar` | `.rl-btn`（outline，非墨块） | `window.print()` → 另存为 PDF；**6 页 / 16:9 / 纯矢量**；打印时用户手动取消「页眉和页脚」（`NEXT-ACTION` §5 环境坑）；**不砍、不再投入** | 新增「档案风页框」不得破坏打印样式与分页（第 4.2 节） |
+| 6 | 课件导出 PDF | 检视栏 / `CanvasToolbar` | `.rl-btn`（outline，非墨块） | `window.print()` → 另存为 PDF；**6 页 / 16:9 / 纯矢量**；打印时用户手动取消「页眉和页脚」（`docs/00-源文档/IMPL-NOTES.md` 环境坑）；**不砍、不再投入** | 新增「档案风页框」不得破坏打印样式与分页（第 4.2 节） |
 | 7 | 版本历史 | 检视栏 `VersionMenu` | `.rl-list` + `.rl-meta`：`REV / 07`、`OP / update_node`、`PAGE / 01/05` | 每 artifact 保留最近 **20** 个可 patch 版本（`MAX_PATCHABLE_VERSIONS`） | 下拉菜单改细线列表；菜单浮层才允许 `--rl-overlay-shadow` |
 | 8 | PWA 安装 | 检视栏 / `TopBar` 位置 | `.rl-btn`（outline）或 `.rl-action` 文字 + 拖尾细线 | 必须 `http://localhost:5173`（secure context，`127.0.0.1` 看不到安装图标）；装完是独立窗口 | 不用安装图标（铁律 8：不用图标）；manifest / SW 不受样式重构影响 |
 | 9 | 演示模式黄标 | **`.rl-kicker` 常驻槽位** | `DEMO MODE / MOCK OUTPUT` 墨色加粗大写 + **一条 `--rl-accent` 琥珀细线 / 左竖线** + `.rl-status` 墨色实心点（非呼吸） | **P0-12③：常驻且显眼、不可关闭**（`TopBar.tsx` 注释：mock 伪装成真模型会让演示现场信誉归零）；数据源 `GET /api/health.demo_mode` + SSE `turn_start` / `turn_end` 双处一致 | 见下方「特别处理 ①」 |
@@ -579,8 +585,8 @@ Q-2 已拍板「先看单页原型」，原型**不进 `frontend/src`**。路径
 
 - `NEXT-ACTION.md` 开头：**「当前阶段：测试期，不是开发期」「用户已明确要求：先停止写代码，先做真实测试」「你读到这份文档时，不要主动开始实现新功能」**；并指出项目已连续四轮代码迭代，但**从未用真实教材验证过**，「继续写代码的边际收益已经很低，而『假设错误』的风险很高」。
 - `docs/用户任务清单.html`：**A 类 6 项真人测试全部尚未完成**（① 有头浏览器点导出 PDF ② 真实教材跑完整流程 ③ 真实 Key 跑 3~5 轮看内容质量 ④ PWA 装桌面用一整天 ⑤ 真实 GPU 看 3D+2D ⑥ 手机 / iPad 看布局）；另有 B 类 7 个待拍板决策、D 类 11 条已知问题。
-- 测试顺序（`NEXT-ACTION` §3）：第 1 步用户自己用真实教材跑一遍 → 第 2 步决定是否重标 grader 阈值 → 第 3 步找 1~2 个真实学生试用 → 第 4 步据反馈定下一步；且「**不要跳过第 1 步直接找人试用**」。用户任务清单结尾：「如果只能做一件事：先做 A 类第 2 条」。
-- `NEXT-ACTION` §6 的路线表里**没有任何 UI 重构条目**，甚至有两条明确「不要做」。
+- 测试顺序（`NEXT-ACTION.md` §2.3）：第 1 步用户自己用真实教材跑一遍 → 第 2 步决定是否重标 grader 阈值 → 第 3 步找 1~2 个真实学生试用 → 第 4 步据反馈定下一步；且「**不要跳过第 1 步直接找人试用**」。用户任务清单结尾：「如果只能做一件事：先做 A 类第 2 条」。
+- `NEXT-ACTION.md` §2.4 未列出 UI 重构的全量推进，且本 PRD §7 有两条明确「不要做」。
 
 ### 7.2 冲突本质
 
@@ -604,7 +610,7 @@ Q-2 已拍板「先看单页原型」，原型**不进 `frontend/src`**。路径
 2. 原型**不进 `frontend/src`**，按工程师任务书落位：A 层 `docs/prototypes/rhine-archive/index.html`（同目录 `rhine-lab.css` / `rhine-lab.js`，相对路径引用、`file://` 双击可开），B 层对照 `docs/prototypes/b-layer-reference.html`（见第 4.8 节）；生产 UI 与 A 类 6 项真人测试**完全不受影响**。
 3. 原型须醒目标注「**非生产版本，不可用于真人测试**」，避免「已经做完了」的错觉。
 4. 原型按**第 4 节装裱层规格**实现，默认亮色暖灰纸 + 暗色可切换（第 4.9 节）；A 层 `rhine-archive/` 跑 `audit --strict` **0 error 0 warning**，B 层对照页**逐文件显式登记豁免**（第 4.8 节）。
-5. 先按 `NEXT-ACTION` §3 完成**第 1 步「真实教材跑一遍」**——它是用户任务清单里「如果只能做一件事」的那件，会一次性暴露目录树识别、grader 阈值、页码质量、生成内容四项；**不要跳过第 1 步直接找人试用**。
+5. 先按 `NEXT-ACTION.md` §2.3 完成**第 1 步「真实教材跑一遍」**——它是用户任务清单里「如果只能做一件事」的那件，会一次性暴露目录树识别、grader 阈值、页码质量、生成内容四项；**不要跳过第 1 步直接找人试用**。
 6. 方式 ②（并行皮肤 + 开关）**保留为全量推进时的推荐路径**，本次不启动；待原型确认且 A 类 6 项 + 学生试用收敛后，再由用户决定是否采用与何时下线旧皮肤。
 
 > **Q-2 结论（已拍板 2026-11-07）：采用方式 ③「先看单页原型」。原型不进 `frontend/src`，生产 UI 与 6 项真人测试完全不受影响，本次不写任何生产代码。**
@@ -647,12 +653,12 @@ Q-2 已拍板「先看单页原型」，原型**不进 `frontend/src`**。路径
 | 字体 / logo / 官方素材降级、措辞 | `SKILL.md` §兜底总则；`references/legal.md` §字体、§标识、§措辞、§决策树、§审计脚本 |
 | 类名合法性、Token、data 属性、主题切换 | `references/quickref.md` §类名总表、§data 属性、§Token 全表、§最常见的 10 个猜错、§主题切换 |
 | 8 条铁律 / 味道命门 / 禁止模式 / 交付前审计 | `SKILL.md` §设计铁律、§味道命门、§禁止模式、§交付前审计（21 项，error / warning 分类） |
-| 测试期状态与推进顺序 | `NEXT-ACTION.md` 开头警告、§3 测试顺序、§6 路线与两条「不要做」、§8 已知问题 |
+| 测试期状态与推进顺序 | `NEXT-ACTION.md` §0 / §2.3 / §2.4 / §4（旧版 §3/§6/§8 为重写前编号，已废止） |
 | 6 项真人测试 / 7 个待拍板 / 11 条已知问题 | `docs/用户任务清单.html` A 类、B 类、C 类、D 类、结尾「如果只能做一件事」 |
 | A 层 / B 层契约区分 | `frontend/src/lib/theme.ts` 顶部三条硬约束注释、`PALETTE` 与 `DARK_COLORS / LIGHT_COLORS / RADIUS / SHADOW / FONT_SIZE / FONT_FAMILY / DURATION_MS / LAYOUT` |
 | 演示模式黄标 P0-12③ 常驻不可关闭 | `frontend/src/components/layout/TopBar.tsx` L32–34、L260–267；`frontend/src/types/api.ts` L133；`frontend/src/types/events.ts` L12、L74、L177；`frontend/src/hooks/useWorkspaceSession.ts` |
 | SSE `error` 不关流、之后仍补 `turn_end` | `frontend/src/types/events.ts` L6–L11、L43、L157–L162、L213–L215 |
-| 158 / 404 / 31 项测试基线 | `NEXT-ACTION.md` §1 当前状态 |
+| 158 / 404 / 31 项测试基线 | `HANDOVER.md` §一（唯一真源） |
 | **Q-1 / Q-2 用户拍板（2026-11-07）** | team-lead 转达的用户决策记录；本 PRD v1.1 变更记录；第 3 节 / 第 7.4 节结论段 |
 | **装裱层页框 / 页眉页脚 / 出处脚注 / 字阶边界** | `quickref.md` §容器 `.rl-panel`、§排版 `.rl-label` / `.rl-meta` / `.rl-readout`；`patterns.md` §1 细线三级、§3 字阶、§4 编号；`layout.md` §对齐纪律、§常见布局错误；本 PRD 第 4 节 |
 | **「档案外壳 + 彩色内页」不违和的依据** | `layout.md` §1「原设计的桌面构图是左三维模型、右档案文本」（主视觉与档案文本并置，主视觉并未被要求变成米色）；本 PRD 第 4.7 节 |
@@ -660,4 +666,4 @@ Q-2 已拍板「先看单页原型」，原型**不进 `frontend/src`**。路径
 
 ---
 
-**文档结束。本次交付仅此 PRD v1.2；Q-1 / Q-2 已于 2026-11-07 拍板并收口，Q-5 已于同日由交付总监裁定（用户授权：默认亮色暖灰纸 `--rl-paper #eae5e1`，暗色为用户主动切换的衍生主题，全量推进不再重新拍板，见第 4.9 节），装裱层正式规格见第 4 节。未创建原型、未写任何生产代码、未改动任何代码或前端文件、未提交 git。**
+**文档结束。本次交付仅此 PRD v1.3；Q-1 / Q-2 已于 2026-11-07 拍板并收口，Q-5 已于同日由交付总监裁定（用户授权：默认亮色暖灰纸 `--rl-paper #eae5e1`，暗色为用户主动切换的衍生主题，全量推进不再重新拍板，见第 4.9 节），装裱层正式规格见第 4 节。未创建原型、未写任何生产代码、未改动任何代码或前端文件、未提交 git。**

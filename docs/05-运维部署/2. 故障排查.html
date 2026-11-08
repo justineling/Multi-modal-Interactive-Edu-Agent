@@ -54,7 +54,7 @@ taskkill /PID 12345 /F
 uvicorn app.main:app --reload --port 8001</code></pre>
 
   <h3>前端起不来：<code>EADDRINUSE</code></h3>
-  <p>5173 被占。Vite 会自动找下一个端口（5174），看终端输出的实际地址。</p>
+  <p><strong>一键启动脚本</strong>用 <code>--port 5173 --strictPort</code> 把前端钉死，端口被占会<strong>明确报错并退出</strong>，不会静默换端口（否则已安装的 PWA 快捷方式会失效）。此时按提示用 <code>netstat -ano | findstr :5173</code> 找占用者并结束，或重启机器。<strong>手动</strong> <code>npm run dev</code> 不带 <code>--strictPort</code> 时 vite 才会自动顺延到 5174，以终端输出地址为准。</p>
 
   <h3>前端 <code>npm install</code> 报 peer 冲突</h3>
 

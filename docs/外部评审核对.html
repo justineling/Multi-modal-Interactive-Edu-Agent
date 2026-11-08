@@ -148,7 +148,8 @@
         <td><strong>已验证为真缺陷。</strong><code>retriever.retrieve()</code> 只接 <code>workspace_id</code>，
           <code>search_similar(workspace_id, ..., section_prefix=...)</code> 不带 <code>document_id</code>。
           同一工作区传 Form 4 + Form 5（都有 <code>Bab 4 → 4.1</code>）会混召回。
-          <strong>这条我之前没注意到，是最有价值的发现。</strong></td>
+          <strong>这条我之前没注意到，是最有价值的发现。</strong>
+          <div class="note" style="margin-top:10px"><p><strong>当前状态（截至 2026-11-08）：</strong><code>document_id</code> 已从 API 贯通到 <code>search_similar</code>，点目录树自动带所属文档，Level 1 已完成并端到端验证（两本书 4.1 不再混召回）。剩余 Level 2/3（会话惯性继承、歧义短路与目录树高亮带 documentId）仍开放，见 <code>NEXT-ACTION.md §2.5</code> B-4。</p></div></td>
         <td><span class="badge err">高</span></td>
       </tr>
       <tr>
@@ -260,6 +261,10 @@
 其余建议（章节碰撞、Quiz 闭环、PDF 预览、2D/3D 语义布局、按 ID 寻址、
 并行骨架屏、窄屏响应式）均成立，已进入需求池。其中「章节碰撞」已验证为真缺陷：
 retriever.retrieve() 只接 workspace_id，search_similar 的 section_prefix 不带 document_id。</code></pre>
+
+  <div class="note">
+    <p><strong>当前状态（截至 2026-11-08）：</strong><code>document_id</code> 已从 API 贯通到 <code>search_similar</code>，点目录树自动带所属文档，Level 1 已完成并端到端验证（两本书 4.1 不再混召回）。剩余 Level 2/3（会话惯性继承、歧义短路与目录树高亮带 documentId）仍开放，见 <code>NEXT-ACTION.md §2.5</code> B-4。</p>
+  </div>
 
   <div class="tip">
     <p><strong>这份点评最值得肯定的一点：</strong>它从「目录树 + 文档 + increments 实验元数据」就能推断出
